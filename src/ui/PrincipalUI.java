@@ -40,8 +40,11 @@ public class PrincipalUI extends JFrame {
     public PrincipalUI() {
         super("La Casa Amarilla · Matrícula 2027");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1440, 900);
+        // El diseño es de 1440×900, pero muchas laptops del equipo son de 1366×768:
+        // se abre maximizada y el panel central absorbe la diferencia.
+        setMinimumSize(new Dimension(1280, 720));
         setLocationRelativeTo(null);
+        setExtendedState(JFrame.MAXIMIZED_BOTH);
 
         setLayout(new BorderLayout());
         add(crearCabecera(), BorderLayout.NORTH);
