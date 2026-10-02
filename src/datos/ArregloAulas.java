@@ -16,7 +16,7 @@ public class ArregloAulas {
     }
 
     public ArrayList<Aula> listar() {
-        return aulas;
+        return new ArrayList<Aula>(aulas);
     }
 
     public Aula buscar(String codigo) {
