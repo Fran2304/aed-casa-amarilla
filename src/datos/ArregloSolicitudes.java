@@ -35,6 +35,8 @@ public class ArregloSolicitudes {
 
         alumno.validarApoderados();
 
+        // Supuesto: edad exacta = edad del aula. Los rangos de edad por aula siguen
+        // pendientes de definición (§6.2); si el nido acepta rangos, se cambia aquí.
         int edad = alumno.edadAl(FechasAdmision.CORTE_2027);
         if (edad != aula.getEdadRequerida()) {
             throw new ReglaDominioException(alumno.getNombreCompleto() + " tendrá " + edad
