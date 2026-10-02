@@ -15,6 +15,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 
 import datos.ArregloAulas;
+import datos.ArregloPagos;
 import modelo.ConfiguracionCuotas;
 
 public class PrincipalUI extends JFrame {
@@ -35,6 +36,7 @@ public class PrincipalUI extends JFrame {
     // en vez de crear la suya y quedar desincronizados.
     private final ArregloAulas aulas = new ArregloAulas();
     private final ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
+    private final ArregloPagos pagos = new ArregloPagos();
 
     public PrincipalUI() {
         super("La Casa Amarilla · Matrícula 2027");
@@ -67,6 +69,10 @@ public class PrincipalUI extends JFrame {
 
     public ConfiguracionCuotas getCuotas() {
         return cuotas;
+    }
+
+    public ArregloPagos getPagos() {
+        return pagos;
     }
 
     private JPanel crearCabecera() {
@@ -125,7 +131,7 @@ public class PrincipalUI extends JFrame {
         agregarPanel(new PanelColas(), COLAS);
         agregarPanel(new PanelDocumentos(), DOCUMENTOS);
         agregarPanel(new PanelEntrevistas(), ENTREVISTAS);
-        agregarPanel(new PanelPagos(), PAGOS);
+        agregarPanel(new PanelPagos(pagos, cuotas), PAGOS);
         agregarPanel(new PanelHistorial(), HISTORIAL);
         agregarPanel(new PanelCuotas(cuotas), CUOTAS);
         return panelCentral;
