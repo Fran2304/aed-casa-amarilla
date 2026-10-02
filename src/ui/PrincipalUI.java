@@ -15,6 +15,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 
 import datos.ArregloAulas;
+import datos.ArregloSolicitudes;
 
 public class PrincipalUI extends JFrame {
 
@@ -32,6 +33,7 @@ public class PrincipalUI extends JFrame {
     // Una sola lista de aulas para toda la app: los paneles la piden con getAulas()
     // en vez de crear la suya y quedar desincronizados.
     private final ArregloAulas aulas = new ArregloAulas();
+    private final ArregloSolicitudes solicitudes = new ArregloSolicitudes();
 
     public PrincipalUI() {
         super("La Casa Amarilla · Matrícula 2027");
@@ -60,6 +62,10 @@ public class PrincipalUI extends JFrame {
 
     public ArregloAulas getAulas() {
         return aulas;
+    }
+
+    public ArregloSolicitudes getSolicitudes() {
+        return solicitudes;
     }
 
     private JPanel crearCabecera() {
