@@ -4,6 +4,7 @@ import java.util.EnumMap;
 import java.util.Map;
 import java.util.Set;
 
+import modelo.EstadoDocumento;
 import modelo.EstadoMatricula;
 import modelo.EstadoPago;
 import modelo.EstadoSolicitud;
@@ -14,6 +15,7 @@ public final class Transiciones {
     private static final Map<EstadoSolicitud, Set<EstadoSolicitud>> TRANSICIONES_SOLICITUD;
     private static final Map<EstadoMatricula, Set<EstadoMatricula>> TRANSICIONES_MATRICULA;
     private static final Map<EstadoPago, Set<EstadoPago>> TRANSICIONES_PAGO;
+    private static final Map<EstadoDocumento, Set<EstadoDocumento>> TRANSICIONES_DOCUMENTO;
 
     static {
         TRANSICIONES_SOLICITUD = new EnumMap<>(EstadoSolicitud.class);
@@ -40,6 +42,13 @@ public final class Transiciones {
         TRANSICIONES_PAGO.put(EstadoPago.OBSERVADO,
                 Set.of(EstadoPago.CONFIRMADO));
         TRANSICIONES_PAGO.put(EstadoPago.CONFIRMADO, Set.of());
+
+        TRANSICIONES_DOCUMENTO = new EnumMap<>(EstadoDocumento.class);
+        TRANSICIONES_DOCUMENTO.put(EstadoDocumento.EN_REVISION,
+                Set.of(EstadoDocumento.VALIDADO, EstadoDocumento.OBSERVADO));
+        TRANSICIONES_DOCUMENTO.put(EstadoDocumento.OBSERVADO,
+                Set.of(EstadoDocumento.EN_REVISION));
+        TRANSICIONES_DOCUMENTO.put(EstadoDocumento.VALIDADO, Set.of());
     }
 
     private Transiciones() {
@@ -63,6 +72,12 @@ public final class Transiciones {
                 && TRANSICIONES_PAGO.get(origen).contains(destino);
     }
 
+    public static boolean puedeTransicionar(EstadoDocumento origen, EstadoDocumento destino) {
+        return origen != null
+                && destino != null
+                && TRANSICIONES_DOCUMENTO.get(origen).contains(destino);
+    }
+
     public static void exigirTransicion(EstadoSolicitud origen, EstadoSolicitud destino)
             throws TransicionInvalidaException {
         if (!puedeTransicionar(origen, destino)) {
@@ -84,6 +99,14 @@ public final class Transiciones {
         if (!puedeTransicionar(origen, destino)) {
             throw new TransicionInvalidaException(
                     "Un pago no puede pasar de " + origen + " a " + destino + ".");
+        }
+    }
+
+    public static void exigirTransicion(EstadoDocumento origen, EstadoDocumento destino)
+            throws TransicionInvalidaException {
+        if (!puedeTransicionar(origen, destino)) {
+            throw new TransicionInvalidaException(
+                    "Un documento no puede pasar de " + origen + " a " + destino + ".");
         }
     }
 }
