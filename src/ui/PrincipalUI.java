@@ -15,6 +15,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 
 import datos.ArregloAulas;
+import modelo.ConfiguracionCuotas;
 
 public class PrincipalUI extends JFrame {
 
@@ -25,6 +26,7 @@ public class PrincipalUI extends JFrame {
     public static final String ENTREVISTAS = "ENTREVISTAS";
     public static final String PAGOS = "PAGOS";
     public static final String HISTORIAL = "HISTORIAL";
+    public static final String CUOTAS = "CUOTAS";
 
     private final CardLayout tarjetas = new CardLayout();
     private final JPanel panelCentral = new JPanel(tarjetas);
@@ -32,6 +34,7 @@ public class PrincipalUI extends JFrame {
     // Una sola lista de aulas para toda la app: los paneles la piden con getAulas()
     // en vez de crear la suya y quedar desincronizados.
     private final ArregloAulas aulas = new ArregloAulas();
+    private final ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
 
     public PrincipalUI() {
         super("La Casa Amarilla · Matrícula 2027");
@@ -60,6 +63,10 @@ public class PrincipalUI extends JFrame {
 
     public ArregloAulas getAulas() {
         return aulas;
+    }
+
+    public ConfiguracionCuotas getCuotas() {
+        return cuotas;
     }
 
     private JPanel crearCabecera() {
@@ -99,6 +106,7 @@ public class PrincipalUI extends JFrame {
         agregarBotonMenu(lateral, "Entrevistas", ENTREVISTAS);
         agregarBotonMenu(lateral, "Pagos y matrículas", PAGOS);
         agregarBotonMenu(lateral, "Historial", HISTORIAL);
+        agregarBotonMenu(lateral, "Cuotas 2027", CUOTAS);
 
         lateral.add(Box.createVerticalGlue());
         return lateral;
@@ -119,6 +127,7 @@ public class PrincipalUI extends JFrame {
         agregarPanel(new PanelEntrevistas(), ENTREVISTAS);
         agregarPanel(new PanelPagos(), PAGOS);
         agregarPanel(new PanelHistorial(), HISTORIAL);
+        agregarPanel(new PanelCuotas(cuotas), CUOTAS);
         return panelCentral;
     }
 
