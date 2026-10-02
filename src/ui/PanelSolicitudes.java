@@ -30,7 +30,9 @@ import javax.swing.event.DocumentListener;
 import datos.ArregloAulas;
 import modelo.Aula;
 import modelo.EstadoSolicitud;
+import modelo.Matricula;
 import modelo.MedioPago;
+import negocio.Vacantes;
 import util.FechasAdmision;
 
 public class PanelSolicitudes extends JPanel {
@@ -57,6 +59,9 @@ public class PanelSolicitudes extends JPanel {
     private final Set<String> dnisRegistrados = new HashSet<>();
     private final Map<String, String> codigoPorDni = new HashMap<>();
     private int correlativoSol = 1042;
+    // Punto de conexión con el registro de matrículas (#26): cuando exista la lista
+    // central, pasarla al constructor en vez de esta lista local.
+    private final ArrayList<Matricula> matriculas = new ArrayList<>();
 
     private final JPanel tarjetasInternas = new JPanel(new java.awt.CardLayout());
     private final JPanel panelFormulario = new JPanel(new BorderLayout(0, 12));
@@ -81,6 +86,7 @@ public class PanelSolicitudes extends JPanel {
         panelFicha.add(fichaTexto, BorderLayout.CENTER);
         JPanel fichaSur = new JPanel(new FlowLayout(FlowLayout.LEFT));
         fichaSur.setOpaque(false);
+        botonVerFicha.addActionListener(e -> mostrarFicha(campoDni.getText().trim()));
         fichaSur.add(botonVerFicha);
         JButton botonVolver = Estilos.botonSecundario("Nueva búsqueda");
         botonVolver.addActionListener(e -> mostrarFormulario());
@@ -226,6 +232,22 @@ public class PanelSolicitudes extends JPanel {
             mostrarFicha(dni);
             return;
         }
+        // Mientras #7 no exista, el stub exige lo mismo que el flujo §4.1:
+        // al menos un apoderado y exactamente un principal.
+        if (modeloApoderados.isEmpty()) {
+            pintarFranja("Registra al menos un apoderado antes de guardar.", false);
+            return;
+        }
+        int principales = 0;
+        for (boolean[] marca : marcasPrincipal) {
+            if (marca[0]) {
+                principales++;
+            }
+        }
+        if (principales != 1) {
+            pintarFranja("Designa exactamente un apoderado principal.", false);
+            return;
+        }
         // TODO(#7): reemplazar por el módulo de registro con validaciones completas.
         String codigo = "SOL-" + (correlativoSol++);
         dnisRegistrados.add(dni);
@@ -256,8 +278,10 @@ public class PanelSolicitudes extends JPanel {
             indicadorVacantes.setText("");
             return;
         }
-        indicadorVacantes.setText(aula.getNombre() + " · capacidad " + aula.getCapacidad()
-                + " · las vacantes se calculan, no se reservan.");
+        // Vacantes calculadas con el módulo real (#20): no se reservan al consultar.
+        int vacantes = Vacantes.calcular(aula, matriculas);
+        indicadorVacantes.setText(aula.getNombre() + " · " + vacantes
+                + " vacantes disponibles · no se reservan al consultar.");
     }
 
     private DocumentListener soloRecalcular() {
