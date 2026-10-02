@@ -16,8 +16,6 @@ import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
 
 import datos.ArregloPagos;
 import modelo.ConceptoPago;
@@ -71,7 +69,6 @@ public class PanelPagos extends JPanel {
         add(centro, BorderLayout.CENTER);
 
         comboMedio.addActionListener(e -> actualizarPistaOperacion());
-        campoOperacion.getDocument().addDocumentListener(soloPista());
         actualizarPistaOperacion();
         mostrarMontoReferencia();
     }
@@ -144,6 +141,9 @@ public class PanelPagos extends JPanel {
         JButton observar = Estilos.botonSecundario("Registrar observación");
         observar.addActionListener(e -> observar());
         acciones.add(observar);
+        JButton nuevo = Estilos.botonSecundario("Nuevo");
+        nuevo.addActionListener(e -> nuevo());
+        acciones.add(nuevo);
         return acciones;
     }
 
@@ -171,25 +171,6 @@ public class PanelPagos extends JPanel {
                 efectivo ? Estilos.SECUNDARIO : Estilos.TEXTO_ALERTA);
     }
 
-    private DocumentListener soloPista() {
-        return new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                actualizarPistaOperacion();
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                actualizarPistaOperacion();
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                actualizarPistaOperacion();
-            }
-        };
-    }
-
     private void mostrarMontoReferencia() {
         campoMonto.setToolTipText(String.format(Locale.ROOT,
                 "Cuota vigente: inscripción S/ %.2f · matrícula S/ %.2f.",
@@ -204,6 +185,9 @@ public class PanelPagos extends JPanel {
                     + " Por ahora registra pagos de inscripción.", true);
             return;
         }
+        // La cuota pudo cambiar en Cuotas 2027 durante la sesión: releerla.
+        mostrarMontoReferencia();
+        limite.setText(" ");
         try {
             pagoActual = pagos.registrar(
                     (ConceptoPago) comboConcepto.getSelectedItem(),
@@ -228,28 +212,21 @@ public class PanelPagos extends JPanel {
             mostrarMensaje("Registra primero el comprobante.", true);
             return;
         }
-        double cuota = esInscripcion()
-                ? cuotas.getCuotaInscripcion()
-                : cuotas.getCuotaMatricula();
+        // En M2 todo pago registrado aquí es de inscripción (registrar bloquea matrícula).
         try {
-            pagoActual.confirmar(cuota);
+            pagoActual.confirmar(cuotas.getCuotaInscripcion());
         } catch (ReglaDominioException e) {
             mostrarMensaje(e.getMessage() + " Registra una observación.", true);
             return;
         }
         actualizarChip();
         setSoloLectura(true);
-        if (esInscripcion()) {
-            // La transición a EN_DOCUMENTACION y el plazo los aplica el issue #13;
-            // aquí se muestra la fecha que corresponde: confirmación + 7 días (§4.3).
-            String limiteDocs = LocalDate.now().plusDays(7).format(FORMATO_LIMITE);
-            limite.setText("Nueva fecha límite de documentos: " + limiteDocs + ".");
-            mostrarMensaje("Inscripción confirmada. La solicitud pasa a EN DOCUMENTACIÓN.",
-                    false);
-        } else {
-            limite.setText("La activación de la matrícula llega con la pantalla #26.");
-            mostrarMensaje("Pago de matrícula confirmado.", false);
-        }
+        // La transición a EN_DOCUMENTACION y el plazo los aplica el issue #13;
+        // aquí se muestra la fecha que corresponde: confirmación + 7 días (§4.3).
+        String limiteDocs = LocalDate.now().plusDays(7).format(FORMATO_LIMITE);
+        limite.setText("Nueva fecha límite de documentos: " + limiteDocs + ".");
+        mostrarMensaje("Inscripción confirmada. La solicitud pasa a EN DOCUMENTACIÓN.",
+                false);
     }
 
     private void observar() {
@@ -293,13 +270,26 @@ public class PanelPagos extends JPanel {
         }
     }
 
+    // Paleta semántica del tema: espera=amarillo, alerta=rojo claro,
+    // confirmado=verde favorable.
     private void actualizarChip() {
-        JLabel nuevo = pagoActual.estaConfirmado()
-                ? Estilos.chip("CONFIRMADO")
-                : Estilos.chip(pagoActual.getEstado().name());
-        chipEstado.setText(nuevo.getText());
-        chipEstado.setBackground(nuevo.getBackground());
-        chipEstado.setForeground(nuevo.getForeground());
+        switch (pagoActual.getEstado()) {
+            case CONFIRMADO:
+                pintarChip("CONFIRMADO", Estilos.FAVORABLE, Estilos.TEXTO_PRINCIPAL);
+                break;
+            case OBSERVADO:
+                pintarChip("OBSERVADO", Estilos.ALERTA, Estilos.TEXTO_ALERTA);
+                break;
+            default:
+                pintarChip("RECIBIDO", Estilos.ESPERA, Estilos.TEXTO_ESPERA);
+                break;
+        }
+    }
+
+    private void pintarChip(String texto, java.awt.Color fondo, java.awt.Color letra) {
+        chipEstado.setText(texto);
+        chipEstado.setBackground(fondo);
+        chipEstado.setForeground(letra);
     }
 
     // Un pago confirmado no se edita (§4.8): los campos quedan en solo-lectura.
@@ -312,6 +302,20 @@ public class PanelPagos extends JPanel {
         campoOperacion.setEditable(editable);
         campoFecha.setEditable(editable);
         campoComprobante.setEditable(editable);
+        campoMotivo.setEditable(editable);
+    }
+
+    // Tras confirmar, el panel quedaba muerto: este botón lo deja listo
+    // para el siguiente comprobante.
+    private void nuevo() {
+        pagoActual = null;
+        setSoloLectura(false);
+        chipEstado.setText("SIN PAGO");
+        chipEstado.setBackground(Estilos.ESPERA);
+        chipEstado.setForeground(Estilos.TEXTO_ESPERA);
+        campoMotivo.setText("");
+        limite.setText(" ");
+        mostrarMensaje(" ", false);
     }
 
     private void mostrarMensaje(String texto, boolean esError) {
