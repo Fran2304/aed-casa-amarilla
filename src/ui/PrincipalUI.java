@@ -14,6 +14,8 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
+import datos.ArregloAulas;
+
 public class PrincipalUI extends JFrame {
 
     public static final String INICIO = "INICIO";
@@ -27,6 +29,9 @@ public class PrincipalUI extends JFrame {
     private final CardLayout tarjetas = new CardLayout();
     private final JPanel panelCentral = new JPanel(tarjetas);
     private final List<BotonMenu> botonesMenu = new ArrayList<>();
+    // Una sola lista de aulas para toda la app: los paneles la piden con getAulas()
+    // en vez de crear la suya y quedar desincronizados.
+    private final ArregloAulas aulas = new ArregloAulas();
 
     public PrincipalUI() {
         super("La Casa Amarilla · Matrícula 2027");
@@ -51,6 +56,10 @@ public class PrincipalUI extends JFrame {
             boolean esElActual = boton.getNombrePanel().equals(nombrePanel);
             boton.setSeleccionado(esElActual);
         }
+    }
+
+    public ArregloAulas getAulas() {
+        return aulas;
     }
 
     private JPanel crearCabecera() {
