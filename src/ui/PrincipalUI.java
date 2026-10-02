@@ -2,7 +2,6 @@ package ui;
 
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
-import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.util.ArrayList;
@@ -24,14 +23,6 @@ public class PrincipalUI extends JFrame {
     public static final String ENTREVISTAS = "ENTREVISTAS";
     public static final String PAGOS = "PAGOS";
     public static final String HISTORIAL = "HISTORIAL";
-
-    // Colores del frame «01 · Panel de operaciones».
-    private static final Color FONDO_CABECERA = new Color(0x263B35);
-    private static final Color FONDO_LATERAL = new Color(0xE7EDE5);
-    private static final Color FONDO_CONTENIDO = new Color(0xFAF7EF);
-    private static final Color TEXTO_CLARO = Color.WHITE;
-    private static final Color TEXTO_AMARILLO = new Color(0xFFF0BE);
-    private static final Color TEXTO_SECUNDARIO = new Color(0x53635C);
 
     private final CardLayout tarjetas = new CardLayout();
     private final JPanel panelCentral = new JPanel(tarjetas);
@@ -65,15 +56,15 @@ public class PrincipalUI extends JFrame {
     private JPanel crearCabecera() {
         JPanel cabecera = new JPanel(new BorderLayout());
         cabecera.setPreferredSize(new Dimension(0, 68));
-        cabecera.setBackground(FONDO_CABECERA);
+        cabecera.setBackground(Estilos.TEXTO_PRINCIPAL);
         cabecera.setBorder(BorderFactory.createEmptyBorder(0, 32, 0, 40));
 
         JLabel titulo = new JLabel("La Casa Amarilla   /   Matrícula 2027");
-        titulo.setFont(titulo.getFont().deriveFont(Font.BOLD, 19f));
-        titulo.setForeground(TEXTO_CLARO);
+        titulo.setFont(Estilos.fuente(Font.BOLD, 19));
+        titulo.setForeground(Estilos.BLANCO);
         JLabel sede = new JLabel("Sede San Borja · Personal");
-        sede.setFont(sede.getFont().deriveFont(Font.PLAIN, 14f));
-        sede.setForeground(TEXTO_AMARILLO);
+        sede.setFont(Estilos.contenido());
+        sede.setForeground(Estilos.ESPERA);
 
         cabecera.add(titulo, BorderLayout.WEST);
         cabecera.add(sede, BorderLayout.EAST);
@@ -84,11 +75,11 @@ public class PrincipalUI extends JFrame {
         JPanel lateral = new JPanel();
         lateral.setLayout(new BoxLayout(lateral, BoxLayout.Y_AXIS));
         lateral.setPreferredSize(new Dimension(220, 0));
-        lateral.setBackground(FONDO_LATERAL);
+        lateral.setBackground(Estilos.FONDO_LATERAL);
 
         JLabel seccion = new JLabel("OPERACIÓN 2027");
-        seccion.setFont(seccion.getFont().deriveFont(Font.BOLD, 12f));
-        seccion.setForeground(TEXTO_SECUNDARIO);
+        seccion.setFont(Estilos.fuente(Font.BOLD, 12));
+        seccion.setForeground(Estilos.SECUNDARIO);
         seccion.setBorder(BorderFactory.createEmptyBorder(30, 24, 16, 24));
         lateral.add(seccion);
 
@@ -124,7 +115,7 @@ public class PrincipalUI extends JFrame {
 
     // El fondo se pone aquí para que ningún integrante tenga que repetirlo en su panel.
     private void agregarPanel(JPanel panel, String nombrePanel) {
-        panel.setBackground(FONDO_CONTENIDO);
+        panel.setBackground(Estilos.FONDO_CREMA);
         panelCentral.add(panel, nombrePanel);
     }
 }

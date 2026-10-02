@@ -1,6 +1,5 @@
 package ui;
 
-import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
 
@@ -10,10 +9,6 @@ import javax.swing.SwingConstants;
 
 public class BotonMenu extends JButton {
 
-    private static final Color FONDO_NORMAL = new Color(0xE7EDE5);
-    private static final Color FONDO_SELECCIONADO = new Color(0xFFF0BE);
-    private static final Color TEXTO = new Color(0x263B35);
-
     private final String nombrePanel;
 
     public BotonMenu(String texto, String nombrePanel) {
@@ -22,7 +17,7 @@ public class BotonMenu extends JButton {
 
         setHorizontalAlignment(SwingConstants.LEFT);
         setBorder(BorderFactory.createEmptyBorder(0, 26, 0, 12));
-        setForeground(TEXTO);
+        setForeground(Estilos.TEXTO_PRINCIPAL);
         setFocusPainted(false);
         setContentAreaFilled(false);
         setOpaque(true);
@@ -37,11 +32,11 @@ public class BotonMenu extends JButton {
 
     public void setSeleccionado(boolean seleccionado) {
         if (seleccionado) {
-            setBackground(FONDO_SELECCIONADO);
-            setFont(getFont().deriveFont(Font.BOLD, 15f));
+            setBackground(Estilos.ESPERA);
+            setFont(Estilos.fuente(Font.BOLD, 15));
         } else {
-            setBackground(FONDO_NORMAL);
-            setFont(getFont().deriveFont(Font.PLAIN, 15f));
+            setBackground(Estilos.FONDO_LATERAL);
+            setFont(Estilos.fuente(Font.PLAIN, 15));
         }
     }
 }
