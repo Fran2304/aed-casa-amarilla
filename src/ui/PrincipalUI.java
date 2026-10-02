@@ -16,6 +16,7 @@ import javax.swing.JPanel;
 
 import datos.ArregloAulas;
 import datos.ArregloPagos;
+import datos.ArregloSolicitudes;
 import modelo.ConfiguracionCuotas;
 
 public class PrincipalUI extends JFrame {
@@ -35,6 +36,7 @@ public class PrincipalUI extends JFrame {
     // Una sola lista de aulas para toda la app: los paneles la piden con getAulas()
     // en vez de crear la suya y quedar desincronizados.
     private final ArregloAulas aulas = new ArregloAulas();
+    private final ArregloSolicitudes solicitudes = new ArregloSolicitudes();
     private final ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
     private final ArregloPagos pagos = new ArregloPagos();
 
@@ -65,6 +67,10 @@ public class PrincipalUI extends JFrame {
 
     public ArregloAulas getAulas() {
         return aulas;
+    }
+
+    public ArregloSolicitudes getSolicitudes() {
+        return solicitudes;
     }
 
     public ConfiguracionCuotas getCuotas() {
