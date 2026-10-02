@@ -82,17 +82,10 @@ public class PanelCuotas extends JPanel {
     }
 
     private void guardar() {
-        // Se validan ambos montos antes de guardar: si uno falla, no queda la mitad aplicada.
-        double inscripcion;
-        double matricula;
         try {
-            inscripcion = leerMonto(campoInscripcion, "cuota de inscripción");
-            matricula = leerMonto(campoMatricula, "cuota de matrícula");
-            if (inscripcion <= 0 || matricula <= 0) {
-                throw new DatoInvalidoException("Las cuotas deben ser mayores que 0.");
-            }
-            cuotas.setCuotaInscripcion(inscripcion);
-            cuotas.setCuotaMatricula(matricula);
+            double inscripcion = leerMonto(campoInscripcion, "cuota de inscripción");
+            double matricula = leerMonto(campoMatricula, "cuota de matrícula");
+            cuotas.setCuotas(inscripcion, matricula);
         } catch (DatoInvalidoException e) {
             mostrarMensaje(e.getMessage(), true);
             return;
@@ -102,13 +95,15 @@ public class PanelCuotas extends JPanel {
     }
 
     private double leerMonto(JTextField campo, String nombre) throws DatoInvalidoException {
-        try {
-            // Acepta "180,50" además de "180.50": el personal puede escribir con coma decimal.
-            String texto = campo.getText().trim().replace(',', '.');
-            return Double.parseDouble(texto);
-        } catch (NumberFormatException e) {
-            throw new DatoInvalidoException("La " + nombre + " debe ser un número, por ejemplo 180.");
+        String texto = campo.getText().trim();
+        // Solo dígitos y hasta 2 decimales con punto o coma. Así "1,200" (coma de miles) no se
+        // convierte en 1.20 sin avisar, el monto guardado es el que se muestra, y se descartan
+        // textos que parseDouble sí acepta, como "NaN", "Infinity" o "1e3".
+        if (!texto.matches("[0-9]+([.,][0-9]{1,2})?")) {
+            throw new DatoInvalidoException("La " + nombre + " debe ser un monto como 1200 o 180.50,"
+                    + " sin separador de miles.");
         }
+        return Double.parseDouble(texto.replace(',', '.'));
     }
 
     // Locale.ROOT fuerza el punto decimal: con la configuración regional de Windows podría

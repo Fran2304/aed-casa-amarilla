@@ -21,18 +21,18 @@ public class ConfiguracionCuotas {
         return cuotaMatricula;
     }
 
-    public void setCuotaInscripcion(double monto) throws DatoInvalidoException {
-        cuotaInscripcion = exigirPositivo("cuota de inscripción", monto);
+    // Valida las dos antes de asignar: si una falla, no queda la mitad aplicada.
+    public void setCuotas(double inscripcion, double matricula) throws DatoInvalidoException {
+        exigirPositivo("cuota de inscripción", inscripcion);
+        exigirPositivo("cuota de matrícula", matricula);
+        cuotaInscripcion = inscripcion;
+        cuotaMatricula = matricula;
     }
 
-    public void setCuotaMatricula(double monto) throws DatoInvalidoException {
-        cuotaMatricula = exigirPositivo("cuota de matrícula", monto);
-    }
-
-    private static double exigirPositivo(String campo, double monto) throws DatoInvalidoException {
-        if (monto <= 0) {
+    // isFinite descarta NaN e Infinity: "NaN <= 0" es false y se colaría como cuota válida.
+    private static void exigirPositivo(String campo, double monto) throws DatoInvalidoException {
+        if (!Double.isFinite(monto) || monto <= 0) {
             throw new DatoInvalidoException("La " + campo + " debe ser mayor que 0.");
         }
-        return monto;
     }
 }
