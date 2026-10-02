@@ -113,7 +113,6 @@ public class PrincipalUI extends JFrame {
         return panelCentral;
     }
 
-    // El fondo se pone aquí para que ningún integrante tenga que repetirlo en su panel.
     private void agregarPanel(JPanel panel, String nombrePanel) {
         panel.setBackground(Estilos.FONDO_CREMA);
         panelCentral.add(panel, nombrePanel);

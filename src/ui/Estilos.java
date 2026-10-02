@@ -64,7 +64,6 @@ public final class Estilos {
         boton.setFont(fuente(Font.BOLD, 14));
         boton.setForeground(BLANCO);
         boton.setBackground(BOTON_PRINCIPAL);
-        // Sin estas dos líneas Swing pinta su botón gris con degradado e ignora el color.
         boton.setContentAreaFilled(false);
         boton.setOpaque(true);
         boton.setBorder(new BordeRedondeado(BOTON_PRINCIPAL, RADIO_BOTON));
