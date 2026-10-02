@@ -2,11 +2,9 @@ package modelo;
 
 import java.time.LocalDate;
 import java.time.Period;
+import java.util.ArrayList;
 
 public class Alumno {
-
-    private static final int LARGO_DNI = 8;
-    private static final int LARGO_CELULAR = 9;
 
     private final int codAlumno;
     private final String dni;
@@ -14,19 +12,85 @@ public class Alumno {
     private String apellidos;
     private LocalDate fechaNacimiento;
     private String celular;
+    private ArrayList<Apoderado> apoderados;
+    private Apoderado principal;
 
     public Alumno(int codAlumno, String dni, String nombres, String apellidos,
             LocalDate fechaNacimiento, String celular) throws DatoInvalidoException {
         this.codAlumno = codAlumno;
-        this.dni = exigirDigitos("DNI", dni, LARGO_DNI);
-        this.nombres = exigirNoVacio("nombres", nombres);
-        this.apellidos = exigirNoVacio("apellidos", apellidos);
+        this.dni = Validaciones.exigirDni(dni);
+        this.nombres = Validaciones.exigirNoVacio("nombres", nombres);
+        this.apellidos = Validaciones.exigirNoVacio("apellidos", apellidos);
         this.fechaNacimiento = exigirFechaNacimiento(fechaNacimiento);
-        this.celular = celularOpcional(celular);
+        this.celular = Validaciones.celularOpcional(celular);
+        this.apoderados = new ArrayList<Apoderado>();
     }
 
     public int edadAl(LocalDate corte) {
         return Period.between(fechaNacimiento, corte).getYears();
+    }
+
+    public void agregarApoderado(Apoderado apoderado, boolean esPrincipal)
+            throws ReglaDominioException {
+        if (apoderado == null) {
+            throw new DatoInvalidoException("El apoderado es obligatorio.");
+        }
+        if (tieneApoderado(apoderado.getDni())) {
+            throw new ReglaDominioException(apoderado.getNombreCompleto()
+                    + " ya es apoderado de " + getNombreCompleto() + ".");
+        }
+        apoderados.add(apoderado);
+        if (esPrincipal) {
+            if (principal != null) {
+                throw new PrincipalYaDesignadoException(this, principal, apoderado);
+            }
+            principal = apoderado;
+        }
+    }
+
+    public void validarApoderados() throws ReglaDominioException {
+        if (apoderados.isEmpty()) {
+            throw new ReglaDominioException(
+                    getNombreCompleto() + " debe tener al menos un apoderado.");
+        }
+        if (principal == null) {
+            throw new ReglaDominioException(
+                    "Designe un apoderado principal para " + getNombreCompleto() + ".");
+        }
+    }
+
+    public void designarPrincipal(String dni) throws ReglaDominioException {
+        Apoderado elegido = buscarApoderado(dni);
+        if (elegido == null) {
+            throw new ReglaDominioException("El apoderado indicado no está vinculado a "
+                    + getNombreCompleto() + ".");
+        }
+        principal = elegido;
+    }
+
+    public boolean tieneApoderado(String dni) {
+        return buscarApoderado(dni) != null;
+    }
+
+    private Apoderado buscarApoderado(String dni) {
+        String buscado = Validaciones.normalizarDni(dni);
+        if (buscado == null) {
+            return null;
+        }
+        for (Apoderado apoderado : apoderados) {
+            if (apoderado.getDni().equals(buscado)) {
+                return apoderado;
+            }
+        }
+        return null;
+    }
+
+    public ArrayList<Apoderado> getApoderados() {
+        return new ArrayList<Apoderado>(apoderados);
+    }
+
+    public Apoderado getPrincipal() {
+        return principal;
     }
 
     public int getCodAlumno() {
@@ -58,11 +122,11 @@ public class Alumno {
     }
 
     public void setNombres(String nombres) throws DatoInvalidoException {
-        this.nombres = exigirNoVacio("nombres", nombres);
+        this.nombres = Validaciones.exigirNoVacio("nombres", nombres);
     }
 
     public void setApellidos(String apellidos) throws DatoInvalidoException {
-        this.apellidos = exigirNoVacio("apellidos", apellidos);
+        this.apellidos = Validaciones.exigirNoVacio("apellidos", apellidos);
     }
 
     public void setFechaNacimiento(LocalDate fechaNacimiento) throws DatoInvalidoException {
@@ -70,30 +134,7 @@ public class Alumno {
     }
 
     public void setCelular(String celular) throws DatoInvalidoException {
-        this.celular = celularOpcional(celular);
-    }
-
-    private static String exigirNoVacio(String campo, String valor) throws DatoInvalidoException {
-        if (valor == null || valor.trim().isEmpty()) {
-            throw new DatoInvalidoException("El campo " + campo + " es obligatorio.");
-        }
-        return valor.trim();
-    }
-
-    private static String exigirDigitos(String campo, String valor, int largo)
-            throws DatoInvalidoException {
-        String limpio = exigirNoVacio(campo, valor);
-        if (limpio.length() != largo) {
-            throw new DatoInvalidoException(
-                    "El " + campo + " debe tener " + largo + " dígitos.");
-        }
-        for (int i = 0; i < limpio.length(); i++) {
-            char c = limpio.charAt(i);
-            if (c < '0' || c > '9') {
-                throw new DatoInvalidoException("El " + campo + " solo admite dígitos.");
-            }
-        }
-        return limpio;
+        this.celular = Validaciones.celularOpcional(celular);
     }
 
     private static LocalDate exigirFechaNacimiento(LocalDate fecha) throws DatoInvalidoException {
@@ -104,12 +145,5 @@ public class Alumno {
             throw new DatoInvalidoException("La fecha de nacimiento no puede ser futura.");
         }
         return fecha;
-    }
-
-    private static String celularOpcional(String celular) throws DatoInvalidoException {
-        if (celular == null || celular.trim().isEmpty()) {
-            return "";
-        }
-        return exigirDigitos("celular", celular, LARGO_CELULAR);
     }
 }

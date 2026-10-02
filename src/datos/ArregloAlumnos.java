@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import modelo.Alumno;
 import modelo.AlumnoDuplicadoException;
 import modelo.ReglaDominioException;
+import modelo.Validaciones;
 
 public class ArregloAlumnos {
 
@@ -21,12 +22,13 @@ public class ArregloAlumnos {
 
     public Alumno registrar(String dni, String nombres, String apellidos,
             LocalDate fechaNacimiento, String celular) throws ReglaDominioException {
-        Alumno candidato = new Alumno(siguienteCodigo, dni, nombres, apellidos,
-                fechaNacimiento, celular);
-        Alumno existente = buscarPorDni(candidato.getDni());
+        String dniNormalizado = Validaciones.exigirDni(dni);
+        Alumno existente = buscarPorDni(dniNormalizado);
         if (existente != null) {
             throw new AlumnoDuplicadoException(existente);
         }
+        Alumno candidato = new Alumno(siguienteCodigo, dniNormalizado, nombres, apellidos,
+                fechaNacimiento, celular);
         alumnos.add(candidato);
         siguienteCodigo++;
         return candidato;
@@ -42,10 +44,10 @@ public class ArregloAlumnos {
     }
 
     public Alumno buscarPorDni(String dni) {
-        if (dni == null) {
+        String buscado = Validaciones.normalizarDni(dni);
+        if (buscado == null) {
             return null;
         }
-        String buscado = dni.trim();
         for (Alumno alumno : alumnos) {
             if (alumno.getDni().equals(buscado)) {
                 return alumno;
