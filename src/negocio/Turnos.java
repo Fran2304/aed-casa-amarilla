@@ -1,10 +1,12 @@
 package negocio;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 
 import datos.ArregloSolicitudes;
 import modelo.Aula;
 import modelo.Matricula;
+import modelo.Oferta;
 import modelo.ReglaDominioException;
 import modelo.Solicitud;
 
@@ -41,6 +43,9 @@ public final class Turnos {
 
     public static void exigirTurno(Solicitud solicitud, ArregloSolicitudes solicitudes,
             ArrayList<Matricula> matriculas) throws ReglaDominioException {
+        if (tieneMatriculaVigente(solicitud, matriculas)) {
+            throw new ReglaDominioException(solicitud.getCodigo() + " ya tiene matrícula vigente.");
+        }
         Aula aula = solicitud.getAula();
         int vacantes = Vacantes.calcular(aula, matriculas);
         if (vacantes <= 0) {
@@ -71,5 +76,37 @@ public final class Turnos {
             }
         }
         return false;
+    }
+
+    public static Oferta confirmarOferta(Solicitud solicitud, boolean aceptada, String personal,
+            LocalDateTime fechaHora, ArregloSolicitudes solicitudes,
+            ArrayList<Matricula> matriculas) throws ReglaDominioException {
+        if (!solicitud.estaEnColaFavorable()) {
+            throw new ReglaDominioException("Solo se ofrece vacante a solicitudes de la cola"
+                    + " favorable; " + solicitud.getCodigo() + " está en "
+                    + solicitud.getEstado() + ".");
+        }
+        if (solicitud.tieneOfertaAceptada()) {
+            throw new ReglaDominioException(solicitud.getCodigo() + " ya aceptó una oferta.");
+        }
+        exigirTurno(solicitud, solicitudes, matriculas);
+
+        Oferta oferta = new Oferta(fechaHora, personal, aceptada);
+        solicitud.registrarOferta(oferta);
+        if (!aceptada) {
+            solicitud.ingresarAColaFavorable(fechaAlFinal(solicitud, fechaHora, solicitudes));
+        }
+        return oferta;
+    }
+
+    private static LocalDateTime fechaAlFinal(Solicitud rechazada, LocalDateTime fechaRechazo,
+            ArregloSolicitudes solicitudes) {
+        LocalDateTime fecha = fechaRechazo;
+        for (Solicitud otra : solicitudes.colaFavorable(rechazada.getAula())) {
+            if (otra != rechazada && !otra.getFechaIngresoCola().isBefore(fecha)) {
+                fecha = otra.getFechaIngresoCola().plusSeconds(1);
+            }
+        }
+        return fecha;
     }
 }

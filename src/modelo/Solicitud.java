@@ -1,6 +1,7 @@
 package modelo;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 
 import negocio.Transiciones;
 
@@ -12,6 +13,7 @@ public class Solicitud {
     private final LocalDateTime fechaRegistro;
     private EstadoSolicitud estado;
     private LocalDateTime fechaIngresoCola;
+    private ArrayList<Oferta> ofertas;
 
     public Solicitud(String codigo, Alumno alumno, Aula aula, LocalDateTime fechaRegistro) {
         this.codigo = codigo;
@@ -23,11 +25,21 @@ public class Solicitud {
         // Solo está en la cola cuando además tiene fecha de ingreso (ingresarAColaSinPago).
         // La vía directa pasa a EN_DOCUMENTACION al confirmarse el pago de inscripción.
         this.estado = EstadoSolicitud.EN_ESPERA_SIN_PAGO;
+        this.ofertas = new ArrayList<Oferta>();
     }
 
     public void cambiarEstado(EstadoSolicitud nuevo) throws TransicionInvalidaException {
+        if (nuevo == EstadoSolicitud.EN_ESPERA_FAVORABLE) {
+            throw new TransicionInvalidaException(codigo
+                    + " entra a la cola favorable con ingresarAColaFavorable y su fecha.");
+        }
+        aplicarTransicion(nuevo);
+    }
+
+    private void aplicarTransicion(EstadoSolicitud nuevo) throws TransicionInvalidaException {
         Transiciones.exigirTransicion(estado, nuevo);
         estado = nuevo;
+        fechaIngresoCola = null;
     }
 
     // También sirve para reingresar tras una invitación vencida (#9): la fecha nueva es la
@@ -52,13 +64,24 @@ public class Solicitud {
             throw new DatoInvalidoException("La fecha de ingreso a la cola es obligatoria.");
         }
         if (estado != EstadoSolicitud.EN_ESPERA_FAVORABLE) {
-            cambiarEstado(EstadoSolicitud.EN_ESPERA_FAVORABLE);
+            aplicarTransicion(EstadoSolicitud.EN_ESPERA_FAVORABLE);
         }
         fechaIngresoCola = fecha;
     }
 
     public boolean estaEnColaFavorable() {
-        return estado == EstadoSolicitud.EN_ESPERA_FAVORABLE;
+        return estado == EstadoSolicitud.EN_ESPERA_FAVORABLE && fechaIngresoCola != null;
+    }
+
+    public void registrarOferta(Oferta oferta) throws DatoInvalidoException {
+        if (oferta == null) {
+            throw new DatoInvalidoException("La oferta es obligatoria.");
+        }
+        ofertas.add(oferta);
+    }
+
+    public boolean tieneOfertaAceptada() {
+        return !ofertas.isEmpty() && ofertas.get(ofertas.size() - 1).isAceptada();
     }
 
     public void exigirFueraDeColaSinPago(String operacion) throws ReglaDominioException {
@@ -95,5 +118,9 @@ public class Solicitud {
 
     public LocalDateTime getFechaIngresoCola() {
         return fechaIngresoCola;
+    }
+
+    public ArrayList<Oferta> getOfertas() {
+        return new ArrayList<Oferta>(ofertas);
     }
 }
