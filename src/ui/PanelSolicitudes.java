@@ -9,10 +9,8 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
@@ -28,10 +26,16 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
 import datos.ArregloAulas;
+import modelo.Alumno;
+import modelo.Apoderado;
 import modelo.Aula;
+import modelo.DatoInvalidoException;
 import modelo.EstadoSolicitud;
 import modelo.Matricula;
 import modelo.MedioPago;
+import modelo.ReglaDominioException;
+import modelo.Solicitud;
+import modelo.SolicitudDuplicadaException;
 import negocio.Vacantes;
 import util.FechasAdmision;
 
@@ -42,7 +46,10 @@ public class PanelSolicitudes extends JPanel {
     private final PrincipalUI principal;
 
     private final JTextField campoDni = new JTextField(10);
+    private final JTextField campoNombres = new JTextField(14);
+    private final JTextField campoApellidos = new JTextField(14);
     private final JTextField campoNacimiento = new JTextField("18/06/2022", 10);
+    private final JTextField campoCelular = new JTextField(9);
     private final JComboBox<Aula> comboAulas;
     private final JLabel indicadorVacantes = new JLabel();
     private final JLabel franja = new JLabel();
@@ -52,13 +59,13 @@ public class PanelSolicitudes extends JPanel {
     private final JTextField campoApoTelefono = new JTextField(9);
     private final JCheckBox checkPrincipal = new JCheckBox("Principal");
     private final DefaultListModel<String> modeloApoderados = new DefaultListModel<>();
+    private final List<Apoderado> apoderados = new ArrayList<>();
     private final List<boolean[]> marcasPrincipal = new ArrayList<>();
 
-    // Sustituto temporal del módulo de registro (#7): guarda DNIs ya vistos
-    // para mostrar la ficha existente. Cuando #7 exista, reemplazar por su búsqueda.
-    private final Set<String> dnisRegistrados = new HashSet<>();
-    private final Map<String, String> codigoPorDni = new HashMap<>();
-    private int correlativoSol = 1042;
+    // Alumnos creados desde este panel, por DNI: conservan un codAlumno estable
+    // para que buscarActivaDe (#7) detecte la solicitud activa existente.
+    private final Map<String, Alumno> alumnosPorDni = new HashMap<>();
+    private int siguienteCodAlumno = 202010001;
     // Punto de conexión con el registro de matrículas (#26): cuando exista la lista
     // central, pasarla al constructor en vez de esta lista local.
     private final ArrayList<Matricula> matriculas = new ArrayList<>();
@@ -86,7 +93,7 @@ public class PanelSolicitudes extends JPanel {
         panelFicha.add(fichaTexto, BorderLayout.CENTER);
         JPanel fichaSur = new JPanel(new FlowLayout(FlowLayout.LEFT));
         fichaSur.setOpaque(false);
-        botonVerFicha.addActionListener(e -> mostrarFicha(campoDni.getText().trim()));
+        botonVerFicha.addActionListener(e -> verFichaActual());
         fichaSur.add(botonVerFicha);
         JButton botonVolver = Estilos.botonSecundario("Nueva búsqueda");
         botonVolver.addActionListener(e -> mostrarFormulario());
@@ -123,12 +130,18 @@ public class PanelSolicitudes extends JPanel {
         JPanel tarjeta = Estilos.tarjeta(new JPanel(new BorderLayout(0, 8)));
         tarjeta.setBorder(BorderFactory.createCompoundBorder(
                 tarjeta.getBorder(), BorderFactory.createEmptyBorder(16, 16, 16, 16)));
-        JPanel campos = new JPanel(new GridLayout(3, 2, 8, 8));
+        JPanel campos = new JPanel(new GridLayout(6, 2, 8, 8));
         campos.setOpaque(false);
         campos.add(new JLabel("DNI alumno (8 dígitos):"));
         campos.add(campoDni);
+        campos.add(new JLabel("Nombres:"));
+        campos.add(campoNombres);
+        campos.add(new JLabel("Apellidos:"));
+        campos.add(campoApellidos);
         campos.add(new JLabel("Nacimiento (dd/mm/aaaa):"));
         campos.add(campoNacimiento);
+        campos.add(new JLabel("Celular (9 dígitos, opcional):"));
+        campos.add(campoCelular);
         campos.add(new JLabel("Aula solicitada:"));
         campos.add(comboAulas);
         tarjeta.add(campos, BorderLayout.CENTER);
@@ -209,6 +222,16 @@ public class PanelSolicitudes extends JPanel {
         if (nombre.isEmpty() || dni.isEmpty()) {
             return;
         }
+        String[] partes = nombre.split("\\s+", 2);
+        String nombres = partes[0];
+        String apellidos = partes.length > 1 ? partes[1] : partes[0];
+        final Apoderado apoderado;
+        try {
+            apoderado = new Apoderado(dni, nombres, apellidos, telefono);
+        } catch (DatoInvalidoException e) {
+            pintarFranja(e.getMessage(), false);
+            return;
+        }
         if (checkPrincipal.isSelected()) {
             for (int i = 0; i < marcasPrincipal.size(); i++) {
                 marcasPrincipal.set(i, new boolean[]{false});
@@ -218,6 +241,7 @@ public class PanelSolicitudes extends JPanel {
             }
         }
         marcasPrincipal.add(new boolean[]{checkPrincipal.isSelected()});
+        apoderados.add(apoderado);
         modeloApoderados.addElement(nombre + " · " + dni + " · " + telefono
                 + (checkPrincipal.isSelected() ? " [principal]" : " [adicional]"));
         campoApoNombre.setText("");
@@ -228,43 +252,66 @@ public class PanelSolicitudes extends JPanel {
 
     private void guardar() {
         String dni = campoDni.getText().trim();
-        if (dnisRegistrados.contains(dni)) {
-            mostrarFicha(dni);
+        Aula aula = (Aula) comboAulas.getSelectedItem();
+        LocalDate nacimiento = parsearNacimiento();
+        if (!dni.matches("\\d{8}")) {
+            pintarFranja("DNI incompleto: exige 8 dígitos.", false);
             return;
         }
-        // Mientras #7 no exista, el stub exige lo mismo que el flujo §4.1:
-        // al menos un apoderado y exactamente un principal.
-        if (modeloApoderados.isEmpty()) {
-            pintarFranja("Registra al menos un apoderado antes de guardar.", false);
+        if (nacimiento == null) {
+            pintarFranja("Fecha inválida: usa dd/mm/aaaa.", false);
             return;
         }
-        int principales = 0;
-        for (boolean[] marca : marcasPrincipal) {
-            if (marca[0]) {
-                principales++;
+        Alumno alumno = alumnosPorDni.get(dni);
+        if (alumno == null) {
+            try {
+                alumno = new Alumno(siguienteCodAlumno, dni,
+                        campoNombres.getText().trim(), campoApellidos.getText().trim(),
+                        nacimiento, campoCelular.getText().trim());
+            } catch (DatoInvalidoException e) {
+                pintarFranja(e.getMessage(), false);
+                return;
+            }
+            for (int i = 0; i < apoderados.size(); i++) {
+                try {
+                    alumno.agregarApoderado(apoderados.get(i), marcasPrincipal.get(i)[0]);
+                } catch (ReglaDominioException e) {
+                    pintarFranja(e.getMessage(), false);
+                    return;
+                }
             }
         }
-        if (principales != 1) {
-            pintarFranja("Designa exactamente un apoderado principal.", false);
-            return;
+        try {
+            Solicitud guardada = principal.getSolicitudes().registrar(alumno, aula);
+            alumnosPorDni.put(dni, alumno);
+            siguienteCodAlumno++;
+            pintarFranja("Guardada " + guardada.getCodigo() + " · EN_ESPERA_SIN_PAGO.", true);
+        } catch (SolicitudDuplicadaException e) {
+            alumnosPorDni.put(dni, alumno);
+            mostrarFicha(e.getExistente());
+        } catch (ReglaDominioException e) {
+            pintarFranja(e.getMessage(), false);
         }
-        // TODO(#7): reemplazar por el módulo de registro con validaciones completas.
-        String codigo = "SOL-" + (correlativoSol++);
-        dnisRegistrados.add(dni);
-        codigoPorDni.put(dni, codigo);
-        franja.setText("Guardada " + codigo + " · a la cola EN_ESPERA_SIN_PAGO.");
-        franja.setBackground(Estilos.FAVORABLE);
-        franja.setForeground(Estilos.TEXTO_PRINCIPAL);
     }
 
-    private void mostrarFicha(String dni) {
-        String codigo = codigoPorDni.getOrDefault(dni, "SOL-1042");
-        fichaTexto.setText("Ya existe solicitud activa para DNI " + dni + " → " + codigo + ".");
+    private void verFichaActual() {
+        Alumno alumno = alumnosPorDni.get(campoDni.getText().trim());
+        if (alumno == null) {
+            return;
+        }
+        Solicitud activa = principal.getSolicitudes().buscarActivaDe(alumno);
+        if (activa != null) {
+            mostrarFicha(activa);
+        }
+    }
+
+    private void mostrarFicha(Solicitud solicitud) {
+        String codigo = solicitud.getCodigo();
+        fichaTexto.setText("Ya existe solicitud activa para DNI "
+                + solicitud.getAlumno().getDni() + " → " + codigo + ".");
         botonVerFicha.setText("Ver " + codigo);
         ((java.awt.CardLayout) tarjetasInternas.getLayout()).show(tarjetasInternas, "FICHA");
-        franja.setText("DNI con solicitud activa · ver " + codigo + ".");
-        franja.setBackground(Estilos.ALERTA);
-        franja.setForeground(Estilos.TEXTO_ALERTA);
+        pintarFranja("DNI con solicitud activa · ver " + codigo + ".", false);
     }
 
     private void mostrarFormulario() {
@@ -322,9 +369,13 @@ public class PanelSolicitudes extends JPanel {
         }
         int edad = Period.between(nacimiento, FechasAdmision.CORTE_2027).getYears();
         boolean compatible = edad == aula.getEdadRequerida();
-        if (dnisRegistrados.contains(dni)) {
-            pintarFranja("DNI con solicitud activa · ver " + codigoPorDni.get(dni) + ".", false);
-            return;
+        Alumno conocido = alumnosPorDni.get(dni);
+        if (conocido != null) {
+            Solicitud activa = principal.getSolicitudes().buscarActivaDe(conocido);
+            if (activa != null) {
+                pintarFranja("DNI con solicitud activa · ver " + activa.getCodigo() + ".", false);
+                return;
+            }
         }
         if (compatible) {
             pintarFranja(edad + " años al 31 mar 2027 · aula compatible.", true);
