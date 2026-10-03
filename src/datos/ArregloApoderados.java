@@ -57,7 +57,6 @@ public class ArregloApoderados {
         return new ArrayList<Apoderado>(apoderados);
     }
 
-    // Formato de apoderados.txt: dni;nombres;apellidos;celular
     public void grabar(String ruta) throws IOException {
         try (PrintWriter salida = new PrintWriter(
                 new FileWriter(ruta, StandardCharsets.UTF_8))) {
@@ -71,12 +70,10 @@ public class ArregloApoderados {
     }
 
     public void cargar(String ruta) throws IOException {
-        // Primer arranque: todavía no se grabó nada.
         if (!new File(ruta).exists()) {
             apoderados.clear();
             return;
         }
-        // Se lee en una lista aparte para no dejar la colección a medias si una línea falla.
         ArrayList<Apoderado> leidos = new ArrayList<Apoderado>();
         try (BufferedReader entrada = new BufferedReader(
                 new FileReader(ruta, StandardCharsets.UTF_8))) {
@@ -84,7 +81,6 @@ public class ArregloApoderados {
             int numeroLinea = 0;
             while ((linea = entrada.readLine()) != null) {
                 numeroLinea++;
-                // Con -1, split conserva los campos vacíos del final de la línea.
                 String[] campos = linea.split(SEPARADOR, -1);
                 if (campos.length != 4) {
                     throw new IOException(ruta + ", línea " + numeroLinea

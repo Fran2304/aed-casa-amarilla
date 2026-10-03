@@ -78,8 +78,6 @@ public class ArregloAlumnos {
         return new ArrayList<Alumno>(alumnos);
     }
 
-    // Formato de alumnos.txt: codAlumno;dni;nombres;apellidos;fechaNacimiento;celular
-    // Formato de alumnos_apoderados.txt: codAlumno;dniApoderado;esPrincipal
     public void grabar(String rutaAlumnos, String rutaVinculos) throws IOException {
         try (PrintWriter salida = new PrintWriter(
                 new FileWriter(rutaAlumnos, StandardCharsets.UTF_8))) {
@@ -105,13 +103,11 @@ public class ArregloAlumnos {
         }
     }
 
-    // Los apoderados se cargan antes: los vínculos solo guardan su DNI.
     public void cargar(String rutaAlumnos, String rutaVinculos, ArregloApoderados apoderados)
             throws IOException {
         ArrayList<Alumno> leidos = leerAlumnos(rutaAlumnos);
         leerVinculos(rutaVinculos, leidos, apoderados);
 
-        // Se lee en listas aparte para no dejar la colección a medias si una línea falla.
         alumnos = leidos;
         siguienteCodigo = PRIMER_CODIGO;
         for (Alumno alumno : alumnos) {
@@ -123,7 +119,6 @@ public class ArregloAlumnos {
 
     private ArrayList<Alumno> leerAlumnos(String ruta) throws IOException {
         ArrayList<Alumno> leidos = new ArrayList<Alumno>();
-        // Primer arranque: todavía no se grabó nada.
         if (!new File(ruta).exists()) {
             return leidos;
         }
@@ -133,7 +128,6 @@ public class ArregloAlumnos {
             int numeroLinea = 0;
             while ((linea = entrada.readLine()) != null) {
                 numeroLinea++;
-                // Con -1, split conserva los campos vacíos del final (celular opcional).
                 String[] campos = linea.split(SEPARADOR, -1);
                 if (campos.length != 6) {
                     throw new IOException(ruta + ", línea " + numeroLinea
