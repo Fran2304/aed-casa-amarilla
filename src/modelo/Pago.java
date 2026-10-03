@@ -23,7 +23,6 @@ public class Pago {
         if (concepto == null) {
             throw new DatoInvalidoException("El concepto del pago es obligatorio.");
         }
-        // isFinite descarta NaN e Infinity: "NaN <= 0" es false y se colaría como monto válido.
         if (!Double.isFinite(montoAplicado) || montoAplicado <= 0) {
             throw new DatoInvalidoException("El monto aplicado debe ser mayor que 0.");
         }
@@ -33,7 +32,6 @@ public class Pago {
         if (fechaOperacion == null) {
             throw new DatoInvalidoException("La fecha real de la operación es obligatoria.");
         }
-        // El número de operación es obligatorio excepto para efectivo (§4.8 del flujo).
         String numero = numeroOperacion == null ? "" : numeroOperacion.trim();
         if (medio != MedioPago.EFECTIVO && numero.isEmpty()) {
             throw new DatoInvalidoException(
@@ -42,25 +40,21 @@ public class Pago {
         if (concepto == ConceptoPago.MATRICULA && matricula == null) {
             throw new DatoInvalidoException("El pago de matrícula debe indicar su matrícula.");
         }
-        // El pago de inscripción ocurre antes de que exista la matrícula (§4.8 del flujo).
         if (concepto == ConceptoPago.INSCRIPCION && matricula != null) {
             throw new DatoInvalidoException("El pago de inscripción es anterior a la matrícula.");
         }
         this.concepto = concepto;
         this.montoAplicado = montoAplicado;
         this.medio = medio;
-        // Se conserva la fecha real de la operación, no la fecha de registro en el sistema.
         this.fechaOperacion = fechaOperacion;
         this.numeroOperacion = numero;
         this.comprobante = Validaciones.exigirNoVacio("comprobante", comprobante);
-        // Se vincula por código porque la clase Solicitud llega con el issue #7 (aún abierto).
         this.codigoSolicitud = Validaciones.exigirNoVacio("solicitud", codigoSolicitud);
         this.matricula = matricula;
         this.estado = EstadoPago.RECIBIDO;
         this.observacion = "";
     }
 
-    // Monto distinto a la cuota vigente: observación, no confirmación (criterio del issue #12).
     public void confirmar(double cuotaVigente) throws ReglaDominioException {
         if (Double.compare(montoAplicado, cuotaVigente) != 0) {
             throw new DatoInvalidoException("El monto aplicado no coincide con la cuota vigente.");
@@ -69,8 +63,6 @@ public class Pago {
         estado = EstadoPago.CONFIRMADO;
     }
 
-    // La corrección se presenta como un pago nuevo (issue #13): un pago observado
-    // no vuelve a observarse, solo puede confirmarse su reemplazo.
     public void observar(String motivo) throws ReglaDominioException {
         String motivoLimpio = Validaciones.exigirNoVacio("observación", motivo);
         Transiciones.exigirTransicion(estado, EstadoPago.OBSERVADO);

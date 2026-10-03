@@ -7,6 +7,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.Locale;
 
 import javax.swing.BorderFactory;
@@ -23,14 +24,13 @@ import modelo.ConceptoPago;
 import modelo.ConfiguracionCuotas;
 import modelo.DatoInvalidoException;
 import modelo.EstadoSolicitud;
+import modelo.Matricula;
 import modelo.MedioPago;
 import modelo.Pago;
 import modelo.ReglaDominioException;
 import modelo.Solicitud;
+import negocio.Turnos;
 
-// Alcance M2 (issue #15): cubre el pago de inscripción con transición real
-// a EN_DOCUMENTACION. El flujo de matrícula (confirmar → ACTIVA) necesita
-// #23/#24 y se concreta en la pantalla #26.
 public class PanelPagos extends JPanel {
 
     private static final DateTimeFormatter FORMATO_OPERACION =
@@ -41,8 +41,8 @@ public class PanelPagos extends JPanel {
     private final ArregloPagos pagos;
     private final ArregloSolicitudes solicitudes;
     private final ConfiguracionCuotas cuotas;
+    private final ArrayList<Matricula> matriculas;
 
-    // Último pago registrado en el panel: recibe confirmar/observación.
     private Pago pagoActual;
 
     private final JComboBox<ConceptoPago> comboConcepto =
@@ -60,11 +60,12 @@ public class PanelPagos extends JPanel {
     private final JLabel limite = new JLabel(" ");
 
     public PanelPagos(ArregloPagos pagos, ArregloSolicitudes solicitudes,
-            ConfiguracionCuotas cuotas) {
+            ConfiguracionCuotas cuotas, ArrayList<Matricula> matriculas) {
         super(new BorderLayout(0, 16));
         this.pagos = pagos;
         this.solicitudes = solicitudes;
         this.cuotas = cuotas;
+        this.matriculas = matriculas;
         setBorder(BorderFactory.createEmptyBorder(32, 32, 32, 34));
 
         add(crearEncabezado(), BorderLayout.NORTH);
@@ -168,7 +169,6 @@ public class PanelPagos extends JPanel {
         }
     }
 
-    // El combo de medio exige n° de operación salvo efectivo: se avisa en vivo (§4.8).
     private void actualizarPistaOperacion() {
         boolean efectivo = comboMedio.getSelectedItem() == MedioPago.EFECTIVO;
         pistaOperacion.setText(efectivo
@@ -185,14 +185,11 @@ public class PanelPagos extends JPanel {
     }
 
     private void registrar() {
-        // La matrícula aún no tiene registro central (#23): el pago de matrícula
-        // se relaciona con su matrícula en el modelo, pero en M2 no hay cuál indicar.
         if (!esInscripcion()) {
             mostrarMensaje("El pago de matrícula llega con la pantalla #26."
                     + " Por ahora registra pagos de inscripción.", true);
             return;
         }
-        // La cuota pudo cambiar en Cuotas 2027 durante la sesión: releerla.
         mostrarMontoReferencia();
         limite.setText(" ");
         try {
@@ -232,7 +229,12 @@ public class PanelPagos extends JPanel {
             mostrarMensaje("La solicitud ya no está EN ESPERA SIN PAGO.", true);
             return;
         }
-        // En M2 todo pago registrado aquí es de inscripción (registrar bloquea matrícula).
+        try {
+            Turnos.exigirTurno(solicitud, solicitudes, matriculas);
+        } catch (ReglaDominioException e) {
+            mostrarMensaje(e.getMessage(), true);
+            return;
+        }
         try {
             pagoActual.confirmar(cuotas.getCuotaInscripcion());
             solicitud.cambiarEstado(EstadoSolicitud.EN_DOCUMENTACION);
@@ -242,7 +244,6 @@ public class PanelPagos extends JPanel {
         }
         actualizarChip();
         setSoloLectura(true);
-        // El plazo de documentos lo define el flujo: confirmación + 7 días (§4.3).
         String limiteDocs = LocalDate.now().plusDays(7).format(FORMATO_LIMITE);
         limite.setText("Nueva fecha límite de documentos: " + limiteDocs + ".");
         mostrarMensaje("Inscripción confirmada. La solicitud pasa a EN DOCUMENTACIÓN.",
@@ -274,7 +275,6 @@ public class PanelPagos extends JPanel {
 
     private double leerMonto() throws DatoInvalidoException {
         String texto = campoMonto.getText().trim();
-        // Igual que las cuotas (#11): sin separador de miles y hasta 2 decimales.
         if (!texto.matches("[0-9]+([.,][0-9]{1,2})?")) {
             throw new DatoInvalidoException("El monto debe ser como 1200 o 180.50,"
                     + " sin separador de miles.");
@@ -294,8 +294,6 @@ public class PanelPagos extends JPanel {
         }
     }
 
-    // Paleta semántica del tema: espera=amarillo, alerta=rojo claro,
-    // confirmado=verde favorable.
     private void actualizarChip() {
         switch (pagoActual.getEstado()) {
             case CONFIRMADO:
@@ -316,7 +314,6 @@ public class PanelPagos extends JPanel {
         chipEstado.setForeground(letra);
     }
 
-    // Un pago confirmado no se edita (§4.8): los campos quedan en solo-lectura.
     private void setSoloLectura(boolean soloLectura) {
         boolean editable = !soloLectura;
         comboConcepto.setEnabled(editable);
@@ -329,8 +326,6 @@ public class PanelPagos extends JPanel {
         campoMotivo.setEditable(editable);
     }
 
-    // Tras confirmar, el panel quedaba muerto: este botón lo deja listo
-    // para el siguiente comprobante.
     private void nuevo() {
         pagoActual = null;
         setSoloLectura(false);
