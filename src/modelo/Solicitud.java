@@ -71,7 +71,6 @@ public class Solicitud {
         ofertas.add(oferta);
     }
 
-    // Vale la última oferta: una rechazada antes no impide aceptar una posterior.
     public boolean tieneOfertaAceptada() {
         return !ofertas.isEmpty() && ofertas.get(ofertas.size() - 1).isAceptada();
     }

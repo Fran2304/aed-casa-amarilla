@@ -2,11 +2,9 @@ package modelo;
 
 import java.time.LocalDateTime;
 
-/** Oferta de vacante a una solicitud de la cola favorable. Queda como evento del historial. */
 public class Oferta {
 
     private final LocalDateTime fechaHora;
-    // No hay clase Personal todavía: se registra el nombre de quien confirmó la oferta.
     private final String personal;
     private final boolean aceptada;
 

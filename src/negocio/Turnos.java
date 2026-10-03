@@ -75,10 +75,6 @@ public final class Turnos {
         return false;
     }
 
-    // La oferta no crea matrícula ni reserva vacante: si se acepta, la solicitud queda
-    // habilitada para que #23 cree la matrícula PENDIENTE_PAGO, que es lo que reserva (§4.6).
-    // Criterio del grupo para §6.3: si no se acepta, vuelve al final de la cola favorable con
-    // fecha nueva, igual que una invitación vencida en la cola sin pago (§4.2).
     public static Oferta confirmarOferta(Solicitud solicitud, boolean aceptada, String personal,
             LocalDateTime fechaHora, ArregloSolicitudes solicitudes,
             ArrayList<Matricula> matriculas) throws ReglaDominioException {
