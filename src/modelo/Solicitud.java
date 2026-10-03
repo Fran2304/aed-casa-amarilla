@@ -29,8 +29,17 @@ public class Solicitud {
     }
 
     public void cambiarEstado(EstadoSolicitud nuevo) throws TransicionInvalidaException {
+        if (nuevo == EstadoSolicitud.EN_ESPERA_FAVORABLE) {
+            throw new TransicionInvalidaException(codigo
+                    + " entra a la cola favorable con ingresarAColaFavorable y su fecha.");
+        }
+        aplicarTransicion(nuevo);
+    }
+
+    private void aplicarTransicion(EstadoSolicitud nuevo) throws TransicionInvalidaException {
         Transiciones.exigirTransicion(estado, nuevo);
         estado = nuevo;
+        fechaIngresoCola = null;
     }
 
     // También sirve para reingresar tras una invitación vencida (#9): la fecha nueva es la
@@ -55,13 +64,13 @@ public class Solicitud {
             throw new DatoInvalidoException("La fecha de ingreso a la cola es obligatoria.");
         }
         if (estado != EstadoSolicitud.EN_ESPERA_FAVORABLE) {
-            cambiarEstado(EstadoSolicitud.EN_ESPERA_FAVORABLE);
+            aplicarTransicion(EstadoSolicitud.EN_ESPERA_FAVORABLE);
         }
         fechaIngresoCola = fecha;
     }
 
     public boolean estaEnColaFavorable() {
-        return estado == EstadoSolicitud.EN_ESPERA_FAVORABLE;
+        return estado == EstadoSolicitud.EN_ESPERA_FAVORABLE && fechaIngresoCola != null;
     }
 
     public void registrarOferta(Oferta oferta) throws DatoInvalidoException {
