@@ -1,2 +1,0 @@
-# Los scripts de shell deben tener LF o sh falla en Windows
-.githooks/* text eol=lf
