@@ -12,9 +12,6 @@ public class Solicitud {
     private final Aula aula;
     private final LocalDateTime fechaRegistro;
     private EstadoSolicitud estado;
-    // null mientras no entre a la cola: así se distingue la recién registrada (que aún puede
-    // ir por la vía directa) de la que espera turno, sin inventar un estado (§6.6).
-    // Es la fecha de la cola en la que está ahora; cuál cola, lo dice el estado.
     private LocalDateTime fechaIngresoCola;
     private ArrayList<Oferta> ofertas;
 
@@ -53,31 +50,20 @@ public class Solicitud {
         return estado == EstadoSolicitud.EN_ESPERA_SIN_PAGO && fechaIngresoCola != null;
     }
 
-    // Entrevista favorable sin vacante (§4.6): conserva la inscripción pagada y espera turno.
     public void ingresarAColaFavorable(LocalDateTime fecha) throws ReglaDominioException {
         if (fecha == null) {
             throw new DatoInvalidoException("La fecha de ingreso a la cola es obligatoria.");
         }
-        cambiarEstado(EstadoSolicitud.EN_ESPERA_FAVORABLE);
+        // Si ya está en la cola favorable es un reingreso (matrícula vencida a las 72 h, §4.7):
+        // no hay cambio de estado, solo fecha nueva para quedar al final.
+        if (estado != EstadoSolicitud.EN_ESPERA_FAVORABLE) {
+            cambiarEstado(EstadoSolicitud.EN_ESPERA_FAVORABLE);
+        }
         fechaIngresoCola = fecha;
     }
 
     public boolean estaEnColaFavorable() {
         return estado == EstadoSolicitud.EN_ESPERA_FAVORABLE;
-    }
-
-    // Criterio del grupo para §6.3 (oferta no aceptada): la solicitud vuelve al final de la
-    // cola favorable con fecha nueva, igual que una invitación vencida en la cola sin pago
-    // (§4.2). Conserva la inscripción pagada y no se crea matrícula.
-    public void reingresarAColaFavorable(LocalDateTime fecha) throws ReglaDominioException {
-        if (fecha == null) {
-            throw new DatoInvalidoException("La fecha de ingreso a la cola es obligatoria.");
-        }
-        if (!estaEnColaFavorable()) {
-            throw new ReglaDominioException(codigo + " está en " + estado
-                    + " y no puede reingresar a la cola favorable.");
-        }
-        fechaIngresoCola = fecha;
     }
 
     public void registrarOferta(Oferta oferta) throws DatoInvalidoException {
@@ -92,7 +78,6 @@ public class Solicitud {
         return !ofertas.isEmpty() && ofertas.get(ofertas.size() - 1).isAceptada();
     }
 
-    // Lo llaman cobro, documentos y entrevista: en la cola no se hace ninguno de los tres (§4.2).
     public void exigirFueraDeColaSinPago(String operacion) throws ReglaDominioException {
         if (estaEnColaSinPago()) {
             throw new ReglaDominioException(codigo + " está en espera sin pago: no se puede "

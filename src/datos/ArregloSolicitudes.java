@@ -99,8 +99,6 @@ public class ArregloSolicitudes {
         return ordenarPorIngreso(enCola);
     }
 
-    // La más antigua primero. Con fechas iguales se respeta el orden de registro,
-    // porque cada una se inserta después de las que tienen su misma fecha.
     private static ArrayList<Solicitud> ordenarPorIngreso(ArrayList<Solicitud> enCola) {
         ArrayList<Solicitud> cola = new ArrayList<Solicitud>();
         for (Solicitud solicitud : enCola) {
