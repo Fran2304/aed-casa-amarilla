@@ -4,16 +4,26 @@ import negocio.Transiciones;
 
 public class Matricula {
 
+    private final Solicitud solicitud;
     private final Aula aula;
     private EstadoMatricula estado;
 
     /** Nace PENDIENTE_PAGO: su creación es lo único que reserva una vacante. */
-    public Matricula(Aula aula) throws DatoInvalidoException {
-        if (aula == null) {
-            throw new DatoInvalidoException("El aula es obligatoria.");
+    public Matricula(Solicitud solicitud) throws DatoInvalidoException {
+        if (solicitud == null) {
+            throw new DatoInvalidoException("La solicitud es obligatoria.");
         }
-        this.aula = aula;
+        this.solicitud = solicitud;
+        this.aula = solicitud.getAula();
         this.estado = EstadoMatricula.PENDIENTE_PAGO;
+    }
+
+    public boolean estaVigente() {
+        return estado == EstadoMatricula.PENDIENTE_PAGO || estado == EstadoMatricula.ACTIVA;
+    }
+
+    public Solicitud getSolicitud() {
+        return solicitud;
     }
 
     public void activar() throws TransicionInvalidaException {
