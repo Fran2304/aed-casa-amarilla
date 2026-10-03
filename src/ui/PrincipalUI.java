@@ -137,7 +137,7 @@ public class PrincipalUI extends JFrame {
         agregarPanel(new PanelColas(), COLAS);
         agregarPanel(new PanelDocumentos(), DOCUMENTOS);
         agregarPanel(new PanelEntrevistas(), ENTREVISTAS);
-        agregarPanel(new PanelPagos(pagos, cuotas), PAGOS);
+        agregarPanel(new PanelPagos(pagos, solicitudes, cuotas), PAGOS);
         agregarPanel(new PanelHistorial(), HISTORIAL);
         agregarPanel(new PanelCuotas(cuotas), CUOTAS);
         return panelCentral;

@@ -18,15 +18,19 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 
 import datos.ArregloPagos;
+import datos.ArregloSolicitudes;
 import modelo.ConceptoPago;
 import modelo.ConfiguracionCuotas;
 import modelo.DatoInvalidoException;
+import modelo.EstadoSolicitud;
 import modelo.MedioPago;
 import modelo.Pago;
 import modelo.ReglaDominioException;
+import modelo.Solicitud;
 
-// Alcance M2 (issue #15): cubre el pago de inscripción. El flujo de matrícula del panel
-// (confirmar → ACTIVA) necesita #23/#24 y se concreta en la pantalla #26.
+// Alcance M2 (issue #15): cubre el pago de inscripción con transición real
+// a EN_DOCUMENTACION. El flujo de matrícula (confirmar → ACTIVA) necesita
+// #23/#24 y se concreta en la pantalla #26.
 public class PanelPagos extends JPanel {
 
     private static final DateTimeFormatter FORMATO_OPERACION =
@@ -35,6 +39,7 @@ public class PanelPagos extends JPanel {
             DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final ArregloPagos pagos;
+    private final ArregloSolicitudes solicitudes;
     private final ConfiguracionCuotas cuotas;
 
     // Último pago registrado en el panel: recibe confirmar/observación.
@@ -54,9 +59,11 @@ public class PanelPagos extends JPanel {
     private final JLabel mensaje = new JLabel(" ");
     private final JLabel limite = new JLabel(" ");
 
-    public PanelPagos(ArregloPagos pagos, ConfiguracionCuotas cuotas) {
+    public PanelPagos(ArregloPagos pagos, ArregloSolicitudes solicitudes,
+            ConfiguracionCuotas cuotas) {
         super(new BorderLayout(0, 16));
         this.pagos = pagos;
+        this.solicitudes = solicitudes;
         this.cuotas = cuotas;
         setBorder(BorderFactory.createEmptyBorder(32, 32, 32, 34));
 
@@ -212,17 +219,30 @@ public class PanelPagos extends JPanel {
             mostrarMensaje("Registra primero el comprobante.", true);
             return;
         }
+        if (pagoActual.estaConfirmado()) {
+            mostrarMensaje("El pago ya está confirmado (solo-lectura).", true);
+            return;
+        }
+        Solicitud solicitud = solicitudes.buscar(pagoActual.getCodigoSolicitud());
+        if (solicitud == null) {
+            mostrarMensaje("No existe la solicitud " + pagoActual.getCodigoSolicitud() + ".", true);
+            return;
+        }
+        if (solicitud.getEstado() != EstadoSolicitud.EN_ESPERA_SIN_PAGO) {
+            mostrarMensaje("La solicitud ya no está EN ESPERA SIN PAGO.", true);
+            return;
+        }
         // En M2 todo pago registrado aquí es de inscripción (registrar bloquea matrícula).
         try {
             pagoActual.confirmar(cuotas.getCuotaInscripcion());
+            solicitud.cambiarEstado(EstadoSolicitud.EN_DOCUMENTACION);
         } catch (ReglaDominioException e) {
             mostrarMensaje(e.getMessage() + " Registra una observación.", true);
             return;
         }
         actualizarChip();
         setSoloLectura(true);
-        // La transición a EN_DOCUMENTACION y el plazo los aplica el issue #13;
-        // aquí se muestra la fecha que corresponde: confirmación + 7 días (§4.3).
+        // El plazo de documentos lo define el flujo: confirmación + 7 días (§4.3).
         String limiteDocs = LocalDate.now().plusDays(7).format(FORMATO_LIMITE);
         limite.setText("Nueva fecha límite de documentos: " + limiteDocs + ".");
         mostrarMensaje("Inscripción confirmada. La solicitud pasa a EN DOCUMENTACIÓN.",
@@ -232,6 +252,10 @@ public class PanelPagos extends JPanel {
     private void observar() {
         if (pagoActual == null) {
             mostrarMensaje("Registra primero el comprobante.", true);
+            return;
+        }
+        if (pagoActual.estaConfirmado()) {
+            mostrarMensaje("El pago ya está confirmado (solo-lectura).", true);
             return;
         }
         try {
