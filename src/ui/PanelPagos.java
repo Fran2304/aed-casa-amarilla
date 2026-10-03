@@ -192,6 +192,13 @@ public class PanelPagos extends JPanel {
         }
         mostrarMontoReferencia();
         limite.setText(" ");
+        String codigo = campoSolicitud.getText().trim();
+        Solicitud solicitud = solicitudes.buscar(codigo);
+        if (solicitud == null) {
+            pagoActual = null;
+            mostrarMensaje("No existe la solicitud " + codigo + ".", true);
+            return;
+        }
         try {
             pagoActual = pagos.registrar(
                     (ConceptoPago) comboConcepto.getSelectedItem(),
@@ -200,7 +207,7 @@ public class PanelPagos extends JPanel {
                     leerFecha(),
                     campoOperacion.getText(),
                     campoComprobante.getText(),
-                    campoSolicitud.getText(),
+                    solicitud,
                     null);
         } catch (DatoInvalidoException e) {
             pagoActual = null;
@@ -220,11 +227,7 @@ public class PanelPagos extends JPanel {
             mostrarMensaje("El pago ya está confirmado (solo-lectura).", true);
             return;
         }
-        Solicitud solicitud = solicitudes.buscar(pagoActual.getCodigoSolicitud());
-        if (solicitud == null) {
-            mostrarMensaje("No existe la solicitud " + pagoActual.getCodigoSolicitud() + ".", true);
-            return;
-        }
+        Solicitud solicitud = pagoActual.getSolicitud();
         if (solicitud.getEstado() != EstadoSolicitud.EN_ESPERA_SIN_PAGO) {
             mostrarMensaje("La solicitud ya no está EN ESPERA SIN PAGO.", true);
             return;

@@ -8,6 +8,7 @@ import modelo.DatoInvalidoException;
 import modelo.Matricula;
 import modelo.MedioPago;
 import modelo.Pago;
+import modelo.Solicitud;
 
 public class ArregloPagos {
 
@@ -19,9 +20,9 @@ public class ArregloPagos {
 
     public Pago registrar(ConceptoPago concepto, double montoAplicado, MedioPago medio,
             LocalDateTime fechaOperacion, String numeroOperacion, String comprobante,
-            String codigoSolicitud, Matricula matricula) throws DatoInvalidoException {
+            Solicitud solicitud, Matricula matricula) throws DatoInvalidoException {
         Pago nuevo = new Pago(concepto, montoAplicado, medio, fechaOperacion,
-                numeroOperacion, comprobante, codigoSolicitud, matricula);
+                numeroOperacion, comprobante, solicitud, matricula);
         pagos.add(nuevo);
         return nuevo;
     }
@@ -30,10 +31,10 @@ public class ArregloPagos {
         return new ArrayList<Pago>(pagos);
     }
 
-    public ArrayList<Pago> listarPorSolicitud(String codigoSolicitud) {
+    public ArrayList<Pago> listarPorSolicitud(Solicitud solicitud) {
         ArrayList<Pago> resultado = new ArrayList<Pago>();
         for (Pago pago : pagos) {
-            if (pago.getCodigoSolicitud().equals(codigoSolicitud)) {
+            if (pago.getSolicitud() == solicitud) {
                 resultado.add(pago);
             }
         }

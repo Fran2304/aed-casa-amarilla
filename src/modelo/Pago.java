@@ -12,16 +12,19 @@ public class Pago {
     private final LocalDateTime fechaOperacion;
     private final String numeroOperacion;
     private final String comprobante;
-    private final String codigoSolicitud;
+    private final Solicitud solicitud;
     private final Matricula matricula;
     private EstadoPago estado;
     private String observacion;
 
     public Pago(ConceptoPago concepto, double montoAplicado, MedioPago medio,
             LocalDateTime fechaOperacion, String numeroOperacion, String comprobante,
-            String codigoSolicitud, Matricula matricula) throws DatoInvalidoException {
+            Solicitud solicitud, Matricula matricula) throws DatoInvalidoException {
         if (concepto == null) {
             throw new DatoInvalidoException("El concepto del pago es obligatorio.");
+        }
+        if (solicitud == null) {
+            throw new DatoInvalidoException("La solicitud del pago es obligatoria.");
         }
         if (!Double.isFinite(montoAplicado) || montoAplicado <= 0) {
             throw new DatoInvalidoException("El monto aplicado debe ser mayor que 0.");
@@ -49,7 +52,7 @@ public class Pago {
         this.fechaOperacion = fechaOperacion;
         this.numeroOperacion = numero;
         this.comprobante = Validaciones.exigirNoVacio("comprobante", comprobante);
-        this.codigoSolicitud = Validaciones.exigirNoVacio("solicitud", codigoSolicitud);
+        this.solicitud = solicitud;
         this.matricula = matricula;
         this.estado = EstadoPago.RECIBIDO;
         this.observacion = "";
@@ -102,8 +105,8 @@ public class Pago {
         return comprobante;
     }
 
-    public String getCodigoSolicitud() {
-        return codigoSolicitud;
+    public Solicitud getSolicitud() {
+        return solicitud;
     }
 
     public Matricula getMatricula() {
