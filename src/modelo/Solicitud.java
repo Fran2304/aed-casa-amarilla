@@ -1,6 +1,7 @@
 package modelo;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 
 import negocio.Transiciones;
 
@@ -15,6 +16,7 @@ public class Solicitud {
     // ir por la vía directa) de la que espera turno, sin inventar un estado (§6.6).
     // Es la fecha de la cola en la que está ahora; cuál cola, lo dice el estado.
     private LocalDateTime fechaIngresoCola;
+    private ArrayList<Oferta> ofertas;
 
     public Solicitud(String codigo, Alumno alumno, Aula aula, LocalDateTime fechaRegistro) {
         this.codigo = codigo;
@@ -26,6 +28,7 @@ public class Solicitud {
         // Solo está en la cola cuando además tiene fecha de ingreso (ingresarAColaSinPago).
         // La vía directa pasa a EN_DOCUMENTACION al confirmarse el pago de inscripción.
         this.estado = EstadoSolicitud.EN_ESPERA_SIN_PAGO;
+        this.ofertas = new ArrayList<Oferta>();
     }
 
     public void cambiarEstado(EstadoSolicitud nuevo) throws TransicionInvalidaException {
@@ -63,6 +66,32 @@ public class Solicitud {
         return estado == EstadoSolicitud.EN_ESPERA_FAVORABLE;
     }
 
+    // Criterio del grupo para §6.3 (oferta no aceptada): la solicitud vuelve al final de la
+    // cola favorable con fecha nueva, igual que una invitación vencida en la cola sin pago
+    // (§4.2). Conserva la inscripción pagada y no se crea matrícula.
+    public void reingresarAColaFavorable(LocalDateTime fecha) throws ReglaDominioException {
+        if (fecha == null) {
+            throw new DatoInvalidoException("La fecha de ingreso a la cola es obligatoria.");
+        }
+        if (!estaEnColaFavorable()) {
+            throw new ReglaDominioException(codigo + " está en " + estado
+                    + " y no puede reingresar a la cola favorable.");
+        }
+        fechaIngresoCola = fecha;
+    }
+
+    public void registrarOferta(Oferta oferta) throws DatoInvalidoException {
+        if (oferta == null) {
+            throw new DatoInvalidoException("La oferta es obligatoria.");
+        }
+        ofertas.add(oferta);
+    }
+
+    // Vale la última oferta: una rechazada antes no impide aceptar una posterior.
+    public boolean tieneOfertaAceptada() {
+        return !ofertas.isEmpty() && ofertas.get(ofertas.size() - 1).isAceptada();
+    }
+
     // Lo llaman cobro, documentos y entrevista: en la cola no se hace ninguno de los tres (§4.2).
     public void exigirFueraDeColaSinPago(String operacion) throws ReglaDominioException {
         if (estaEnColaSinPago()) {
@@ -98,5 +127,9 @@ public class Solicitud {
 
     public LocalDateTime getFechaIngresoCola() {
         return fechaIngresoCola;
+    }
+
+    public ArrayList<Oferta> getOfertas() {
+        return new ArrayList<Oferta>(ofertas);
     }
 }

@@ -1,10 +1,12 @@
 package negocio;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 
 import datos.ArregloSolicitudes;
 import modelo.Aula;
 import modelo.Matricula;
+import modelo.Oferta;
 import modelo.ReglaDominioException;
 import modelo.Solicitud;
 
@@ -46,5 +48,25 @@ public final class Turnos {
             throw new ReglaDominioException("Antes corresponde " + turno.getCodigo() + " ("
                     + turno.getAlumno().getNombreCompleto() + ") en " + aula.getNombre() + ".");
         }
+    }
+
+    // La oferta no crea matrícula ni reserva vacante: si se acepta, la solicitud queda
+    // habilitada para que #23 cree la matrícula PENDIENTE_PAGO, que es lo que reserva (§4.6).
+    public static Oferta confirmarOferta(Solicitud solicitud, boolean aceptada, String personal,
+            LocalDateTime fechaHora, ArregloSolicitudes solicitudes,
+            ArrayList<Matricula> matriculas) throws ReglaDominioException {
+        if (!solicitud.estaEnColaFavorable()) {
+            throw new ReglaDominioException("Solo se ofrece vacante a solicitudes de la cola"
+                    + " favorable; " + solicitud.getCodigo() + " está en "
+                    + solicitud.getEstado() + ".");
+        }
+        exigirTurno(solicitud, solicitudes, matriculas);
+
+        Oferta oferta = new Oferta(fechaHora, personal, aceptada);
+        solicitud.registrarOferta(oferta);
+        if (!aceptada) {
+            solicitud.reingresarAColaFavorable(fechaHora);
+        }
+        return oferta;
     }
 }
