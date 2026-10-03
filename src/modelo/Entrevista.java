@@ -23,6 +23,12 @@ public class Entrevista {
         if (solicitud == null) {
             throw new DatoInvalidoException("La solicitud es obligatoria.");
         }
+        // Cerrada desde el inicio: no se agenda sobre RECHAZADA/CANCELADA,
+        // igual que exigirPendiente bloquea su uso posterior.
+        if (!solicitud.estaActiva()) {
+            throw new ReglaDominioException(
+                    "La entrevista de " + solicitud.getCodigo() + " ya está cerrada.");
+        }
         // Solo con los 4 documentos validados: el expediente enumera qué falta.
         if (expediente == null) {
             throw new DatoInvalidoException("El expediente es obligatorio.");
