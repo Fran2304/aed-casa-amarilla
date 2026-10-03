@@ -1,5 +1,6 @@
 package negocio;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -42,6 +43,12 @@ public class ExpedienteDocumentos {
             }
         }
         return true;
+    }
+
+    // Por día, como en #16: PlazosDocumentales (#17) evalúa con la fecha de hoy. Tomar el
+    // inicio del día da lo mismo que comparar solo fechas: vence recién el día siguiente.
+    public boolean debeCancelarse(LocalDate hoy) {
+        return debeCancelarse(hoy.atStartOfDay());
     }
 
     public boolean debeCancelarse(LocalDateTime ahora) {
