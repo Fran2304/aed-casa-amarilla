@@ -1,0 +1,23 @@
+name: Compilar
+
+# Compila en cada push y en cada PR: así un PR que rompe la compilación se ve antes de revisarlo.
+on:
+  push:
+  pull_request:
+
+jobs:
+  compilar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Java 21 porque es lo que piden .classpath y .settings, aunque en local se compile con 11.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Compilar src/
+        run: |
+          find src -name "*.java" > sources.txt
+          javac -encoding UTF-8 -Xlint:none -d out @sources.txt
