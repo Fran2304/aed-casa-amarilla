@@ -11,8 +11,6 @@ public class Solicitud {
     private final Aula aula;
     private final LocalDateTime fechaRegistro;
     private EstadoSolicitud estado;
-    // null mientras no entre a la cola: así se distingue la recién registrada (que aún puede
-    // ir por la vía directa) de la que espera turno, sin inventar un estado (§6.6).
     private LocalDateTime fechaIngresoCola;
 
     public Solicitud(String codigo, Alumno alumno, Aula aula, LocalDateTime fechaRegistro) {
@@ -49,7 +47,20 @@ public class Solicitud {
         return estado == EstadoSolicitud.EN_ESPERA_SIN_PAGO && fechaIngresoCola != null;
     }
 
-    // Lo llaman cobro, documentos y entrevista: en la cola no se hace ninguno de los tres (§4.2).
+    public void ingresarAColaFavorable(LocalDateTime fecha) throws ReglaDominioException {
+        if (fecha == null) {
+            throw new DatoInvalidoException("La fecha de ingreso a la cola es obligatoria.");
+        }
+        if (estado != EstadoSolicitud.EN_ESPERA_FAVORABLE) {
+            cambiarEstado(EstadoSolicitud.EN_ESPERA_FAVORABLE);
+        }
+        fechaIngresoCola = fecha;
+    }
+
+    public boolean estaEnColaFavorable() {
+        return estado == EstadoSolicitud.EN_ESPERA_FAVORABLE;
+    }
+
     public void exigirFueraDeColaSinPago(String operacion) throws ReglaDominioException {
         if (estaEnColaSinPago()) {
             throw new ReglaDominioException(codigo + " está en espera sin pago: no se puede "

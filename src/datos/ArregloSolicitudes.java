@@ -79,14 +79,29 @@ public class ArregloSolicitudes {
         return new ArrayList<Solicitud>(solicitudes);
     }
 
-    // La más antigua primero. Con fechas iguales se respeta el orden de registro,
-    // porque cada una se inserta después de las que tienen su misma fecha.
     public ArrayList<Solicitud> colaSinPago(Aula aula) {
-        ArrayList<Solicitud> cola = new ArrayList<Solicitud>();
+        ArrayList<Solicitud> enCola = new ArrayList<Solicitud>();
         for (Solicitud solicitud : solicitudes) {
-            if (solicitud.getAula() != aula || !solicitud.estaEnColaSinPago()) {
-                continue;
+            if (solicitud.getAula() == aula && solicitud.estaEnColaSinPago()) {
+                enCola.add(solicitud);
             }
+        }
+        return ordenarPorIngreso(enCola);
+    }
+
+    public ArrayList<Solicitud> colaFavorable(Aula aula) {
+        ArrayList<Solicitud> enCola = new ArrayList<Solicitud>();
+        for (Solicitud solicitud : solicitudes) {
+            if (solicitud.getAula() == aula && solicitud.estaEnColaFavorable()) {
+                enCola.add(solicitud);
+            }
+        }
+        return ordenarPorIngreso(enCola);
+    }
+
+    private static ArrayList<Solicitud> ordenarPorIngreso(ArrayList<Solicitud> enCola) {
+        ArrayList<Solicitud> cola = new ArrayList<Solicitud>();
+        for (Solicitud solicitud : enCola) {
             int posicion = cola.size();
             while (posicion > 0 && cola.get(posicion - 1).getFechaIngresoCola()
                     .isAfter(solicitud.getFechaIngresoCola())) {
