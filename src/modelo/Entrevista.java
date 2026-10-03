@@ -132,6 +132,11 @@ public class Entrevista {
         return inasistencias;
     }
 
+    // La UI del expediente (#19) pinta la asistencia pendiente/asistió desde aquí.
+    public Boolean getAsistioApoderado() {
+        return asistioApoderado;
+    }
+
     public boolean isRealizada() {
         return realizada;
     }
