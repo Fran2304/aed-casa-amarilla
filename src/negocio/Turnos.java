@@ -39,9 +39,6 @@ public final class Turnos {
         return orden.get(0);
     }
 
-    // Con N vacantes tienen turno las N primeras del orden. Una solicitud fuera de las colas
-    // (vía directa, o EN_DOCUMENTACION tras la entrevista) solo pasa si las colas no ocupan
-    // todas las vacantes.
     public static void exigirTurno(Solicitud solicitud, ArregloSolicitudes solicitudes,
             ArrayList<Matricula> matriculas) throws ReglaDominioException {
         Aula aula = solicitud.getAula();

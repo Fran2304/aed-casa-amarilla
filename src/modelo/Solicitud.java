@@ -51,8 +51,6 @@ public class Solicitud {
         if (fecha == null) {
             throw new DatoInvalidoException("La fecha de ingreso a la cola es obligatoria.");
         }
-        // Si ya está en la cola favorable es un reingreso (matrícula vencida a las 72 h, §4.7):
-        // no hay cambio de estado, solo fecha nueva para quedar al final.
         if (estado != EstadoSolicitud.EN_ESPERA_FAVORABLE) {
             cambiarEstado(EstadoSolicitud.EN_ESPERA_FAVORABLE);
         }
