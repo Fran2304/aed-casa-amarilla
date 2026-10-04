@@ -179,6 +179,7 @@ Estos puntos **no están resueltos en el PDF**. Una IA debe señalarlos antes de
 4. ~~Tratamiento de un pago de matrícula registrado pero observado al vencer el plazo.~~ **Resuelto (decisión del grupo):** los pagos no tienen estado de observación; un pago que no cumple las validaciones se rechaza y cuenta como ausencia de pago registrado. Al vencer las 72 h, la matrícula pasa a `CANCELADA`.
 5. Resultado de anular un pago confirmado cuando, al reevaluar el plazo original, ya no corresponde mantener la reserva.
 6. Nombres de estados intermedios que el PDF no enumera. **Resuelto en parte (decisión del grupo):** se agrega `HABILITADA_PARA_PAGO` para la solicitud de la cola sin pago a la que le llegó el turno. Los demás estados intermedios siguen sin nombre.
+7. Si el **número de operación** debe ser único (por medio de pago o en general). Hoy nada impide registrar dos pagos con el mismo número, incluso en solicitudes distintas.
 
 ## 7. Referencia de páginas
 

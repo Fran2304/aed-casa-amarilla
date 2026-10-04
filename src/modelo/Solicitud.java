@@ -3,6 +3,7 @@ package modelo;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 
+import negocio.ExpedienteDocumentos;
 import negocio.Transiciones;
 
 public class Solicitud {
@@ -16,6 +17,8 @@ public class Solicitud {
     private EstadoSolicitud estado;
     private LocalDateTime fechaIngresoCola;
     private LocalDateTime fechaHabilitacion;
+    private LocalDateTime fechaConfirmacionInscripcion;
+    private ExpedienteDocumentos expediente;
     private ArrayList<Oferta> ofertas;
 
     public Solicitud(String codigo, Alumno alumno, Aula aula, LocalDateTime fechaRegistro) {
@@ -38,6 +41,10 @@ public class Solicitud {
         if (nuevo == EstadoSolicitud.HABILITADA_PARA_PAGO) {
             throw new TransicionInvalidaException(codigo
                     + " se habilita con habilitarParaPago y su fecha.");
+        }
+        if (nuevo == EstadoSolicitud.EN_DOCUMENTACION) {
+            throw new TransicionInvalidaException(codigo
+                    + " pasa a documentación con confirmarInscripcion y su fecha.");
         }
         if (estado == EstadoSolicitud.HABILITADA_PARA_PAGO
                 && nuevo == EstadoSolicitud.EN_ESPERA_SIN_PAGO) {
@@ -109,6 +116,25 @@ public class Solicitud {
         ingresarAColaSinPago(fecha);
     }
 
+    public void confirmarInscripcion(LocalDateTime fecha) throws ReglaDominioException {
+        if (fecha == null) {
+            throw new DatoInvalidoException("La fecha de confirmación de la inscripción es"
+                    + " obligatoria.");
+        }
+        if (estado != EstadoSolicitud.HABILITADA_PARA_PAGO) {
+            throw new ReglaDominioException(codigo + " está en " + estado
+                    + " y no está habilitada para confirmar la inscripción.");
+        }
+        if (habilitacionVencida(fecha)) {
+            throw new ReglaDominioException("La habilitación de " + codigo + " venció el "
+                    + getVencimientoHabilitacion() + ".");
+        }
+        ExpedienteDocumentos nuevo = new ExpedienteDocumentos(fecha.toLocalDate());
+        aplicarTransicion(EstadoSolicitud.EN_DOCUMENTACION);
+        fechaConfirmacionInscripcion = fecha;
+        expediente = nuevo;
+    }
+
     public void ingresarAColaFavorable(LocalDateTime fecha) throws ReglaDominioException {
         if (fecha == null) {
             throw new DatoInvalidoException("La fecha de ingreso a la cola es obligatoria.");
@@ -165,6 +191,14 @@ public class Solicitud {
 
     public LocalDateTime getFechaHabilitacion() {
         return fechaHabilitacion;
+    }
+
+    public LocalDateTime getFechaConfirmacionInscripcion() {
+        return fechaConfirmacionInscripcion;
+    }
+
+    public ExpedienteDocumentos getExpediente() {
+        return expediente;
     }
 
     public ArrayList<Oferta> getOfertas() {
