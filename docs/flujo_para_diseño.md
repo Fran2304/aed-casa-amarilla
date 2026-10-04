@@ -39,6 +39,8 @@ Cuando se libera una vacante y le llega el turno a una solicitud `EN_ESPERA_SIN_
 
 **Decisión del grupo:** una solicitud con inscripción pagada en `EN_DOCUMENTACION` conserva su turno hasta que obtiene matrícula, se rechaza o se cancela. Mientras tanto, la vacante no se ofrece a otra solicitud de la cola sin pago ni a una solicitud nueva. Así, una sola vacante no lleva a cobrar inscripciones a toda la cola, una familia tras otra.
 
+**Decisión del grupo:** una solicitud habilitada también ocupa su turno, frente a la cola sin pago y a las solicitudes nuevas, hasta que paga o vence; frente a la cola favorable no, porque esta va primero. Si vence, reingresa a la cola sin pago con la fecha en que venció la habilitación.
+
 ### 3.3. Pago de inscripción
 
 El apoderado paga la cuota de inscripción y presenta la información o el comprobante correspondiente. El personal registra y verifica concepto, monto, medio de pago, fecha real de la operación y número de operación cuando corresponda. Si el pago no cumple alguna validación, se rechaza y el apoderado debe presentar un pago nuevo; los pagos no tienen estado de observación. El pago solo se aprueba cuando se confirma la operación. Recibir un comprobante no equivale a confirmar el pago.

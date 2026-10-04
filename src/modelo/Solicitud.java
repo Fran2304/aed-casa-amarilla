@@ -26,7 +26,6 @@ public class Solicitud {
         // El flujo no nombra un estado para "registrada, sin evaluar vacante" (§6.6) y no se
         // inventan estados: nace en el único estado de origen de la tabla de Transiciones.
         // Solo está en la cola cuando además tiene fecha de ingreso (ingresarAColaSinPago).
-        // Turnos.ubicarNueva la habilita para pago o la pone en la cola justo al registrarla.
         this.estado = EstadoSolicitud.EN_ESPERA_SIN_PAGO;
         this.ofertas = new ArrayList<Oferta>();
     }
@@ -55,8 +54,6 @@ public class Solicitud {
         fechaHabilitacion = null;
     }
 
-    // También sirve para reingresar tras vencer la habilitación (vencerHabilitacion): la fecha
-    // nueva es la más reciente, así que la solicitud queda al final de la cola.
     public void ingresarAColaSinPago(LocalDateTime fecha) throws ReglaDominioException {
         if (fecha == null) {
             throw new DatoInvalidoException("La fecha de ingreso a la cola es obligatoria.");
@@ -96,7 +93,6 @@ public class Solicitud {
                 && !ahora.isBefore(getVencimientoHabilitacion());
     }
 
-    // No hay temporizador: el vencimiento se evalúa con la fecha guardada cuando se revisa.
     public void vencerHabilitacion(LocalDateTime fecha) throws ReglaDominioException {
         if (fecha == null) {
             throw new DatoInvalidoException("La fecha de vencimiento es obligatoria.");

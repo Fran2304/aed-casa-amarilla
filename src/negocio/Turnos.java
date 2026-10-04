@@ -17,7 +17,6 @@ public final class Turnos {
     private Turnos() {
     }
 
-    
     public static ArrayList<Solicitud> ordenPorPrioridad(Aula aula,
             ArregloSolicitudes solicitudes, ArrayList<Matricula> matriculas,
             LocalDateTime ahora) throws ReglaDominioException {
@@ -36,8 +35,6 @@ public final class Turnos {
         return orden;
     }
 
-    // Las habilitadas y las que están en documentación ya se están atendiendo: el siguiente es
-    // la primera que espera en una cola y además tiene turno según las vacantes.
     public static Solicitud siguiente(Aula aula, ArregloSolicitudes solicitudes,
             ArrayList<Matricula> matriculas, LocalDateTime ahora) throws ReglaDominioException {
         int vacantes = Vacantes.calcular(aula, matriculas);
@@ -82,10 +79,6 @@ public final class Turnos {
         return orden.size() < vacantes;
     }
 
-    // Revisión a demanda, sin temporizador (CLAUDE.md): procesa los vencimientos y habilita a la
-    // cola sin pago que tiene turno en cada aula. Se llama al abrir la app, al mostrar Inicio o
-    // Colas, con el botón «Revisar turnos» y después de liberar una vacante (cancelar o anular
-    // una matrícula). Devuelve las habilitadas para que el colegio les avise por teléfono.
     public static ArrayList<Solicitud> revisarTurnos(ArregloAulas aulas,
             ArregloSolicitudes solicitudes, ArrayList<Matricula> matriculas, LocalDateTime ahora)
             throws ReglaDominioException {
@@ -96,10 +89,6 @@ public final class Turnos {
         return habilitadas;
     }
 
-    // Habilita en orden a la cola sin pago que tiene turno en el aula; las favorables no se
-    // tocan (reciben oferta con confirmarOferta). Debe llamarse cuando se libera una vacante:
-    // revisarTurnos lo hace para todas las aulas. Devuelve las habilitadas para avisarles por
-    // teléfono.
     public static ArrayList<Solicitud> habilitarConTurno(Aula aula,
             ArregloSolicitudes solicitudes, ArrayList<Matricula> matriculas, LocalDateTime ahora)
             throws ReglaDominioException {
@@ -146,7 +135,6 @@ public final class Turnos {
     public static Oferta confirmarOferta(Solicitud solicitud, boolean aceptada, String personal,
             LocalDateTime fechaHora, ArregloSolicitudes solicitudes,
             ArrayList<Matricula> matriculas) throws ReglaDominioException {
-        // Antes de exigirTurno, que ya usa la fecha para procesar vencimientos.
         if (fechaHora == null) {
             throw new DatoInvalidoException("La fecha y hora de la oferta es obligatoria.");
         }

@@ -18,9 +18,6 @@ public class Pago {
     private String comprobante;
     private EstadoPago estado;
 
-    // Todo se valida antes de asignar: un pago que incumple una regla no se registra, por eso
-    // no existe un estado OBSERVADO. La cuota se consulta pero no se guarda, para que un cambio
-    // posterior de la configuración no altere el monto de pagos ya registrados.
     public Pago(Solicitud solicitud, ConceptoPago concepto, Matricula matricula,
             double montoPagado, MedioPago medio, String numeroOperacion,
             LocalDateTime fechaHoraOperacion, LocalDateTime fechaHoraRegistro,
@@ -44,7 +41,6 @@ public class Pago {
             throw new DatoInvalidoException("La configuración de cuotas es obligatoria.");
         }
         String numeroLimpio = numeroOperacion(medio, numeroOperacion);
-        // isFinite descarta NaN e Infinity: "NaN <= 0" es false y se colaría como monto válido.
         if (!Double.isFinite(montoPagado) || montoPagado <= 0) {
             throw new DatoInvalidoException("El monto pagado debe ser mayor que 0.");
         }
@@ -73,7 +69,6 @@ public class Pago {
         this.estado = EstadoPago.RECIBIDO;
     }
 
-    // En efectivo es opcional pero se guarda si viene; no se valida formato por medio.
     private static String numeroOperacion(MedioPago medio, String numero)
             throws DatoInvalidoException {
         if (medio != MedioPago.EFECTIVO) {
@@ -85,7 +80,6 @@ public class Pago {
         return numero.trim();
     }
 
-    // La inscripción se paga antes de que exista matrícula; la matrícula, con la suya.
     private static void exigirMatricula(Solicitud solicitud, ConceptoPago concepto,
             Matricula matricula) throws ReglaDominioException {
         if (concepto == ConceptoPago.INSCRIPCION && matricula != null) {
@@ -104,8 +98,6 @@ public class Pago {
         }
     }
 
-    // La inscripción solo se paga con la solicitud habilitada; la matrícula, mientras espera su
-    // pago y la solicitud no se haya cancelado ni rechazado.
     private static void exigirEstadoPagable(Solicitud solicitud, ConceptoPago concepto,
             Matricula matricula, LocalDateTime fechaHoraOperacion,
             LocalDateTime fechaHoraRegistro) throws ReglaDominioException {
@@ -115,21 +107,15 @@ public class Pago {
                 throw new ReglaDominioException(solicitud.getCodigo() + " está en " + estado
                         + " y no está habilitada para pagar la inscripción.");
             }
-            // La ventana es [habilitación, habilitación + 48 h): fuera de ella no se cobra
-            // (§3.1).
             if (fechaHoraOperacion.isBefore(solicitud.getFechaHabilitacion())) {
                 throw new ReglaDominioException("La operación es anterior a la habilitación"
                         + " de " + solicitud.getCodigo() + " ("
                         + solicitud.getFechaHabilitacion() + ").");
             }
-            // No hay temporizador: sin esta revisión, una habilitación vencida aceptaría el
-            // pago.
             if (solicitud.habilitacionVencida(fechaHoraOperacion)) {
                 throw new ReglaDominioException("La habilitación de " + solicitud.getCodigo()
                         + " venció el " + solicitud.getVencimientoHabilitacion() + ".");
             }
-            // Las 48 h siguen corriendo mientras se recibe el pago (§3.2): presentarlo tarde
-            // no vale.
             if (solicitud.habilitacionVencida(fechaHoraRegistro)) {
                 throw new ReglaDominioException("El pago se presentó después del vencimiento"
                         + " de la habilitación de " + solicitud.getCodigo() + " ("
@@ -148,7 +134,6 @@ public class Pago {
         }
     }
 
-    // Se compara en céntimos: con double, 180.1 + 0.2 no es exactamente 180.3.
     private static void exigirCuota(ConceptoPago concepto, double monto,
             ConfiguracionCuotas cuotas) throws ReglaDominioException {
         double cuota = concepto == ConceptoPago.INSCRIPCION
@@ -165,13 +150,11 @@ public class Pago {
         return String.format(Locale.ROOT, "%.2f", monto);
     }
 
-    // Quién confirma y qué le pasa a la solicitud se resuelve en #13.
     public void confirmar() throws TransicionInvalidaException {
         Transiciones.exigirTransicion(estado, EstadoPago.CONFIRMADO);
         estado = EstadoPago.CONFIRMADO;
     }
 
-    // Se puede confirmar sin comprobante: el número se emite después y se registra una vez.
     public void registrarComprobante(String numero) throws ReglaDominioException {
         String limpio = Validaciones.exigirSoloDigitos("número de comprobante", numero);
         if (tieneComprobante()) {

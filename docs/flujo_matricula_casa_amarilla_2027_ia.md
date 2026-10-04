@@ -92,7 +92,8 @@ vacantes = capacidad_del_aula
 3. Durante ese plazo, el apoderado paga y presenta los datos o comprobante.
 4. Las 48 horas no se pausan ni se reinician mientras se recibe o verifica el pago. Si el pago se rechaza, el apoderado puede volver a pagar solo dentro del mismo plazo.
 5. Si vence sin inscripción confirmada, la solicitud vuelve de `HABILITADA_PARA_PAGO` **al final** de `EN_ESPERA_SIN_PAGO` con nueva fecha de ingreso. Reevaluar prioridades.
-6. **Decisión del grupo:** una solicitud con inscripción pagada en `EN_DOCUMENTACION` conserva su turno hasta que obtiene matrícula, se rechaza o se cancela. Mientras tanto, la vacante no se ofrece a otra solicitud de la cola sin pago ni a una solicitud nueva.
+6. **Decisión:** una solicitud con inscripción pagada en `EN_DOCUMENTACION` conserva su turno hasta que obtiene matrícula, se rechaza o se cancela. Mientras tanto, la vacante no se ofrece a otra solicitud de la cola sin pago ni a una solicitud nueva.
+7. **Decisión:** una solicitud habilitada ocupa su turno frente a la cola sin pago y a las solicitudes nuevas hasta que paga o vence, pero no frente a la cola favorable. Si vence, reingresa con la fecha en que venció la habilitación.
 
 **Decisión del grupo:** la regla de 48 horas también se aplica a la solicitud nueva que se habilita de frente; el PDF no define un plazo para esa vía.
 
@@ -101,6 +102,7 @@ vacantes = capacidad_del_aula
 - Verificar concepto, monto, medio de pago, fecha real de la operación y número de operación cuando corresponda.
 - Si el pago no cumple alguna validación, se rechaza y no se registra. No existe estado de observación para pagos; el apoderado debe realizar y presentar un pago nuevo y válido.
 - El pago solo se aprueba cuando se confirma la operación (por ejemplo, que la transferencia llegó).
+- Un pago puede confirmarse antes de tener número de comprobante: el número se emite después y se registra una sola vez.
 - Si el pago es válido, conservar el monto aplicado, marcarlo `CONFIRMADO`, cambiar la solicitud a `EN_DOCUMENTACION` e iniciar el plazo de entrega de documentos.
 - La cuota incluye gestión y revisión de documentos y **no es reembolsable**, incluso ante inelegibilidad posterior, entrevista no favorable, falta de vacante o cancelación posterior.
 
