@@ -19,8 +19,6 @@ public final class Cobros {
     private Cobros() {
     }
 
-    // Todo lo que puede rechazar el pago ocurre antes de confirmarlo: así nunca queda un pago
-    // confirmado con la solicitud sin pasar a documentación, ni un pago registrado sin turno.
     public static Pago confirmarInscripcion(Solicitud solicitud, double montoPagado,
             MedioPago medio, String numeroOperacion, LocalDateTime fechaHoraOperacion,
             LocalDateTime ahora, ArregloSolicitudes solicitudes, ArrayList<Matricula> matriculas,
@@ -46,8 +44,6 @@ public final class Cobros {
         return pago;
     }
 
-    // exigirTurno vencería la habilitación en silencio y el personal solo vería "no está
-    // habilitada"; se vence aquí para poder decir cuándo venció.
     private static void exigirHabilitacionVigente(Solicitud solicitud,
             ArregloSolicitudes solicitudes, LocalDateTime ahora) throws ReglaDominioException {
         if (!solicitud.habilitacionVencida(ahora)) {
