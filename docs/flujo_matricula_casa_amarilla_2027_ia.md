@@ -39,12 +39,13 @@
 | Estado | Significado en el flujo |
 |---|---|
 | `EN_ESPERA_SIN_PAGO` | Aún no puede comenzar la inscripción; tiene fecha de ingreso a la cola. |
+| `HABILITADA_PARA_PAGO` | **Decisión del grupo, no está en el PDF.** Solicitud nueva con vacante y sin nadie delante, o a la que le llegó el turno en la cola sin pago al liberarse una vacante; tiene 48 h desde la habilitación para pagar la inscripción. No reserva vacante. |
 | `EN_DOCUMENTACION` | Inscripción pagada y confirmada; corre el plazo inicial de documentos. |
 | `EN_ESPERA_FAVORABLE` | Documentos validados y entrevista favorable, pero sin vacante para crear matrícula. Conserva la inscripción pagada. |
 | `CANCELADA` | Incumplimiento de entrega o corrección de documentos, segunda inasistencia u otra cancelación indicada por el flujo. Se conserva en el historial. |
 | `RECHAZADA` | Entrevista realizada con resultado `NO_FAVORABLE`. Se conserva en el historial. |
 
-El PDF no nombra todos los estados intermedios de la solicitud. No asignarles nombres adicionales como si fueran parte de la fuente.
+El PDF no nombra todos los estados intermedios de la solicitud. No asignarles nombres adicionales como si fueran parte de la fuente. La única excepción es `HABILITADA_PARA_PAGO`, que el grupo agregó para distinguir a la solicitud que puede pagar de las que solo esperan en la cola.
 
 ### Matrícula y pago
 
@@ -79,25 +80,27 @@ vacantes = capacidad_del_aula
 
 - No almacenar las vacantes en un contador mutable; calcularlas con la capacidad y las matrículas vigentes.
 - La consulta de disponibilidad, la solicitud y el pago de inscripción **no reservan cupo**.
-- Si hay disponibilidad y ninguna solicitud de mayor prioridad debe atenderse antes, el personal comunica la cuota y solicita el pago de inscripción.
-- Si la inscripción no puede comenzar, colocar la solicitud en `EN_ESPERA_SIN_PAGO` con fecha de ingreso a esa cola. Mientras esté allí, no cobrar, revisar documentos ni agendar entrevista.
+- Si hay disponibilidad y ninguna solicitud de mayor prioridad debe atenderse antes, la solicitud pasa de frente a `HABILITADA_PARA_PAGO` y el personal comunica la cuota (decisión del grupo).
+- Si hay cola delante y no quedan vacantes, colocar la solicitud en `EN_ESPERA_SIN_PAGO` con fecha de ingreso a esa cola. Mientras esté allí, no cobrar, revisar documentos ni agendar entrevista.
 - Cuando se libera una vacante, atender primero la cola de entrevista favorable e inscripción pagada; después la cola sin pago. Dentro de cada cola, respetar la antigüedad.
 - Identificar la solicitud concreta a la que corresponde el turno. Una vacante no habilita simultáneamente a toda la cola.
 
-**Invitación desde la cola sin pago:**
+**Habilitación desde la cola sin pago (decisión del grupo):**
 
-1. Al llegar el turno, el personal invita al apoderado a iniciar la inscripción.
-2. La invitación dura **48 horas desde su emisión** y no reserva la vacante.
+1. Al liberarse una vacante, la solicitud a la que le toca el turno pasa a `HABILITADA_PARA_PAGO` sin acción del personal. El colegio avisa al apoderado por teléfono, fuera del sistema.
+2. La habilitación dura **48 horas desde que se habilita** y no reserva la vacante.
 3. Durante ese plazo, el apoderado paga y presenta los datos o comprobante.
-4. Las 48 horas siguen corriendo durante la recepción, verificación y corrección del pago. Una observación no reinicia el reloj.
-5. Si vence sin inscripción confirmada, cerrar la invitación, invalidar la selección previa y devolver la solicitud **al final** de `EN_ESPERA_SIN_PAGO` con nueva fecha de ingreso. Reevaluar prioridades.
+4. Las 48 horas no se pausan ni se reinician mientras se recibe o verifica el pago. Si el pago se rechaza, el apoderado puede volver a pagar solo dentro del mismo plazo.
+5. Si vence sin inscripción confirmada, la solicitud vuelve de `HABILITADA_PARA_PAGO` **al final** de `EN_ESPERA_SIN_PAGO` con nueva fecha de ingreso. Reevaluar prioridades.
+6. **Decisión del grupo:** una solicitud con inscripción pagada en `EN_DOCUMENTACION` conserva su turno hasta que obtiene matrícula, se rechaza o se cancela. Mientras tanto, la vacante no se ofrece a otra solicitud de la cola sin pago ni a una solicitud nueva.
 
-La regla de 48 horas corresponde a la invitación desde la cola; el PDF no la extiende a la vía directa.
+**Decisión del grupo:** la regla de 48 horas también se aplica a la solicitud nueva que se habilita de frente; el PDF no define un plazo para esa vía.
 
 ### 4.3. Pago de inscripción
 
 - Verificar concepto, monto, medio de pago, fecha real de la operación y número de operación cuando corresponda.
-- Si hay una observación, comunicarla y solicitar corrección.
+- Si el pago no cumple alguna validación, se rechaza y no se registra. No existe estado de observación para pagos; el apoderado debe realizar y presentar un pago nuevo y válido.
+- El pago solo se aprueba cuando se confirma la operación (por ejemplo, que la transferencia llegó).
 - Si el pago es válido, conservar el monto aplicado, marcarlo `CONFIRMADO`, cambiar la solicitud a `EN_DOCUMENTACION` e iniciar el plazo de entrega de documentos.
 - La cuota incluye gestión y revisión de documentos y **no es reembolsable**, incluso ante inelegibilidad posterior, entrevista no favorable, falta de vacante o cancelación posterior.
 
@@ -153,7 +156,7 @@ Un alumno solo puede tener una matrícula `PENDIENTE_PAGO` o `ACTIVA` a la vez. 
 |---|---|
 | Ya existe solicitud activa del alumno en 2027 | Mostrar la existente; no crear duplicado. |
 | No puede comenzar la inscripción | `EN_ESPERA_SIN_PAGO`; sin cobro, revisión documental ni entrevista. |
-| Vence invitación de 48 h sin inscripción confirmada | Cerrar invitación; volver al final de la espera sin pago. |
+| Vence la habilitación de 48 h sin inscripción confirmada | De `HABILITADA_PARA_PAGO` al final de `EN_ESPERA_SIN_PAGO`. |
 | Pago de inscripción válido | Pago `CONFIRMADO`; solicitud `EN_DOCUMENTACION`; inicia plazo documental. |
 | Faltan documentos al vencer 7 días calendario | Solicitud `CANCELADA`. |
 | Vence plazo de corrección de una observación | Solicitud `CANCELADA`. |
@@ -168,12 +171,12 @@ Un alumno solo puede tener una matrícula `PENDIENTE_PAGO` o `ACTIVA` a la vez. 
 
 Estos puntos **no están resueltos en el PDF**. Una IA debe señalarlos antes de implementar comportamientos que dependan de ellos:
 
-1. Plazo de pago de inscripción para la **vía directa**.
+1. ~~Plazo de pago de inscripción para la **vía directa**.~~ **Resuelto (decisión del grupo):** la solicitud nueva se habilita de frente y tiene las mismas 48 h.
 2. Lista completa de datos obligatorios, rangos de edad por aula y reglas de elegibilidad.
 3. Cómo proceder cuando una oferta de la cola favorable **no es aceptada**: el PDF solo indica que no se crea matrícula.
-4. Tratamiento exacto de un pago de matrícula **registrado pero observado** cuando vence el plazo; el vencimiento descrito explícitamente es para ausencia de pago registrado.
+4. ~~Tratamiento de un pago de matrícula registrado pero observado al vencer el plazo.~~ **Resuelto (decisión del grupo):** los pagos no tienen estado de observación; un pago que no cumple las validaciones se rechaza y cuenta como ausencia de pago registrado. Al vencer las 72 h, la matrícula pasa a `CANCELADA`.
 5. Resultado de anular un pago confirmado cuando, al reevaluar el plazo original, ya no corresponde mantener la reserva.
-6. Nombres de estados intermedios que el PDF no enumera.
+6. Nombres de estados intermedios que el PDF no enumera. **Resuelto en parte (decisión del grupo):** se agrega `HABILITADA_PARA_PAGO` para la solicitud de la cola sin pago a la que le llegó el turno. Los demás estados intermedios siguen sin nombre.
 
 ## 7. Referencia de páginas
 

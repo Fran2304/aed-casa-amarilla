@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import modelo.Alumno;
 import modelo.Aula;
 import modelo.DatoInvalidoException;
+import modelo.EstadoSolicitud;
 import modelo.ReglaDominioException;
 import modelo.Solicitud;
 import modelo.SolicitudDuplicadaException;
@@ -87,6 +88,45 @@ public class ArregloSolicitudes {
             }
         }
         return ordenarPorIngreso(enCola);
+    }
+
+    // Ordenadas por fecha de registro: es el orden en que se agregaron al arreglo.
+    public ArrayList<Solicitud> habilitadas(Aula aula) {
+        ArrayList<Solicitud> habilitadas = new ArrayList<Solicitud>();
+        for (Solicitud solicitud : solicitudes) {
+            if (solicitud.getAula() == aula
+                    && solicitud.getEstado() == EstadoSolicitud.HABILITADA_PARA_PAGO) {
+                habilitadas.add(solicitud);
+            }
+        }
+        return habilitadas;
+    }
+
+    // Pagaron la inscripción y siguen su trámite: no reservan vacante, pero conservan su lugar
+    // para que la vacante no se vuelva a ofrecer mientras avanzan (§3.2).
+    public ArrayList<Solicitud> enDocumentacion(Aula aula) {
+        ArrayList<Solicitud> enDocumentacion = new ArrayList<Solicitud>();
+        for (Solicitud solicitud : solicitudes) {
+            if (solicitud.getAula() == aula
+                    && solicitud.getEstado() == EstadoSolicitud.EN_DOCUMENTACION) {
+                enDocumentacion.add(solicitud);
+            }
+        }
+        return enDocumentacion;
+    }
+
+    // Sin temporizador: los vencimientos se procesan con fechas guardadas antes de usar las
+    // colas. Se reingresa con la fecha en que venció, no con la de la revisión, para que quede
+    // al final de la cola tal como estaba en ese momento.
+    public void vencerHabilitaciones(LocalDateTime ahora) throws ReglaDominioException {
+        if (ahora == null) {
+            throw new DatoInvalidoException("La fecha de revisión es obligatoria.");
+        }
+        for (Solicitud solicitud : solicitudes) {
+            if (solicitud.habilitacionVencida(ahora)) {
+                solicitud.vencerHabilitacion(solicitud.getVencimientoHabilitacion());
+            }
+        }
     }
 
     public ArrayList<Solicitud> colaFavorable(Aula aula) {

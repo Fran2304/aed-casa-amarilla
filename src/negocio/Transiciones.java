@@ -20,7 +20,9 @@ public final class Transiciones {
     static {
         TRANSICIONES_SOLICITUD = new EnumMap<>(EstadoSolicitud.class);
         TRANSICIONES_SOLICITUD.put(EstadoSolicitud.EN_ESPERA_SIN_PAGO,
-                Set.of(EstadoSolicitud.EN_DOCUMENTACION));
+                Set.of(EstadoSolicitud.HABILITADA_PARA_PAGO));
+        TRANSICIONES_SOLICITUD.put(EstadoSolicitud.HABILITADA_PARA_PAGO,
+                Set.of(EstadoSolicitud.EN_DOCUMENTACION, EstadoSolicitud.EN_ESPERA_SIN_PAGO));
         TRANSICIONES_SOLICITUD.put(EstadoSolicitud.EN_DOCUMENTACION,
                 Set.of(EstadoSolicitud.EN_ESPERA_FAVORABLE,
                         EstadoSolicitud.RECHAZADA,
@@ -37,10 +39,7 @@ public final class Transiciones {
         TRANSICIONES_MATRICULA.put(EstadoMatricula.CANCELADA, Set.of());
 
         TRANSICIONES_PAGO = new EnumMap<>(EstadoPago.class);
-        TRANSICIONES_PAGO.put(EstadoPago.RECIBIDO,
-                Set.of(EstadoPago.CONFIRMADO, EstadoPago.OBSERVADO));
-        TRANSICIONES_PAGO.put(EstadoPago.OBSERVADO,
-                Set.of(EstadoPago.CONFIRMADO));
+        TRANSICIONES_PAGO.put(EstadoPago.RECIBIDO, Set.of(EstadoPago.CONFIRMADO));
         TRANSICIONES_PAGO.put(EstadoPago.CONFIRMADO, Set.of());
 
         TRANSICIONES_DOCUMENTO = new EnumMap<>(EstadoDocumento.class);
