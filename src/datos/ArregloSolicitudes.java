@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import modelo.Alumno;
 import modelo.Aula;
 import modelo.DatoInvalidoException;
+import modelo.EstadoSolicitud;
 import modelo.ReglaDominioException;
 import modelo.Solicitud;
 import modelo.SolicitudDuplicadaException;
@@ -87,6 +88,39 @@ public class ArregloSolicitudes {
             }
         }
         return ordenarPorIngreso(enCola);
+    }
+
+    public ArrayList<Solicitud> habilitadas(Aula aula) {
+        ArrayList<Solicitud> habilitadas = new ArrayList<Solicitud>();
+        for (Solicitud solicitud : solicitudes) {
+            if (solicitud.getAula() == aula
+                    && solicitud.getEstado() == EstadoSolicitud.HABILITADA_PARA_PAGO) {
+                habilitadas.add(solicitud);
+            }
+        }
+        return habilitadas;
+    }
+
+    public ArrayList<Solicitud> enDocumentacion(Aula aula) {
+        ArrayList<Solicitud> enDocumentacion = new ArrayList<Solicitud>();
+        for (Solicitud solicitud : solicitudes) {
+            if (solicitud.getAula() == aula
+                    && solicitud.getEstado() == EstadoSolicitud.EN_DOCUMENTACION) {
+                enDocumentacion.add(solicitud);
+            }
+        }
+        return enDocumentacion;
+    }
+
+    public void vencerHabilitaciones(LocalDateTime ahora) throws ReglaDominioException {
+        if (ahora == null) {
+            throw new DatoInvalidoException("La fecha de revisión es obligatoria.");
+        }
+        for (Solicitud solicitud : solicitudes) {
+            if (solicitud.habilitacionVencida(ahora)) {
+                solicitud.vencerHabilitacion(solicitud.getVencimientoHabilitacion());
+            }
+        }
     }
 
     public ArrayList<Solicitud> colaFavorable(Aula aula) {

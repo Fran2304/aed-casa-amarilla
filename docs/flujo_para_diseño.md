@@ -27,19 +27,23 @@ La consulta de disponibilidad, la solicitud y el pago de inscripción **no reser
 
 El apoderado solicita una vacante para un alumno y un aula. El personal registra los datos del alumno, sus apoderados y el aula solicitada. Antes de crear la solicitud o pedir un pago, el sistema comprueba los datos obligatorios, la edad del alumno para el aula y la existencia de otra solicitud activa del mismo alumno para 2027. Si ya existe una, se muestra la solicitud existente para evitar duplicados. Solo puede haber una solicitud activa por alumno durante 2027; las solicitudes canceladas o rechazadas permanecen en el historial.
 
-Cuando los datos son válidos, el sistema guarda la solicitud y consulta las vacantes y el orden de atención. Si hay disponibilidad y no corresponde atender antes a otra solicitud, el personal comunica la cuota de inscripción y solicita el pago. **El plazo para pagar por esta vía directa sigue sin definirse.**
+Cuando los datos son válidos, el sistema guarda la solicitud y consulta las vacantes y el orden de atención. Si hay disponibilidad y no corresponde atender antes a otra solicitud, la solicitud pasa de frente a `HABILITADA_PARA_PAGO` y el personal comunica la cuota de inscripción. **Decisión del grupo:** el plazo es el mismo de la habilitación desde la cola, 48 horas desde que se habilita (ver §3.2).
 
-Si la inscripción no puede comenzar, la solicitud pasa a `EN_ESPERA_SIN_PAGO` y se registra su fecha de ingreso a esa cola. Mientras permanezca ahí, no se cobra la inscripción, no se revisan documentos y no se agenda una entrevista.
+Si hay cola delante y no quedan vacantes, la solicitud pasa a `EN_ESPERA_SIN_PAGO` y se registra su fecha de ingreso a esa cola. Mientras permanezca ahí, no se cobra la inscripción, no se revisan documentos y no se agenda una entrevista.
 
 ### 3.2. Prioridad de las listas de espera
 
 Cuando aparece una vacante, tienen prioridad las solicitudes con inscripción pagada y entrevista favorable que esperan matrícula. Después se atiende a las solicitudes sin pago. Dentro de cada grupo se respeta la antigüedad de ingreso a la cola correspondiente. El sistema selecciona una solicitud concreta para atender; la vacante no habilita a todos los integrantes de la cola a la vez.
 
-Cuando llega el turno de una solicitud `EN_ESPERA_SIN_PAGO`, el personal invita al apoderado a iniciar la inscripción. La invitación dura **48 horas desde su emisión** y no reserva la vacante. Si vence sin que la inscripción quede confirmada, se cierra la invitación, se invalida esa selección y la solicitud vuelve al final de la misma cola con una nueva fecha de ingreso. Las prioridades se evalúan otra vez. Las 48 horas continúan corriendo durante la recepción, revisión y corrección del comprobante de inscripción; una observación no reinicia ese plazo.
+Cuando se libera una vacante y le llega el turno a una solicitud `EN_ESPERA_SIN_PAGO`, esta pasa a `HABILITADA_PARA_PAGO` sin acción del personal; el colegio avisa al apoderado por teléfono, fuera del sistema. Este estado es una decisión del grupo y no aparece en el PDF. La habilitación dura **48 horas desde que se habilita** y no reserva la vacante. Si vence sin que la inscripción quede confirmada, la solicitud vuelve al final de `EN_ESPERA_SIN_PAGO` con una nueva fecha de ingreso. Las prioridades se evalúan otra vez. Las 48 horas continúan corriendo durante la recepción y verificación del pago; un pago rechazado no reinicia ese plazo.
+
+**Decisión del grupo:** una solicitud con inscripción pagada en `EN_DOCUMENTACION` conserva su turno hasta que obtiene matrícula, se rechaza o se cancela. Mientras tanto, la vacante no se ofrece a otra solicitud de la cola sin pago ni a una solicitud nueva. Así, una sola vacante no lleva a cobrar inscripciones a toda la cola, una familia tras otra.
+
+**Decisión del grupo:** una solicitud habilitada también ocupa su turno, frente a la cola sin pago y a las solicitudes nuevas, hasta que paga o vence; frente a la cola favorable no, porque esta va primero. Si vence, reingresa a la cola sin pago con la fecha en que venció la habilitación.
 
 ### 3.3. Pago de inscripción
 
-El apoderado paga la cuota de inscripción y presenta la información o el comprobante correspondiente. El personal registra y verifica concepto, monto, medio de pago, fecha real de la operación y número de operación cuando corresponda. Si el pago presenta una observación, la comunica para su corrección. Recibir un comprobante no equivale a confirmar el pago.
+El apoderado paga la cuota de inscripción y presenta la información o el comprobante correspondiente. El personal registra y verifica concepto, monto, medio de pago, fecha real de la operación y número de operación cuando corresponda. Si el pago no cumple alguna validación, se rechaza y el apoderado debe presentar un pago nuevo; los pagos no tienen estado de observación. El pago solo se aprueba cuando se confirma la operación. Recibir un comprobante no equivale a confirmar el pago.
 
 La cuota de inscripción incluye la gestión y revisión documental del postulante. Es **no reembolsable** aunque posteriormente no haya vacante, la entrevista sea no favorable o la solicitud termine cancelada. Su monto se configura para 2027 y cada pago conserva el monto que se le aplicó. Cuando el personal confirma el pago, el sistema lo registra como `CONFIRMADO`, cambia la solicitud a `EN_DOCUMENTACION` y abre el plazo de entrega de documentos. En ese momento todavía no se ha creado una matrícula ni reservado una vacante.
 

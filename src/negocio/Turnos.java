@@ -3,8 +3,10 @@ package negocio;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 
+import datos.ArregloAulas;
 import datos.ArregloSolicitudes;
 import modelo.Aula;
+import modelo.DatoInvalidoException;
 import modelo.Matricula;
 import modelo.Oferta;
 import modelo.ReglaDominioException;
@@ -16,8 +18,12 @@ public final class Turnos {
     }
 
     public static ArrayList<Solicitud> ordenPorPrioridad(Aula aula,
-            ArregloSolicitudes solicitudes, ArrayList<Matricula> matriculas) {
+            ArregloSolicitudes solicitudes, ArrayList<Matricula> matriculas,
+            LocalDateTime ahora) throws ReglaDominioException {
+        solicitudes.vencerHabilitaciones(ahora);
         ArrayList<Solicitud> enCola = solicitudes.colaFavorable(aula);
+        enCola.addAll(solicitudes.enDocumentacion(aula));
+        enCola.addAll(solicitudes.habilitadas(aula));
         enCola.addAll(solicitudes.colaSinPago(aula));
 
         ArrayList<Solicitud> orden = new ArrayList<Solicitud>();
@@ -30,19 +36,20 @@ public final class Turnos {
     }
 
     public static Solicitud siguiente(Aula aula, ArregloSolicitudes solicitudes,
-            ArrayList<Matricula> matriculas) {
-        if (Vacantes.calcular(aula, matriculas) <= 0) {
-            return null;
+            ArrayList<Matricula> matriculas, LocalDateTime ahora) throws ReglaDominioException {
+        int vacantes = Vacantes.calcular(aula, matriculas);
+        ArrayList<Solicitud> orden = ordenPorPrioridad(aula, solicitudes, matriculas, ahora);
+        for (int i = 0; i < vacantes && i < orden.size(); i++) {
+            Solicitud solicitud = orden.get(i);
+            if (solicitud.estaEnColaFavorable() || solicitud.estaEnColaSinPago()) {
+                return solicitud;
+            }
         }
-        ArrayList<Solicitud> orden = ordenPorPrioridad(aula, solicitudes, matriculas);
-        if (orden.isEmpty()) {
-            return null;
-        }
-        return orden.get(0);
+        return null;
     }
 
     public static void exigirTurno(Solicitud solicitud, ArregloSolicitudes solicitudes,
-            ArrayList<Matricula> matriculas) throws ReglaDominioException {
+            ArrayList<Matricula> matriculas, LocalDateTime ahora) throws ReglaDominioException {
         if (tieneMatriculaVigente(solicitud, matriculas)) {
             throw new ReglaDominioException(solicitud.getCodigo() + " ya tiene matrícula vigente.");
         }
@@ -53,19 +60,66 @@ public final class Turnos {
                     + ".");
         }
 
-        ArrayList<Solicitud> orden = ordenPorPrioridad(aula, solicitudes, matriculas);
-        int posicion = orden.indexOf(solicitud);
-        boolean enCola = posicion >= 0;
-        if (enCola && posicion < vacantes) {
-            return;
-        }
-        if (!enCola && orden.size() < vacantes) {
+        ArrayList<Solicitud> orden = ordenPorPrioridad(aula, solicitudes, matriculas, ahora);
+        if (hayTurno(solicitud, orden, vacantes)) {
             return;
         }
 
         Solicitud primera = orden.get(0);
         throw new ReglaDominioException("Antes corresponde " + primera.getCodigo() + " ("
                 + primera.getAlumno().getNombreCompleto() + ") en " + aula.getNombre() + ".");
+    }
+
+    private static boolean hayTurno(Solicitud solicitud, ArrayList<Solicitud> orden,
+            int vacantes) {
+        int posicion = orden.indexOf(solicitud);
+        if (posicion >= 0) {
+            return posicion < vacantes;
+        }
+        return orden.size() < vacantes;
+    }
+
+    public static ArrayList<Solicitud> revisarTurnos(ArregloAulas aulas,
+            ArregloSolicitudes solicitudes, ArrayList<Matricula> matriculas, LocalDateTime ahora)
+            throws ReglaDominioException {
+        ArrayList<Solicitud> habilitadas = new ArrayList<Solicitud>();
+        for (Aula aula : aulas.listar()) {
+            habilitadas.addAll(habilitarConTurno(aula, solicitudes, matriculas, ahora));
+        }
+        return habilitadas;
+    }
+
+    public static ArrayList<Solicitud> habilitarConTurno(Aula aula,
+            ArregloSolicitudes solicitudes, ArrayList<Matricula> matriculas, LocalDateTime ahora)
+            throws ReglaDominioException {
+        ArrayList<Solicitud> habilitadas = new ArrayList<Solicitud>();
+        int vacantes = Vacantes.calcular(aula, matriculas);
+        ArrayList<Solicitud> orden = ordenPorPrioridad(aula, solicitudes, matriculas, ahora);
+        for (int i = 0; i < vacantes && i < orden.size(); i++) {
+            Solicitud solicitud = orden.get(i);
+            if (solicitud.estaEnColaSinPago()) {
+                solicitud.habilitarParaPago(ahora);
+                habilitadas.add(solicitud);
+            }
+        }
+        return habilitadas;
+    }
+
+    public static ArrayList<Solicitud> ubicarNueva(Solicitud nueva,
+            ArregloSolicitudes solicitudes, ArrayList<Matricula> matriculas, LocalDateTime fecha)
+            throws ReglaDominioException {
+        ArrayList<Solicitud> promovidas = habilitarConTurno(nueva.getAula(), solicitudes,
+                matriculas, fecha);
+        int vacantes = Vacantes.calcular(nueva.getAula(), matriculas);
+        ArrayList<Solicitud> orden = ordenPorPrioridad(nueva.getAula(), solicitudes, matriculas,
+                fecha);
+        if (vacantes > 0 && !tieneMatriculaVigente(nueva, matriculas)
+                && hayTurno(nueva, orden, vacantes)) {
+            nueva.habilitarParaPago(fecha);
+        } else {
+            nueva.ingresarAColaSinPago(fecha);
+        }
+        return promovidas;
     }
 
     private static boolean tieneMatriculaVigente(Solicitud solicitud,
@@ -81,6 +135,9 @@ public final class Turnos {
     public static Oferta confirmarOferta(Solicitud solicitud, boolean aceptada, String personal,
             LocalDateTime fechaHora, ArregloSolicitudes solicitudes,
             ArrayList<Matricula> matriculas) throws ReglaDominioException {
+        if (fechaHora == null) {
+            throw new DatoInvalidoException("La fecha y hora de la oferta es obligatoria.");
+        }
         if (!solicitud.estaEnColaFavorable()) {
             throw new ReglaDominioException("Solo se ofrece vacante a solicitudes de la cola"
                     + " favorable; " + solicitud.getCodigo() + " está en "
@@ -89,7 +146,7 @@ public final class Turnos {
         if (solicitud.tieneOfertaAceptada()) {
             throw new ReglaDominioException(solicitud.getCodigo() + " ya aceptó una oferta.");
         }
-        exigirTurno(solicitud, solicitudes, matriculas);
+        exigirTurno(solicitud, solicitudes, matriculas, fechaHora);
 
         Oferta oferta = new Oferta(fechaHora, personal, aceptada);
         solicitud.registrarOferta(oferta);
