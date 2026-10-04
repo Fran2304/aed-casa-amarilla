@@ -103,6 +103,8 @@ vacantes = capacidad_del_aula
 - Si el pago no cumple alguna validación, se rechaza y no se registra. No existe estado de observación para pagos; el apoderado debe realizar y presentar un pago nuevo y válido.
 - El pago solo se aprueba cuando se confirma la operación (por ejemplo, que la transferencia llegó).
 - Un pago puede confirmarse antes de tener número de comprobante: el número se emite después y se registra una sola vez.
+- Antes de confirmar se comprueba, en este orden, que la inscripción no esté ya pagada, que la habilitación siga vigente y que a la solicitud le corresponda el turno (§4.2, regla 7); recién después se validan los datos del pago. Si algo falla, el pago no se registra y la solicitud no cambia: nunca queda un pago confirmado con la solicitud fuera de `EN_DOCUMENTACION`, ni se cobra una cuota no reembolsable sin turno.
+- Si la habilitación ya venció al intentar pagar, la solicitud vuelve en ese momento al final de `EN_ESPERA_SIN_PAGO` y el rechazo indica cuándo venció.
 - Si el pago es válido, conservar el monto aplicado, marcarlo `CONFIRMADO`, cambiar la solicitud a `EN_DOCUMENTACION` e iniciar el plazo de entrega de documentos.
 - La cuota incluye gestión y revisión de documentos y **no es reembolsable**, incluso ante inelegibilidad posterior, entrevista no favorable, falta de vacante o cancelación posterior.
 
@@ -179,6 +181,7 @@ Estos puntos **no están resueltos en el PDF**. Una IA debe señalarlos antes de
 4. ~~Tratamiento de un pago de matrícula registrado pero observado al vencer el plazo.~~ **Resuelto (decisión del grupo):** los pagos no tienen estado de observación; un pago que no cumple las validaciones se rechaza y cuenta como ausencia de pago registrado. Al vencer las 72 h, la matrícula pasa a `CANCELADA`.
 5. Resultado de anular un pago confirmado cuando, al reevaluar el plazo original, ya no corresponde mantener la reserva.
 6. Nombres de estados intermedios que el PDF no enumera. **Resuelto en parte (decisión del grupo):** se agrega `HABILITADA_PARA_PAGO` para la solicitud de la cola sin pago a la que le llegó el turno. Los demás estados intermedios siguen sin nombre.
+7. Si el **número de operación** debe ser único (por medio de pago o en general). Hoy nada impide registrar dos pagos con el mismo número, incluso en solicitudes distintas.
 
 ## 7. Referencia de páginas
 
