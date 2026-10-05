@@ -15,13 +15,17 @@ public class Pago {
     private final String numeroOperacion;
     private final LocalDateTime fechaHoraOperacion;
     private final LocalDateTime fechaHoraRegistro;
+    // Archivo que presenta el apoderado como prueba del pago (captura, voucher). No es
+    // «comprobante», que es la boleta que el nido emite después de confirmar (§4.3).
+    private final String rutaComprobantePago;
     private String comprobante;
     private EstadoPago estado;
 
     public Pago(Solicitud solicitud, ConceptoPago concepto, Matricula matricula,
             double montoPagado, MedioPago medio, String numeroOperacion,
             LocalDateTime fechaHoraOperacion, LocalDateTime fechaHoraRegistro,
-            ConfiguracionCuotas cuotas) throws ReglaDominioException {
+            String rutaComprobantePago, ConfiguracionCuotas cuotas)
+            throws ReglaDominioException {
         if (solicitud == null) {
             throw new DatoInvalidoException("La solicitud es obligatoria.");
         }
@@ -41,6 +45,8 @@ public class Pago {
             throw new DatoInvalidoException("La configuración de cuotas es obligatoria.");
         }
         String numeroLimpio = numeroOperacion(medio, numeroOperacion);
+        String rutaLimpia = Validaciones.exigirNoVacio("comprobante del pago",
+                rutaComprobantePago);
         if (!Double.isFinite(montoPagado) || montoPagado <= 0) {
             throw new DatoInvalidoException("El monto pagado debe ser mayor que 0.");
         }
@@ -65,6 +71,7 @@ public class Pago {
         this.numeroOperacion = numeroLimpio;
         this.fechaHoraOperacion = fechaHoraOperacion;
         this.fechaHoraRegistro = fechaHoraRegistro;
+        this.rutaComprobantePago = rutaLimpia;
         this.comprobante = "";
         this.estado = EstadoPago.RECIBIDO;
     }
@@ -202,6 +209,10 @@ public class Pago {
 
     public LocalDateTime getFechaHoraRegistro() {
         return fechaHoraRegistro;
+    }
+
+    public String getRutaComprobantePago() {
+        return rutaComprobantePago;
     }
 
     public String getComprobante() {
