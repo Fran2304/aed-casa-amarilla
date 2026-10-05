@@ -100,6 +100,7 @@ vacantes = capacidad_del_aula
 ### 4.3. Pago de inscripción
 
 - Verificar concepto, monto, medio de pago, fecha real de la operación y número de operación cuando corresponda.
+- La fecha real de la operación no puede ser futura ni anterior a la habilitación ni al registro de la solicitud: el plazo de pago empieza en la más tardía de las dos y termina al vencer la habilitación.
 - Si el pago no cumple alguna validación, se rechaza y no se registra. No existe estado de observación para pagos; el apoderado debe realizar y presentar un pago nuevo y válido.
 - El pago solo se aprueba cuando se confirma la operación (por ejemplo, que la transferencia llegó).
 - Un pago puede confirmarse antes de tener número de comprobante: el número se emite después y se registra una sola vez.
@@ -151,6 +152,7 @@ Un alumno solo puede tener una matrícula `PENDIENTE_PAGO` o `ACTIVA` a la vez. 
 - Medios admitidos para ambos pagos: **efectivo, transferencia, tarjeta, Yape y Plin**.
 - El número de operación es obligatorio excepto para efectivo.
 - Cada pago conserva el monto aplicado al registrarse, aunque luego cambie la configuración.
+- Todo pago guarda el comprobante que presenta el apoderado (captura o voucher de la operación) y no se confirma sin él. No es el número de comprobante que el nido emite después de confirmar (§4.3). Se guarda la ruta del archivo; copiarlo a una carpeta propia queda para la persistencia.
 - Todo pago se relaciona con una solicitud. El pago de matrícula también se relaciona con su matrícula; el de inscripción ocurre antes de crearla.
 - Revisar vencimientos al abrir la aplicación de escritorio y antes de operaciones que dependen de vacantes. El cierre de la aplicación no suspende los plazos.
 

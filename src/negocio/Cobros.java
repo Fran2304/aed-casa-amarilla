@@ -21,7 +21,8 @@ public final class Cobros {
 
     public static Pago confirmarInscripcion(Solicitud solicitud, double montoPagado,
             MedioPago medio, String numeroOperacion, LocalDateTime fechaHoraOperacion,
-            LocalDateTime ahora, ArregloSolicitudes solicitudes, ArrayList<Matricula> matriculas,
+            String rutaComprobantePago, LocalDateTime ahora, ArregloSolicitudes solicitudes,
+            ArrayList<Matricula> matriculas,
             ArregloPagos pagos, ConfiguracionCuotas cuotas) throws ReglaDominioException {
         if (solicitud == null) {
             throw new DatoInvalidoException("La solicitud es obligatoria.");
@@ -37,7 +38,7 @@ public final class Cobros {
         Turnos.exigirTurno(solicitud, solicitudes, matriculas, ahora);
 
         Pago pago = new Pago(solicitud, ConceptoPago.INSCRIPCION, null, montoPagado, medio,
-                numeroOperacion, fechaHoraOperacion, ahora, cuotas);
+                numeroOperacion, fechaHoraOperacion, ahora, rutaComprobantePago, cuotas);
         pago.confirmar();
         solicitud.confirmarInscripcion(ahora);
         pagos.agregar(pago);

@@ -1,14 +1,17 @@
 package ui;
 
 import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.Font;
 import java.awt.GraphicsEnvironment;
 import java.awt.Insets;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JTextField;
 import javax.swing.border.AbstractBorder;
 
 import modelo.EstadoSolicitud;
@@ -28,6 +31,7 @@ public final class Estilos {
     public static final Color SECUNDARIO = new Color(0x53635C);
     public static final Color FONDO_LATERAL = new Color(0xE7EDE5);
     public static final Color BORDE_TARJETA = new Color(0xD9E1DA);
+    public static final Color FONDO_CAMPO = new Color(0xF5F7F2);
 
     public static final int RADIO_TARJETA = 12;
     public static final int RADIO_BOTON = 8;
@@ -88,6 +92,41 @@ public final class Estilos {
     public static JPanel tarjeta(JPanel panel) {
         panel.setBackground(TARJETA);
         panel.setBorder(new BordeRedondeado(BORDE_TARJETA, RADIO_TARJETA));
+        return panel;
+    }
+
+    public static Font tituloTarjeta() {
+        return fuente(Font.BOLD, 19);
+    }
+
+    public static JLabel etiquetaCampo(String texto) {
+        JLabel etiqueta = new JLabel(texto.toUpperCase());
+        etiqueta.setFont(fuente(Font.BOLD, 13));
+        etiqueta.setForeground(SECUNDARIO);
+        return etiqueta;
+    }
+
+    public static <T extends JComponent> T campo(T campo) {
+        campo.setFont(contenido());
+        campo.setForeground(TEXTO_PRINCIPAL);
+        campo.setBackground(FONDO_CAMPO);
+        campo.setBorder(BorderFactory.createCompoundBorder(
+                new BordeRedondeado(FONDO_CAMPO, RADIO_CAMPO),
+                BorderFactory.createEmptyBorder(4, 6, 4, 6)));
+        return campo;
+    }
+
+    public static void editable(JTextField campo, boolean editable) {
+        campo.setEditable(editable);
+        campo.setBackground(editable ? FONDO_CAMPO : TARJETA);
+        campo.setForeground(editable ? TEXTO_PRINCIPAL : SECUNDARIO);
+        campo.setCursor(Cursor.getPredefinedCursor(
+                editable ? Cursor.TEXT_CURSOR : Cursor.DEFAULT_CURSOR));
+    }
+
+    public static JPanel aviso(JPanel panel, Color fondo) {
+        panel.setBackground(fondo);
+        panel.setBorder(new BordeRedondeado(fondo, RADIO_BOTON));
         return panel;
     }
 
