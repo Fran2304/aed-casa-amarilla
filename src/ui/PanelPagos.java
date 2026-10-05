@@ -15,6 +15,8 @@ import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 
 import datos.ArregloPagos;
 import datos.ArregloSolicitudes;
@@ -90,6 +92,22 @@ public class PanelPagos extends JPanel {
         JButton buscar = Estilos.botonSecundario("Buscar");
         buscar.addActionListener(evento -> buscar());
         campoCodigo.addActionListener(evento -> buscar());
+        campoCodigo.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                descartarSiCambioCodigo();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                descartarSiCambioCodigo();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                descartarSiCambioCodigo();
+            }
+        });
         buscador.add(buscar);
         encabezado.add(buscador);
         encabezado.add(Box.createVerticalStrut(12));
@@ -98,6 +116,18 @@ public class PanelPagos extends JPanel {
         resumen.setAlignmentX(LEFT_ALIGNMENT);
         encabezado.add(resumen);
         return encabezado;
+    }
+
+    // Confirmar opera sobre «actual», no sobre el campo: si el código escrito ya no es el de
+    // la solicitud mostrada, el pago iría a otra distinta de la que se ve.
+    private void descartarSiCambioCodigo() {
+        if (actual == null
+                || campoCodigo.getText().trim().equalsIgnoreCase(actual.getCodigo())) {
+            return;
+        }
+        actual = null;
+        mostrarResumen(null);
+        tarjetas.reiniciar();
     }
 
     private void buscar() {
@@ -157,11 +187,34 @@ public class PanelPagos extends JPanel {
     private void confirmar(double monto, MedioPago medio, String numeroOperacion,
             LocalDateTime fechaOperacion, String rutaComprobantePago)
             throws ReglaDominioException {
-        Pago pago = Cobros.confirmarInscripcion(actual, monto, medio, numeroOperacion,
-                fechaOperacion, rutaComprobantePago, LocalDateTime.now(), solicitudes,
-                matriculas, pagos, cuotas);
+        Pago pago;
+        try {
+            pago = Cobros.confirmarInscripcion(actual, monto, medio, numeroOperacion,
+                    fechaOperacion, rutaComprobantePago, LocalDateTime.now(), solicitudes,
+                    matriculas, pagos, cuotas);
+        } catch (ReglaDominioException e) {
+            // Cobros pudo vencer la habilitación (cambia el estado antes de lanzar) o hallar
+            // que la solicitud perdió el turno mientras el formulario estaba abierto. Se rehace
+            // la búsqueda solo en ese caso: un dato mal escrito no debe borrar lo ingresado.
+            if (!puedePagar()) {
+                buscar();
+            }
+            throw e;
+        }
         mostrarResumen(actual);
         tarjetas.mostrarConfirmado(pago, detalleConfirmado(actual));
+    }
+
+    private boolean puedePagar() {
+        if (actual.getEstado() != EstadoSolicitud.HABILITADA_PARA_PAGO) {
+            return false;
+        }
+        try {
+            Turnos.exigirTurno(actual, solicitudes, matriculas, LocalDateTime.now());
+            return true;
+        } catch (ReglaDominioException e) {
+            return false;
+        }
     }
 
     private Pago inscripcionConfirmada(Solicitud solicitud) {

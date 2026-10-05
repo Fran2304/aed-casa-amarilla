@@ -104,6 +104,10 @@ public class TarjetasPago extends JPanel {
         add(crearTarjetaValidacion(textoPlazo), c);
 
         escucharCambios();
+        reiniciar();
+    }
+
+    public void reiniciar() {
         esperar(Estilos.ESPERA, Estilos.TEXTO_ESPERA, "BUSQUE UNA SOLICITUD",
                 "Ingrese su código para registrar el pago.");
     }
@@ -490,7 +494,8 @@ public class TarjetasPago extends JPanel {
             accion.confirmar(monto, (MedioPago) comboMedio.getSelectedItem(),
                     campoOperacion.getText().trim(), leerFecha(), rutaComprobante);
         } catch (ReglaDominioException e) {
-            // El dominio rechazó el pago: no se registró nada y los datos siguen editables.
+            // El dominio rechazó el pago: no se registró nada. Si la solicitud ya no puede
+            // pagar, la acción bloqueó las tarjetas antes de llegar aquí.
             mostrarMensaje(e.getMessage(), true);
         }
     }
