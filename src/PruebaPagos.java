@@ -19,8 +19,6 @@ import modelo.Solicitud;
 import negocio.Cobros;
 import ui.PrincipalUI;
 
-// Prueba manual del pago de inscripción (issue #15): abre la app con solicitudes en cada
-// caso que la pantalla debe cubrir. No toca Main: la app real sigue arrancando vacía.
 public class PruebaPagos {
 
     private static int siguienteDni = 70000001;
@@ -69,7 +67,6 @@ public class PruebaPagos {
                 LocalDateTime.now(), ventana.getSolicitudes(), ventana.getMatriculas(),
                 ventana.getPagos(), ventana.getCuotas());
 
-        // Después del pago: confirmarlo revisa turnos y vencería esta habilitación al instante.
         Solicitud vencida = registrar(ventana, alumnos, apoderados, "Leo", "Silva",
                 cuatroAnios, girasoles);
         vencida.habilitarParaPago(ahora.minusHours(50));
@@ -86,7 +83,6 @@ public class PruebaPagos {
                 + " recién es válida desde el minuto siguiente.");
     }
 
-    // Una imagen temporal que hace de captura de Yape, para probar «Adjuntar» y «Abrir».
     private static String crearComprobanteDeEjemplo() {
         try {
             File archivo = File.createTempFile("comprobante-yape-", ".png");

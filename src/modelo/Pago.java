@@ -15,8 +15,6 @@ public class Pago {
     private final String numeroOperacion;
     private final LocalDateTime fechaHoraOperacion;
     private final LocalDateTime fechaHoraRegistro;
-    // Archivo que presenta el apoderado como prueba del pago (captura, voucher). No es
-    // «comprobante», que es la boleta que el nido emite después de confirmar (§4.3).
     private final String rutaComprobantePago;
     private String comprobante;
     private EstadoPago estado;

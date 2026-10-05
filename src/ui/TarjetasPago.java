@@ -37,9 +37,6 @@ import modelo.MedioPago;
 import modelo.Pago;
 import modelo.ReglaDominioException;
 
-// Tarjetas «Pago · comprobante recibido» y «Validación y cierre» del frame 05 del diseño.
-// Van aparte del panel porque #26 las reutiliza para el pago de matrícula: el concepto,
-// el plazo y qué hace «Confirmar» los decide quien las usa.
 public class TarjetasPago extends JPanel {
 
     public interface AccionConfirmar {
@@ -95,7 +92,6 @@ public class TarjetasPago extends JPanel {
         GridBagConstraints c = new GridBagConstraints();
         c.fill = GridBagConstraints.BOTH;
         c.weighty = 1;
-        // Proporción del diseño: 736 px para el comprobante y 402 para la validación.
         c.weightx = 0.65;
         c.insets = new Insets(0, 0, 0, 16);
         add(crearTarjetaPago(tituloPago), c);
@@ -154,7 +150,6 @@ public class TarjetasPago extends JPanel {
     }
 
     private void esperar(Color fondo, Color texto, String titulo, String detalle) {
-        // Primero se bloquea: limpiar los campos dispara validar() y no debe evaluarlos vacíos.
         setEditable(false);
         pagoConfirmado = null;
         comboMedio.setSelectedIndex(-1);
@@ -209,8 +204,6 @@ public class TarjetasPago extends JPanel {
         return tarjeta;
     }
 
-    // GridLayout reparte el ancho en dos columnas iguales, como el diseño, sin que la
-    // etiqueta más larga ensanche su columna.
     private static JPanel fila(String etiquetaIzq, JComponent campoIzq, String etiquetaDer,
             JComponent campoDer) {
         JPanel fila = new JPanel(new GridLayout(1, 2, 20, 0));
@@ -228,8 +221,6 @@ public class TarjetasPago extends JPanel {
         return columna;
     }
 
-    // Solo se guarda la ruta del archivo que entregó el apoderado: copiarlo a una carpeta
-    // propia es decisión de persistencia, que aún no existe.
     private JPanel crearComprobante() {
         JPanel comprobante = new JPanel(new BorderLayout(8, 0));
         comprobante.setOpaque(false);
@@ -290,7 +281,6 @@ public class TarjetasPago extends JPanel {
 
     private JPanel crearAviso() {
         Estilos.aviso(aviso, Estilos.ALERTA);
-        // BorderLayout estira las etiquetas a todo el ancho: con BoxLayout el detalle se cortaba.
         aviso.setLayout(new BorderLayout(0, 2));
         tituloAviso.setFont(Estilos.fuente(Font.BOLD, 14));
         detalleAviso.setFont(Estilos.fuente(Font.PLAIN, 12));
@@ -315,7 +305,6 @@ public class TarjetasPago extends JPanel {
                 textoPlazo, "Comprobante del pago adjunto" };
         for (int i = 0; i < textos.length; i++) {
             items[i] = new JLabel();
-            // El nombre guarda el texto base: el visible cambia con ✓, ✗ o ○.
             items[i].setName(textos[i]);
             items[i].setFont(Estilos.contenido());
             motivos[i] = new JLabel(" ");
@@ -329,8 +318,6 @@ public class TarjetasPago extends JPanel {
             tarjeta.add(motivos[i], c);
         }
 
-        // Que el archivo esté adjunto no dice que sea legible ni que la operación exista:
-        // «comprobante verificable» solo lo puede afirmar quien lo revisó.
         revisado.setFont(Estilos.contenido());
         revisado.setForeground(Estilos.TEXTO_PRINCIPAL);
         revisado.setOpaque(false);
@@ -357,7 +344,6 @@ public class TarjetasPago extends JPanel {
         return tarjeta;
     }
 
-    // La boleta la emite el nido después de confirmar (§4.3): no es el voucher del apoderado.
     private JPanel crearBoleta() {
         boleta.setOpaque(false);
         GridBagConstraints c = new GridBagConstraints();
@@ -411,7 +397,6 @@ public class TarjetasPago extends JPanel {
         revisado.addActionListener(evento -> validar());
     }
 
-    // Solo adelanta lo que el dominio rechazaría: la regla final la aplica la acción.
     private void validar() {
         if (!editable) {
             return;
@@ -494,8 +479,6 @@ public class TarjetasPago extends JPanel {
             accion.confirmar(monto, (MedioPago) comboMedio.getSelectedItem(),
                     campoOperacion.getText().trim(), leerFecha(), rutaComprobante);
         } catch (ReglaDominioException e) {
-            // El dominio rechazó el pago: no se registró nada. Si la solicitud ya no puede
-            // pagar, la acción bloqueó las tarjetas antes de llegar aquí.
             mostrarMensaje(e.getMessage(), true);
         }
     }
@@ -513,7 +496,6 @@ public class TarjetasPago extends JPanel {
         mensajeBoleta.setForeground(Estilos.BOTON_PRINCIPAL);
     }
 
-    // La boleta se registra una sola vez: después queda en solo lectura.
     private void mostrarBoleta() {
         boolean pendiente = !pagoConfirmado.tieneComprobante();
         campoBoleta.setText(pagoConfirmado.getComprobante());
@@ -550,8 +532,6 @@ public class TarjetasPago extends JPanel {
         mensaje.setForeground(esError ? Estilos.TEXTO_ALERTA : Estilos.BOTON_PRINCIPAL);
     }
 
-    // Ancho preferido mínimo: así todo el ancho disponible se reparte por los pesos
-    // (65/35 del diseño) y no según el texto más largo de cada tarjeta.
     private static JPanel tarjeta() {
         JPanel tarjeta = Estilos.tarjeta(new JPanel(new GridBagLayout()) {
             @Override
@@ -564,7 +544,6 @@ public class TarjetasPago extends JPanel {
         return tarjeta;
     }
 
-    // Los mensajes del dominio pueden ser largos: un JLabel los cortaba en una sola línea.
     private static JTextArea textoAjustable() {
         JTextArea texto = new JTextArea(" ");
         texto.setEditable(false);
@@ -583,7 +562,6 @@ public class TarjetasPago extends JPanel {
         return titulo;
     }
 
-    // Locale.ROOT: con la configuración regional de Windows saldría "180,00".
     private static String soles(double monto) {
         return String.format(Locale.ROOT, "%.2f", monto);
     }

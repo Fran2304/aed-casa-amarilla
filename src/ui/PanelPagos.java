@@ -31,8 +31,6 @@ import modelo.Solicitud;
 import negocio.Cobros;
 import negocio.Turnos;
 
-// Pago de inscripción (issue #15). El diseño no tiene pantalla propia para inscripción:
-// reutiliza las tarjetas del frame 05; la cabecera de matrícula llega con #26.
 public class PanelPagos extends JPanel {
 
     private static final DateTimeFormatter FORMATO_DIA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -77,7 +75,6 @@ public class PanelPagos extends JPanel {
         titulo.setFont(Estilos.titulo());
         titulo.setForeground(Estilos.TEXTO_PRINCIPAL);
         titulo.setAlignmentX(LEFT_ALIGNMENT);
-        // BoxLayout deja la etiqueta en su ancho preferido; con el escalado de Windows se cortaba.
         titulo.setMaximumSize(new Dimension(Integer.MAX_VALUE, titulo.getPreferredSize().height));
         encabezado.add(titulo);
         encabezado.add(Box.createVerticalStrut(14));
@@ -118,8 +115,6 @@ public class PanelPagos extends JPanel {
         return encabezado;
     }
 
-    // Confirmar opera sobre «actual», no sobre el campo: si el código escrito ya no es el de
-    // la solicitud mostrada, el pago iría a otra distinta de la que se ve.
     private void descartarSiCambioCodigo() {
         if (actual == null
                 || campoCodigo.getText().trim().equalsIgnoreCase(actual.getCodigo())) {
@@ -139,8 +134,6 @@ public class PanelPagos extends JPanel {
             return;
         }
 
-        // Los vencimientos se aplican antes de operar (§4): una habilitación vencida devuelve
-        // la solicitud al final de la cola aunque nadie haya abierto la app en ese momento.
         LocalDateTime ahora = LocalDateTime.now();
         if (actual.habilitacionVencida(ahora)) {
             LocalDateTime vencio = actual.getVencimientoHabilitacion();
@@ -173,13 +166,10 @@ public class PanelPagos extends JPanel {
             tarjetas.bloquear(e.getMessage());
             return;
         }
-        // Pago rechaza operaciones anteriores a la habilitación y también al registro de la
-        // solicitud: el plazo empieza en la más tardía de las dos.
         LocalDateTime inicio = actual.getFechaHabilitacion();
         if (actual.getFechaRegistro().isAfter(inicio)) {
             inicio = actual.getFechaRegistro();
         }
-        // La cuota se relee en cada búsqueda: pudo cambiar en Cuotas 2027 durante la sesión.
         tarjetas.prepararPago(cuotas.getCuotaInscripcion(), inicio,
                 actual.getVencimientoHabilitacion());
     }
@@ -193,9 +183,6 @@ public class PanelPagos extends JPanel {
                     fechaOperacion, rutaComprobantePago, LocalDateTime.now(), solicitudes,
                     matriculas, pagos, cuotas);
         } catch (ReglaDominioException e) {
-            // Cobros pudo vencer la habilitación (cambia el estado antes de lanzar) o hallar
-            // que la solicitud perdió el turno mientras el formulario estaba abierto. Se rehace
-            // la búsqueda solo en ese caso: un dato mal escrito no debe borrar lo ingresado.
             if (!puedePagar()) {
                 buscar();
             }

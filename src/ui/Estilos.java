@@ -99,7 +99,6 @@ public final class Estilos {
         return fuente(Font.BOLD, 19);
     }
 
-    // Etiqueta de campo del diseño: mayúsculas, gris y encima del campo, no a su izquierda.
     public static JLabel etiquetaCampo(String texto) {
         JLabel etiqueta = new JLabel(texto.toUpperCase());
         etiqueta.setFont(fuente(Font.BOLD, 13));
@@ -117,7 +116,6 @@ public final class Estilos {
         return campo;
     }
 
-    // Sin el fondo de campo, uno de solo lectura se distingue a simple vista de uno editable.
     public static void editable(JTextField campo, boolean editable) {
         campo.setEditable(editable);
         campo.setBackground(editable ? FONDO_CAMPO : TARJETA);
@@ -126,7 +124,6 @@ public final class Estilos {
                 editable ? Cursor.TEXT_CURSOR : Cursor.DEFAULT_CURSOR));
     }
 
-    // Caja de aviso (alerta, espera o confirmado): el color cambia con el estado del pago.
     public static JPanel aviso(JPanel panel, Color fondo) {
         panel.setBackground(fondo);
         panel.setBorder(new BordeRedondeado(fondo, RADIO_BOTON));
