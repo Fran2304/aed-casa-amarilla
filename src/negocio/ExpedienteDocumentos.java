@@ -1,6 +1,7 @@
 package negocio;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.Map;
@@ -14,10 +15,10 @@ public class ExpedienteDocumentos {
 
     public static final int DIAS_ENTREGA = 7;
 
-    private final LocalDate inscripcionConfirmadaEl;
+    private final LocalDateTime inscripcionConfirmadaEl;
     private final Map<TipoDocumento, Documento> documentos;
 
-    public ExpedienteDocumentos(LocalDate inscripcionConfirmadaEl) throws DatoInvalidoException {
+    public ExpedienteDocumentos(LocalDateTime inscripcionConfirmadaEl) throws DatoInvalidoException {
         if (inscripcionConfirmadaEl == null) {
             throw new DatoInvalidoException(
                     "La fecha de confirmación de la inscripción es obligatoria.");
@@ -29,7 +30,7 @@ public class ExpedienteDocumentos {
         }
     }
 
-    public LocalDate fechaLimiteEntrega() {
+    public LocalDateTime fechaLimiteEntrega() {
         return inscripcionConfirmadaEl.plusDays(DIAS_ENTREGA);
     }
 
@@ -37,19 +38,25 @@ public class ExpedienteDocumentos {
     public boolean entregaOportuna() {
         for (Documento documento : documentos.values()) {
             if (!documento.estaEntregado()
-                    || documento.getFechaHoraEntrega().toLocalDate().isAfter(fechaLimiteEntrega())) {
+                    || documento.getFechaHoraEntrega().isAfter(fechaLimiteEntrega())) {
                 return false;
             }
         }
         return true;
     }
 
+    // Por día, como en #16: PlazosDocumentales (#17) evalúa con la fecha de hoy. Tomar el
+    // inicio del día da lo mismo que comparar solo fechas: vence recién el día siguiente.
     public boolean debeCancelarse(LocalDate hoy) {
-        if (hoy.isAfter(fechaLimiteEntrega()) && !entregaOportuna()) {
+        return debeCancelarse(hoy.atStartOfDay());
+    }
+
+    public boolean debeCancelarse(LocalDateTime ahora) {
+        if (ahora.isAfter(fechaLimiteEntrega()) && !entregaOportuna()) {
             return true;
         }
         for (Documento documento : documentos.values()) {
-            if (documento.correccionVencida(hoy)) {
+            if (documento.correccionVencida(ahora)) {
                 return true;
             }
         }
@@ -93,7 +100,7 @@ public class ExpedienteDocumentos {
         return new ArrayList<Documento>(documentos.values());
     }
 
-    public LocalDate getInscripcionConfirmadaEl() {
+    public LocalDateTime getInscripcionConfirmadaEl() {
         return inscripcionConfirmadaEl;
     }
 }
