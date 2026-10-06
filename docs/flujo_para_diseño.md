@@ -3,7 +3,7 @@
 **Proyecto:** sistema institucional de matrícula 2027 del Nido La Casa Amarilla, sede San Borja.  
 **Estado:** versión de trabajo aceptada por el equipo para avanzar; algunos casos se revisarán después.  
 **Fuente principal:** `flujo_completo_matricula_casa_amarilla_2027.pdf`, versión modificada por el equipo y revisada el 28 de septiembre de 2026.  
-**Propósito de este archivo:** permitir que otro modelo entienda el proceso y, a partir de él, proponga especificaciones de interfaz en openPencio. Este archivo describe comportamiento y datos, no define todavía el aspecto visual ni una lista definitiva de pantallas.
+**Propósito de este archivo:** permitir que otro modelo entienda el proceso y, a partir de él, proponga especificaciones de interfaz en OpenPencil. Este archivo describe comportamiento y datos, no define todavía el aspecto visual ni una lista definitiva de pantallas.
 
 > Si otra documentación del proyecto menciona 96 horas para pagar la matrícula o 24 horas adicionales para presentar comprobantes, **no usar esos plazos**. En la versión de trabajo actual se indican 72 horas desde la creación de la matrícula y no se contempla expresamente un periodo adicional. Los casos ambiguos se enumeran al final.
 
