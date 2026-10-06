@@ -97,4 +97,4 @@ El plan menciona diseño de GUI y clases en la **semana 6**, módulos de manteni
 
 ## Fuente
 
-- [Plan de proyecto de investigación aplicada 2026-02](sources/PR_2026_02_Algoritmos_y_Estructura_de_Datos_5358.md)
+- Plan de proyecto de investigación aplicada 2026-02
