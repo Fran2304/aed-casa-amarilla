@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Java 21 porque es lo que piden .classpath y .settings, aunque en local se compile con 11.
+      # Java 21 porque es lo que piden .classpath y .settings.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
