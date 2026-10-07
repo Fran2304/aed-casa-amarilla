@@ -4,6 +4,7 @@ import java.util.ArrayList;
 
 import modelo.ConceptoPago;
 import modelo.DatoInvalidoException;
+import modelo.Matricula;
 import modelo.Pago;
 import modelo.Solicitud;
 
@@ -34,11 +35,24 @@ public class ArregloPagos {
 
     public boolean inscripcionConfirmada(Solicitud solicitud) {
         for (Pago pago : deSolicitud(solicitud)) {
-            if (pago.getConcepto() == ConceptoPago.INSCRIPCION && pago.estaConfirmado()) {
+            if (pago.getConcepto() == ConceptoPago.INSCRIPCION && pago.estaConfirmado()
+                    && !pago.estaAnulado()) {
                 return true;
             }
         }
         return false;
+    }
+
+    /** Pago de matrícula vigente de la matrícula dada, o {@code null} si no hay. */
+    public Pago pagoMatriculaConfirmado(Matricula matricula) {
+        for (Pago pago : pagos) {
+            if (pago.getConcepto() == ConceptoPago.MATRICULA
+                    && pago.getMatricula() == matricula && pago.estaConfirmado()
+                    && !pago.estaAnulado()) {
+                return pago;
+            }
+        }
+        return null;
     }
 
     public ArrayList<Pago> listar() {

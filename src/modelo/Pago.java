@@ -18,6 +18,9 @@ public class Pago {
     private final String rutaComprobantePago;
     private String comprobante;
     private EstadoPago estado;
+    private LocalDateTime fechaAnulacion;
+    private String motivoAnulacion;
+    private String responsableAnulacion;
 
     public Pago(Solicitud solicitud, ConceptoPago concepto, Matricula matricula,
             double montoPagado, MedioPago medio, String numeroOperacion,
@@ -72,6 +75,9 @@ public class Pago {
         this.rutaComprobantePago = rutaLimpia;
         this.comprobante = "";
         this.estado = EstadoPago.RECIBIDO;
+        this.fechaAnulacion = null;
+        this.motivoAnulacion = "";
+        this.responsableAnulacion = "";
     }
 
     private static String numeroOperacion(MedioPago medio, String numero)
@@ -160,6 +166,20 @@ public class Pago {
         estado = EstadoPago.CONFIRMADO;
     }
 
+    /** Solo un pago confirmado se anula; el registro se conserva con su historial. */
+    public void anular(String motivo, String responsable, LocalDateTime fechaHora)
+            throws ReglaDominioException {
+        Transiciones.exigirTransicion(estado, EstadoPago.ANULADO);
+        if (fechaHora == null) {
+            throw new DatoInvalidoException("La fecha y hora de anulación es obligatoria.");
+        }
+        motivoAnulacion = Validaciones.exigirNoVacio("motivo de anulación", motivo);
+        responsableAnulacion = Validaciones.exigirNoVacio("responsable de anulación",
+                responsable);
+        fechaAnulacion = fechaHora;
+        estado = EstadoPago.ANULADO;
+    }
+
     public void registrarComprobante(String numero) throws ReglaDominioException {
         String limpio = Validaciones.exigirSoloDigitos("número de comprobante", numero);
         if (tieneComprobante()) {
@@ -175,6 +195,10 @@ public class Pago {
 
     public boolean estaConfirmado() {
         return estado == EstadoPago.CONFIRMADO;
+    }
+
+    public boolean estaAnulado() {
+        return estado == EstadoPago.ANULADO;
     }
 
     public Solicitud getSolicitud() {
@@ -219,5 +243,17 @@ public class Pago {
 
     public EstadoPago getEstado() {
         return estado;
+    }
+
+    public LocalDateTime getFechaAnulacion() {
+        return fechaAnulacion;
+    }
+
+    public String getMotivoAnulacion() {
+        return motivoAnulacion;
+    }
+
+    public String getResponsableAnulacion() {
+        return responsableAnulacion;
     }
 }

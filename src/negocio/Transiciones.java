@@ -40,7 +40,8 @@ public final class Transiciones {
 
         TRANSICIONES_PAGO = new EnumMap<>(EstadoPago.class);
         TRANSICIONES_PAGO.put(EstadoPago.RECIBIDO, Set.of(EstadoPago.CONFIRMADO));
-        TRANSICIONES_PAGO.put(EstadoPago.CONFIRMADO, Set.of());
+        TRANSICIONES_PAGO.put(EstadoPago.CONFIRMADO, Set.of(EstadoPago.ANULADO));
+        TRANSICIONES_PAGO.put(EstadoPago.ANULADO, Set.of());
 
         TRANSICIONES_DOCUMENTO = new EnumMap<>(EstadoDocumento.class);
         TRANSICIONES_DOCUMENTO.put(EstadoDocumento.EN_REVISION,
