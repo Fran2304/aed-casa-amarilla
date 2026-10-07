@@ -26,7 +26,9 @@ public final class Transiciones {
         TRANSICIONES_SOLICITUD.put(EstadoSolicitud.EN_DOCUMENTACION,
                 Set.of(EstadoSolicitud.EN_ESPERA_FAVORABLE,
                         EstadoSolicitud.RECHAZADA,
-                        EstadoSolicitud.CANCELADA));
+                        EstadoSolicitud.CANCELADA,
+                        // Reversión por anulación del pago de inscripción confirmado por error.
+                        EstadoSolicitud.HABILITADA_PARA_PAGO));
         TRANSICIONES_SOLICITUD.put(EstadoSolicitud.EN_ESPERA_FAVORABLE, Set.of());
         TRANSICIONES_SOLICITUD.put(EstadoSolicitud.CANCELADA, Set.of());
         TRANSICIONES_SOLICITUD.put(EstadoSolicitud.RECHAZADA, Set.of());

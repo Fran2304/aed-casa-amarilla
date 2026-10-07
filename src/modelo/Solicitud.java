@@ -17,6 +17,9 @@ public class Solicitud {
     private EstadoSolicitud estado;
     private LocalDateTime fechaIngresoCola;
     private LocalDateTime fechaHabilitacion;
+    // La confirmación limpia la habilitación; se conserva la original para reevaluar el
+    // remanente de las 48 h si luego se anula el pago de inscripción (§4.7).
+    private LocalDateTime fechaHabilitacionOriginal;
     private LocalDateTime fechaConfirmacionInscripcion;
     private ExpedienteDocumentos expediente;
     private ArrayList<Oferta> ofertas;
@@ -130,9 +133,47 @@ public class Solicitud {
                     + getVencimientoHabilitacion() + ".");
         }
         ExpedienteDocumentos nuevo = new ExpedienteDocumentos(fecha.toLocalDate());
+        LocalDateTime habilitacion = fechaHabilitacion;
         aplicarTransicion(EstadoSolicitud.EN_DOCUMENTACION);
+        fechaHabilitacionOriginal = habilitacion;
         fechaConfirmacionInscripcion = fecha;
         expediente = nuevo;
+    }
+
+    /**
+     * Revierte una inscripción confirmada por error de registro (§4.7). Recupera la
+     * habilitación original: si sus 48 h siguen vigentes, la solicitud vuelve a
+     * {@code HABILITADA_PARA_PAGO} con el remanente (no se reinicia el plazo); si ya
+     * venció, vuelve al final de {@code EN_ESPERA_SIN_PAGO} con {@code fechaReingreso}.
+     */
+    public void revertirInscripcion(LocalDateTime ahora, LocalDateTime fechaReingreso)
+            throws ReglaDominioException {
+        if (ahora == null) {
+            throw new DatoInvalidoException("La fecha de reversión es obligatoria.");
+        }
+        if (fechaReingreso == null) {
+            throw new DatoInvalidoException("La fecha de reingreso a la cola es obligatoria.");
+        }
+        if (estado != EstadoSolicitud.EN_DOCUMENTACION) {
+            throw new ReglaDominioException(codigo + " está en " + estado
+                    + " y no tiene una inscripción confirmada que revertir.");
+        }
+        if (fechaHabilitacionOriginal == null) {
+            throw new ReglaDominioException(codigo + " no conserva la habilitación original"
+                    + " para revertir la inscripción.");
+        }
+        LocalDateTime habilitacion = fechaHabilitacionOriginal;
+        aplicarTransicion(EstadoSolicitud.HABILITADA_PARA_PAGO);
+        fechaHabilitacion = habilitacion;
+        fechaConfirmacionInscripcion = null;
+        expediente = null;
+        // Criterio §6.5 (pendiente #5): si el plazo original ya venció al reevaluar, no se
+        // reinicia ni se mantiene la habilitación. La misma solicitud vuelve al final de
+        // EN_ESPERA_SIN_PAGO con fecha nueva.
+        if (habilitacionVencida(ahora)) {
+            aplicarTransicion(EstadoSolicitud.EN_ESPERA_SIN_PAGO);
+            ingresarAColaSinPago(fechaReingreso);
+        }
     }
 
     public void ingresarAColaFavorable(LocalDateTime fecha) throws ReglaDominioException {

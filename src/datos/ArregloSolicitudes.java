@@ -80,6 +80,22 @@ public class ArregloSolicitudes {
         return new ArrayList<Solicitud>(solicitudes);
     }
 
+    /**
+     * Fecha con la que una solicitud queda al final de su cola tras una reversión: posterior
+     * a la fecha de ingreso de todas las que ya esperan, para que el orden por antigüedad la
+     * deje última (§4.7).
+     */
+    public LocalDateTime fechaIngresoAlFinal(Solicitud solicitud, LocalDateTime desde) {
+        LocalDateTime fecha = desde;
+        for (Solicitud otra : solicitudes) {
+            LocalDateTime ingreso = otra.getFechaIngresoCola();
+            if (otra != solicitud && ingreso != null && !ingreso.isBefore(fecha)) {
+                fecha = ingreso.plusSeconds(1);
+            }
+        }
+        return fecha;
+    }
+
     public ArrayList<Solicitud> colaSinPago(Aula aula) {
         ArrayList<Solicitud> enCola = new ArrayList<Solicitud>();
         for (Solicitud solicitud : solicitudes) {
