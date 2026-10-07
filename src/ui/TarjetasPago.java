@@ -45,10 +45,15 @@ public class TarjetasPago extends JPanel {
                 throws ReglaDominioException;
     }
 
+    public interface AccionAnular {
+        void anular(String motivo, String responsable) throws ReglaDominioException;
+    }
+
     public static final DateTimeFormatter FORMATO_FECHA =
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     private final AccionConfirmar accion;
+    private final AccionAnular accionAnular;
 
     private double cuota;
     private LocalDateTime inicioPlazo;
@@ -81,10 +86,19 @@ public class TarjetasPago extends JPanel {
     private final JButton botonBoleta = Estilos.botonSecundario("Registrar");
     private final JLabel mensajeBoleta = new JLabel(" ");
 
+    // Anulación por error de registro (§4.7): solo se ofrece sobre un pago confirmado y
+    // exige motivo y responsable no vacíos para dejar el historial.
+    private final JPanel anulacion = new JPanel(new GridBagLayout());
+    private final JTextField campoMotivoAnulacion = Estilos.campo(new JTextField());
+    private final JTextField campoResponsableAnulacion = Estilos.campo(new JTextField());
+    private final JButton botonAnular = Estilos.botonSecundario("Anular pago");
+    private final JLabel mensajeAnulacion = new JLabel(" ");
+
     public TarjetasPago(String tituloPago, String concepto, String textoConfirmar,
-            String textoPlazo, AccionConfirmar accion) {
+            String textoPlazo, AccionConfirmar accion, AccionAnular accionAnular) {
         super(new GridBagLayout());
         this.accion = accion;
+        this.accionAnular = accionAnular;
         setOpaque(false);
         campoConcepto.setText(concepto);
         botonConfirmar = Estilos.botonPrimario(textoConfirmar);
@@ -125,6 +139,7 @@ public class TarjetasPago extends JPanel {
                         + finPlazo.format(FORMATO_FECHA) + ".");
         mostrarMensaje(" ", false);
         boleta.setVisible(false);
+        limpiarAnulacion();
         setEditable(true);
     }
 
@@ -140,6 +155,9 @@ public class TarjetasPago extends JPanel {
         mostrarMensaje(" ", false);
         mostrarBoleta();
         setEditable(false);
+        limpiarAnulacion();
+        anulacion.setVisible(true);
+        validarAnulacion();
         for (int i = 0; i < items.length; i++) {
             marcar(i, null);
         }
@@ -161,6 +179,7 @@ public class TarjetasPago extends JPanel {
         pintarAviso(fondo, texto, titulo, detalle);
         mostrarMensaje(" ", false);
         boleta.setVisible(false);
+        limpiarAnulacion();
         for (int i = 0; i < items.length; i++) {
             items[i].setText("○  " + items[i].getName());
             items[i].setForeground(Estilos.SECUNDARIO);
@@ -339,9 +358,54 @@ public class TarjetasPago extends JPanel {
         tarjeta.add(crearBoleta(), c);
 
         c.gridy++;
+        c.insets = new Insets(0, 0, 0, 0);
+        tarjeta.add(crearAnulacion(), c);
+
+        c.gridy++;
         c.weighty = 1;
         tarjeta.add(new JLabel(" "), c);
         return tarjeta;
+    }
+
+    private JPanel crearAnulacion() {
+        anulacion.setOpaque(false);
+        GridBagConstraints c = new GridBagConstraints();
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.anchor = GridBagConstraints.NORTHWEST;
+        c.gridx = 0;
+        c.gridy = 0;
+        c.gridwidth = 2;
+        c.weightx = 1;
+        c.insets = new Insets(10, 0, 8, 0);
+        JLabel encabezado = new JLabel("ANULACIÓN POR ERROR DE REGISTRO");
+        encabezado.setFont(Estilos.fuente(Font.BOLD, 13));
+        encabezado.setForeground(Estilos.SECUNDARIO);
+        anulacion.add(encabezado, c);
+
+        c.gridy = 1;
+        c.gridwidth = 1;
+        c.weightx = 0.5;
+        c.insets = new Insets(0, 0, 0, 8);
+        anulacion.add(columna("Motivo de anulación", campoMotivoAnulacion), c);
+        c.gridx = 1;
+        c.insets = new Insets(0, 8, 0, 0);
+        anulacion.add(columna("Responsable (personal)", campoResponsableAnulacion), c);
+
+        botonAnular.addActionListener(evento -> anular());
+        c.gridx = 0;
+        c.gridy = 2;
+        c.gridwidth = 2;
+        c.weightx = 1;
+        c.insets = new Insets(12, 0, 8, 0);
+        anulacion.add(botonAnular, c);
+
+        mensajeAnulacion.setFont(Estilos.fuente(Font.PLAIN, 13));
+        c.gridy = 3;
+        c.insets = new Insets(0, 0, 0, 0);
+        anulacion.add(mensajeAnulacion, c);
+
+        anulacion.setVisible(false);
+        return anulacion;
     }
 
     private JPanel crearBoleta() {
@@ -395,6 +459,50 @@ public class TarjetasPago extends JPanel {
         campoFecha.getDocument().addDocumentListener(alEscribir);
         comboMedio.addActionListener(evento -> validar());
         revisado.addActionListener(evento -> validar());
+
+        DocumentListener alAnular = new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                validarAnulacion();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                validarAnulacion();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                validarAnulacion();
+            }
+        };
+        campoMotivoAnulacion.getDocument().addDocumentListener(alAnular);
+        campoResponsableAnulacion.getDocument().addDocumentListener(alAnular);
+    }
+
+    // Un pago solo se anula con motivo y responsable: el botón se habilita únicamente
+    // cuando ambos están completos.
+    private void validarAnulacion() {
+        botonAnular.setEnabled(!campoMotivoAnulacion.getText().trim().isEmpty()
+                && !campoResponsableAnulacion.getText().trim().isEmpty());
+    }
+
+    private void anular() {
+        try {
+            accionAnular.anular(campoMotivoAnulacion.getText().trim(),
+                    campoResponsableAnulacion.getText().trim());
+        } catch (ReglaDominioException e) {
+            mensajeAnulacion.setText(e.getMessage());
+            mensajeAnulacion.setForeground(Estilos.TEXTO_ALERTA);
+        }
+    }
+
+    private void limpiarAnulacion() {
+        campoMotivoAnulacion.setText("");
+        campoResponsableAnulacion.setText("");
+        mensajeAnulacion.setText(" ");
+        anulacion.setVisible(false);
+        validarAnulacion();
     }
 
     private void validar() {

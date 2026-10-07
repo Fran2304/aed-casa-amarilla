@@ -57,7 +57,7 @@ public class PanelPagos extends JPanel {
 
         tarjetas = new TarjetasPago("Pago de inscripción · comprobante recibido",
                 "Inscripción 2027", "Confirmar pago → EN_DOCUMENTACION",
-                "Fecha real dentro de la habilitación (48 h)", this::confirmar);
+                "Fecha real dentro de la habilitación (48 h)", this::confirmar, this::anular);
 
         add(crearEncabezado(), BorderLayout.NORTH);
         JPanel centro = new JPanel(new BorderLayout());
@@ -190,6 +190,23 @@ public class PanelPagos extends JPanel {
         }
         mostrarResumen(actual);
         tarjetas.mostrarConfirmado(pago, detalleConfirmado(actual));
+    }
+
+    // Anula la inscripción confirmada por error de registro (§4.7) y refresca el panel:
+    // la solicitud revierte a HABILITADA_PARA_PAGO (o al final de la cola si el plazo
+    // original venció) y el pago queda ANULADO conservando su historial.
+    private void anular(String motivo, String responsable) throws ReglaDominioException {
+        if (actual == null) {
+            throw new ReglaDominioException("Busque una solicitud antes de anular el pago.");
+        }
+        Pago confirmado = inscripcionConfirmada(actual);
+        if (confirmado == null) {
+            throw new ReglaDominioException("La solicitud " + actual.getCodigo()
+                    + " no tiene una inscripción confirmada que anular.");
+        }
+        Cobros.anularInscripcion(confirmado, motivo, responsable, LocalDateTime.now(),
+                solicitudes);
+        buscar();
     }
 
     private boolean puedePagar() {

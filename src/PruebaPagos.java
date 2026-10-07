@@ -13,7 +13,9 @@ import datos.ArregloAlumnos;
 import datos.ArregloApoderados;
 import modelo.Alumno;
 import modelo.Aula;
+import modelo.EstadoSolicitud;
 import modelo.MedioPago;
+import modelo.Pago;
 import modelo.ReglaDominioException;
 import modelo.Solicitud;
 import negocio.Cobros;
@@ -71,16 +73,45 @@ public class PruebaPagos {
                 cuatroAnios, girasoles);
         vencida.habilitarParaPago(ahora.minusHours(50));
 
+        // Anulación por error de registro (§4.7): la solicitud pagada por error vuelve a
+        // estar habilitada (sus 48 h siguen vigentes) y el pago queda ANULADO.
+        Solicitud anulada = registrar(ventana, alumnos, apoderados, "Rosa", "Mendoza",
+                cuatroAnios, girasoles);
+        anulada.habilitarParaPago(ahora.minusHours(1));
+        Pago pagoAnulado = Cobros.confirmarInscripcion(anulada,
+                ventana.getCuotas().getCuotaInscripcion(), MedioPago.EFECTIVO, "",
+                LocalDateTime.now(), crearComprobanteDeEjemplo(), LocalDateTime.now(),
+                ventana.getSolicitudes(), ventana.getMatriculas(), ventana.getPagos(),
+                ventana.getCuotas());
+        Cobros.anularInscripcion(pagoAnulado, "Pago registrado por error",
+                "Personal de sede", LocalDateTime.now(), ventana.getSolicitudes());
+        verificar(pagoAnulado.estaAnulado(), "el pago anulado queda ANULADO");
+        verificar(!ventana.getPagos().inscripcionConfirmada(anulada),
+                "el pago anulado deja de contar como inscripción pagada");
+        verificar(anulada.getEstado() == EstadoSolicitud.HABILITADA_PARA_PAGO,
+                "la solicitud vuelve a HABILITADA_PARA_PAGO");
+
         System.out.println("Casos de prueba de Pagos:");
         System.out.println("  " + vigente.getCodigo() + "  habilitada hace 2 h (pagar)");
         System.out.println("  " + otraVigente.getCodigo() + "  habilitada hace 47 h (vence en 1 h)");
         System.out.println("  " + vencida.getCodigo() + "  habilitación vencida");
         System.out.println("  " + enCola.getCodigo() + "  en cola sin pago (no habilitada)");
         System.out.println("  " + pagada.getCodigo() + "  inscripción ya pagada (solo lectura)");
+        System.out.println("  " + anulada.getCodigo()
+                + "  inscripción anulada por error -> HABILITADA_PARA_PAGO");
         System.out.println("  SOL-9999  no existe");
         System.out.println("Comprobante de ejemplo para adjuntar: " + comprobante);
         System.out.println("Las solicitudes se registran al abrir: la fecha de operación (con minutos)"
                 + " recién es válida desde el minuto siguiente.");
+    }
+
+    // La demo se mira a ojo, pero la anulación revierte estados: si una comprobación
+    // falla es un error de dominio y no un detalle de presentación.
+    private static void verificar(boolean condicion, String descripcion) {
+        if (!condicion) {
+            throw new IllegalStateException("Verificación fallida: " + descripcion);
+        }
+        System.out.println("  OK  - " + descripcion);
     }
 
     private static String crearComprobanteDeEjemplo() {
