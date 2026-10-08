@@ -1,72 +1,121 @@
-# Review automático de PRs con opencode (docs: opencode.ai/docs/github).
-# Auth: OPENCODE_API_KEY (OpenCode Zen) + GITHUB_TOKEN — no requiere instalar la GitHub App.
-# Modelo: gpt-6.1-sol (OpenAI) vía OpenCode — el cobro pasa por los créditos de OpenCode.
+# Revisión nativa: el modelo solo produce datos; el helper confiable publica el review.
 name: opencode-review
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
 
-# Evita reviews duplicadas cuando se pushean varios commits seguidos al mismo PR.
 concurrency:
   group: review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  review:
+  analyze:
+    if: >-
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    outputs:
+      review_needed: ${{ steps.prepare.outputs.skip != 'true' }}
     permissions:
-      # use_github_token: true → no necesita id-token: write (sin OIDC).
       contents: read
-      pull-requests: write # para publicar el review en el PR
+      pull-requests: read
       issues: read
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout trusted review helper
+        uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
-
-      - uses: anomalyco/opencode/github@latest
+          fetch-depth: 0
+      - name: Checkout PR source (never execute its scripts)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: source
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Prepare bounded diff
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -eu
+          checkpoint="$(python3 .github/scripts/review_helper.py checkpoint --token "$GH_TOKEN" --repo "$REPO" --number "$PR_NUMBER")"
+          last_sha="$(printf '%s' "$checkpoint" | jq -r '.head_sha // empty')"
+          previous_base="$(printf '%s' "$checkpoint" | jq -r '.base_sha // empty')"
+          if [ "$last_sha" = "${{ github.event.pull_request.head.sha }}" ] && [ "$previous_base" = "${{ github.event.pull_request.base.sha }}" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          issue_number="$(python3 -c 'import os,re; s=os.environ.get("PR_TITLE","")+" "+os.environ.get("PR_BRANCH",""); m=re.search(r"\(#([0-9]+)\)",s); print(m.group(1) if m else "")')"
+          issue_args=()
+          if [ -n "$issue_number" ]; then
+            python3 .github/scripts/review_helper.py issue-context --token "$GH_TOKEN" --repo "$REPO" --number "$issue_number" > issue-context.json
+            issue_args=(--issue-context issue-context.json)
+          fi
+          python3 .github/scripts/review_helper.py prepare \
+            --repo source --base "${{ github.event.pull_request.base.sha }}" \
+            --head "${{ github.event.pull_request.head.sha }}" \
+            --last-sha "$last_sha" --previous-base "$previous_base" \
+            --prompt .github/scripts/review_prompt.md --output review-input.json --scope review-scope.json "${issue_args[@]}"
+      - name: Install OpenCode CLI
+        if: steps.prepare.outputs.skip != 'true'
+        run: curl -fsSL https://opencode.ai/install | bash
+      - name: Ask model for strict findings only
+        if: steps.prepare.outputs.skip != 'true'
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENCODE_PERMISSION: '{"*":"deny"}'
+          OPENCODE_DISABLE_DEFAULT_PLUGINS: '1'
+        run: |
+          set -eu
+          export PATH="$HOME/.opencode/bin:$PATH"
+          scratch="$(mktemp -d)"
+          cp model_prompt.md "$scratch/prompt.md"
+          cd "$scratch"
+          opencode run --model opencode/gpt-6.1-sol --format json "$(cat prompt.md)" > "$GITHUB_WORKSPACE/model-events.json"
+          cd "$GITHUB_WORKSPACE"
+          python3 .github/scripts/review_helper.py extract --input model-events.json --output findings.json
+      - name: Upload validated model result
+        if: steps.prepare.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
         with:
-          model: opencode/gpt-6.1-sol
-          use_github_token: true
-          prompt: |
-            Review este pull request y responde en español.
-            - Spec de contraste: docs/flujo_matricula_casa_amarilla_2027_ia.md es la
-              especificación funcional. Verifica cada comportamiento cambiado contra sus
-              reglas: estados (Solicitud, Matrícula, Pago), invitación de 48 h,
-              7 días calendario de documentos, 72 h de pago de matrícula, vacantes
-              calculadas (capacidad - matrículas PENDIENTE_PAGO/ACTIVA), unicidad de
-              solicitud activa y de matrícula por alumno. Si el PR implementa algo de la
-              sección "Pendiente de definición" del spec sin señalarlo, pide cambios:
-              esos puntos no autorizan a inventar reglas.
-            - Issue vinculado: identifica el número de issue del PR (convención de
-              título/rama "type(#NN)") y léelo con sus comentarios
-              (`gh issue view NN --comments`, gh ya viene en el runner y GITHUB_TOKEN
-              está en el entorno). Verifica que el PR cumple los pedidos específicos
-              de los comentarios; si algo quedó sin atender, señálalo.
-            - Lee primero CONTEXT.md (glosario del dominio): señala cualquier nombre,
-              mensaje o comentario que use los términos a evitar (ej. "estudiante",
-              "padre/tutor", "usuario") en vez de los correctos (Alumno, Apoderado,
-              Apoderado principal, Personal).
-            - Busca bugs reales: nulls, límites de arreglos, duplicados no validados,
-              transiciones de estado inválidas (EstadoSolicitud, EstadoMatricula,
-              EstadoDocumento) y cálculos de edad/fechas (FechasAdmision, corte 31/03/2027).
-            - Verifica consistencia con los patrones existentes: excepciones de dominio
-              en src/modelo, lógica de negocio en src/negocio, sin lógica de dominio en src/ui.
-            - Diseños: si el PR toca src/ui/, el diseño de referencia es el Figma
-              https://www.figma.com/design/IkwxtdIlJIiat4jhOURfiC/Nido-La-Casa-Amarilla-2027-gpt6-sol
-              (también como .fig binario en docs/, ilegible para ti). Con FIGMA_TOKEN
-              del entorno, usa la REST API de Figma (api.figma.com, file key
-              IkwxtdIlJIiat4jhOURfiC) para leer el diseño y contrastar componentes,
-              textos, medidas y colores con los cambios. Si el token no existe o el
-              acceso falla, marca "fidelidad de diseño no verificable en CI: requiere
-              revisión manual contra el Figma". No inventes veredictos de diseño.
-            - Ten en cuenta que el proyecto NO tiene framework de tests: no exijas JUnit,
-              pero sí señala lógica difícil de verificar.
-            - Solo señala problemas reales — nada de estilo trivial o nitpicking.
-            - Si el PR rompe una regla del spec o un requerimiento, pide cambios;
-              no apruebes con dudas.
+          name: opencode-findings
+          path: |
+            findings.json
+            review-scope.json
+          if-no-files-found: error
+
+  publish:
+    needs: analyze
+    if: needs.analyze.result == 'success' && needs.analyze.outputs.review_needed != 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout trusted publisher helper
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/download-artifact@v4
+        with:
+          name: opencode-findings
+      - name: Publish current-head native review
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          python3 .github/scripts/review_helper.py publish \
+            --findings findings.json --token "$GH_TOKEN" --repo "${{ github.repository }}" \
+            --scope review-scope.json \
+            --number "${{ github.event.pull_request.number }}" \
+            --head "${{ github.event.pull_request.head.sha }}" \
+            --base "${{ github.event.pull_request.base.sha }}"
