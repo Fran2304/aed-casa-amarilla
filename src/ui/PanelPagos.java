@@ -58,6 +58,7 @@ public class PanelPagos extends JPanel {
         tarjetas = new TarjetasPago("Pago de inscripción · comprobante recibido",
                 "Inscripción 2027", "Confirmar pago → EN_DOCUMENTACION",
                 "Fecha real dentro de la habilitación (48 h)", this::confirmar);
+        tarjetas.configurarAnulacion(this::anular);
 
         add(crearEncabezado(), BorderLayout.NORTH);
         JPanel centro = new JPanel(new BorderLayout());
@@ -190,6 +191,12 @@ public class PanelPagos extends JPanel {
         }
         mostrarResumen(actual);
         tarjetas.mostrarConfirmado(pago, detalleConfirmado(actual));
+    }
+
+    private void anular(Pago pago, String motivo, String responsable, LocalDateTime fechaHora)
+            throws ReglaDominioException {
+        Cobros.anularPago(pago, motivo, responsable, fechaHora, solicitudes, matriculas, pagos);
+        buscar();
     }
 
     private boolean puedePagar() {

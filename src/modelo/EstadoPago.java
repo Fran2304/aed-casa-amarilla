@@ -2,5 +2,6 @@ package modelo;
 
 public enum EstadoPago {
     RECIBIDO,
-    CONFIRMADO
+    CONFIRMADO,
+    ANULADO
 }

@@ -17,6 +17,7 @@ public class Solicitud {
     private EstadoSolicitud estado;
     private LocalDateTime fechaIngresoCola;
     private LocalDateTime fechaHabilitacion;
+    private LocalDateTime vencimientoHabilitacionOriginal;
     private LocalDateTime fechaConfirmacionInscripcion;
     private ExpedienteDocumentos expediente;
     private ArrayList<Oferta> ofertas;
@@ -86,6 +87,7 @@ public class Solicitud {
         }
         aplicarTransicion(EstadoSolicitud.HABILITADA_PARA_PAGO);
         fechaHabilitacion = fecha;
+        vencimientoHabilitacionOriginal = fecha.plusHours(HORAS_HABILITACION);
     }
 
     public LocalDateTime getVencimientoHabilitacion() {
@@ -133,6 +135,27 @@ public class Solicitud {
         aplicarTransicion(EstadoSolicitud.EN_DOCUMENTACION);
         fechaConfirmacionInscripcion = fecha;
         expediente = nuevo;
+    }
+
+    public LocalDateTime getVencimientoHabilitacionOriginal() {
+        return vencimientoHabilitacionOriginal;
+    }
+
+    public void revertirInscripcion(LocalDateTime ahora, LocalDateTime fechaCola)
+            throws ReglaDominioException {
+        if (ahora == null || fechaCola == null) {
+            throw new DatoInvalidoException("La fecha de reversión es obligatoria.");
+        }
+        if (estado != EstadoSolicitud.EN_DOCUMENTACION) {
+            throw new ReglaDominioException(codigo + " no tiene una inscripción confirmada para revertir.");
+        }
+        aplicarTransicion(EstadoSolicitud.EN_ESPERA_SIN_PAGO);
+        if (ahora.isBefore(vencimientoHabilitacionOriginal)) {
+            aplicarTransicion(EstadoSolicitud.HABILITADA_PARA_PAGO);
+            fechaHabilitacion = vencimientoHabilitacionOriginal.minusHours(HORAS_HABILITACION);
+        } else {
+            ingresarAColaSinPago(fechaCola);
+        }
     }
 
     public void ingresarAColaFavorable(LocalDateTime fecha) throws ReglaDominioException {

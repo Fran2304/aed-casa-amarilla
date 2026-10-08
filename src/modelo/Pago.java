@@ -18,6 +18,9 @@ public class Pago {
     private final String rutaComprobantePago;
     private String comprobante;
     private EstadoPago estado;
+    private LocalDateTime fechaAnulacion;
+    private String motivoAnulacion;
+    private String responsableAnulacion;
 
     public Pago(Solicitud solicitud, ConceptoPago concepto, Matricula matricula,
             double montoPagado, MedioPago medio, String numeroOperacion,
@@ -160,6 +163,21 @@ public class Pago {
         estado = EstadoPago.CONFIRMADO;
     }
 
+    public void anular(String motivo, String responsable, LocalDateTime fechaHora)
+            throws ReglaDominioException {
+        String motivoLimpio = Validaciones.exigirNoVacio("motivo de anulación", motivo);
+        String responsableLimpio = Validaciones.exigirNoVacio("responsable de anulación",
+                responsable);
+        if (fechaHora == null) {
+            throw new DatoInvalidoException("La fecha y hora de anulación es obligatoria.");
+        }
+        Transiciones.exigirTransicion(estado, EstadoPago.ANULADO);
+        estado = EstadoPago.ANULADO;
+        fechaAnulacion = fechaHora;
+        motivoAnulacion = motivoLimpio;
+        responsableAnulacion = responsableLimpio;
+    }
+
     public void registrarComprobante(String numero) throws ReglaDominioException {
         String limpio = Validaciones.exigirSoloDigitos("número de comprobante", numero);
         if (tieneComprobante()) {
@@ -176,6 +194,12 @@ public class Pago {
     public boolean estaConfirmado() {
         return estado == EstadoPago.CONFIRMADO;
     }
+
+    public LocalDateTime getFechaAnulacion() { return fechaAnulacion; }
+
+    public String getMotivoAnulacion() { return motivoAnulacion; }
+
+    public String getResponsableAnulacion() { return responsableAnulacion; }
 
     public Solicitud getSolicitud() {
         return solicitud;
