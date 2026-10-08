@@ -81,6 +81,9 @@ public final class Cobros {
         if (matricula != null && !matriculas.contains(matricula)) {
             throw new ReglaDominioException("La matrícula no está registrada en la colección.");
         }
+        if (pago.getConcepto() == ConceptoPago.INSCRIPCION) {
+            exigirMatriculaVigenteRelacionada(solicitud, matriculas);
+        }
         boolean matriculaVencida = matricula != null && matricula.pagoOriginalVencido(fechaHora);
         LocalDateTime fechaCola;
         if (pago.getConcepto() == ConceptoPago.INSCRIPCION) {
@@ -168,6 +171,17 @@ public final class Cobros {
         if (pago.getConcepto() == ConceptoPago.MATRICULA
                 && (matricula == null || matricula.getSolicitud() != solicitud)) {
             throw new ReglaDominioException("La matrícula no pertenece al pago registrado.");
+        }
+    }
+
+    private static void exigirMatriculaVigenteRelacionada(Solicitud solicitud,
+            ArrayList<Matricula> matriculas) throws ReglaDominioException {
+        for (Matricula otra : matriculas) {
+            if (otra.getSolicitud() == solicitud && otra.estaVigente()) {
+                throw new ReglaDominioException("No se puede anular la inscripción mientras la matrícula "
+                        + "vigente de " + solicitud.getCodigo()
+                        + " exista; coordine primero la cancelación de la matrícula.");
+            }
         }
     }
 

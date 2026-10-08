@@ -133,12 +133,15 @@ public class TarjetasPago extends JPanel {
         campoFecha.setText(LocalDateTime.now().format(FORMATO_FECHA));
         mostrarComprobante(null);
         revisado.setSelected(false);
+        campoMotivoAnulacion.setText("");
+        campoResponsableAnulacion.setText("");
         pintarAviso(Estilos.ALERTA, Estilos.TEXTO_ALERTA,
                 "EN REVISIÓN · Recibir no equivale a confirmar",
                 "Plazo de pago: " + inicioPlazo.format(FORMATO_FECHA) + "  →  "
                         + finPlazo.format(FORMATO_FECHA) + ".");
         mostrarMensaje(" ", false);
         boleta.setVisible(false);
+        panelAnulacion.setVisible(false);
         setEditable(true);
     }
 
@@ -534,8 +537,8 @@ public class TarjetasPago extends JPanel {
         try {
             accionAnular.anular(pagoConfirmado, campoMotivoAnulacion.getText(),
                     campoResponsableAnulacion.getText(), LocalDateTime.now());
-            esperar(Estilos.FAVORABLE, Estilos.BOTON_PRINCIPAL, "PAGO ANULADO",
-                    "El pago se conservó con su auditoría de anulación.");
+            mostrarMensaje("Pago anulado; se conservó su auditoría y el formulario fue actualizado.",
+                    false);
         } catch (ReglaDominioException e) {
             mostrarMensaje(e.getMessage(), true);
         }

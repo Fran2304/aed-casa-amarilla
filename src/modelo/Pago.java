@@ -138,7 +138,15 @@ public class Pago {
         if (estado != EstadoSolicitud.EN_DOCUMENTACION
                 && estado != EstadoSolicitud.EN_ESPERA_FAVORABLE) {
             throw new ReglaDominioException(solicitud.getCodigo() + " está en " + estado
-                    + " y no puede pagar la matrícula.");
+                + " y no puede pagar la matrícula.");
+        }
+        if (matricula.pagoOriginalVencido(fechaHoraOperacion)) {
+            throw new ReglaDominioException("La operación del pago de matrícula ocurre en o después"
+                    + " del vencimiento original " + matricula.getVencimientoPagoOriginal() + ".");
+        }
+        if (matricula.pagoOriginalVencido(fechaHoraRegistro)) {
+            throw new ReglaDominioException("El registro del pago de matrícula ocurre en o después"
+                    + " del vencimiento original " + matricula.getVencimientoPagoOriginal() + ".");
         }
     }
 
@@ -179,6 +187,9 @@ public class Pago {
     }
 
     public void registrarComprobante(String numero) throws ReglaDominioException {
+        if (estado == EstadoPago.ANULADO) {
+            throw new ReglaDominioException("No se puede registrar un comprobante en un pago anulado.");
+        }
         String limpio = Validaciones.exigirSoloDigitos("número de comprobante", numero);
         if (tieneComprobante()) {
             throw new ReglaDominioException(
