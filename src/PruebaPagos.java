@@ -31,6 +31,7 @@ import datos.ArregloPagos;
 import datos.ArregloSolicitudes;
 import ui.PrincipalUI;
 
+// TODO: Archivo temporal solo para pruebas; se eliminará más adelante.
 public class PruebaPagos {
 
     private static int siguienteDni = 70000001;
