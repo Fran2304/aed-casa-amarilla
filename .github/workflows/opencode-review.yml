@@ -78,7 +78,7 @@ jobs:
           scratch="$(mktemp -d)"
           cp model_prompt.md "$scratch/prompt.md"
           cd "$scratch"
-          opencode run --model opencode/gpt-6.1-sol --format json "$(cat prompt.md)" > "$GITHUB_WORKSPACE/model-events.json"
+          opencode run --model opencode-go/glm-5.3 --format json "$(cat prompt.md)" > "$GITHUB_WORKSPACE/model-events.json"
           cd "$GITHUB_WORKSPACE"
           python3 .github/scripts/review_helper.py extract --input model-events.json --output findings.json
       - name: Upload validated model result
