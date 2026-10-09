@@ -1,8 +1,8 @@
-# Revisión nativa: el modelo solo produce datos; el helper confiable publica el review.
+# Revisión automática de PRs con OpenCode.
 name: opencode-review
 
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
 concurrency:
@@ -10,150 +10,137 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  analyze:
+  review:
     if: >-
       !github.event.pull_request.draft &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    outputs:
-      review_needed: ${{ steps.prepare.outputs.skip != 'true' }}
-    permissions:
-      contents: read
-      pull-requests: read
-      issues: read
-    steps:
-      - name: Checkout trusted review helper
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.base.sha }}
-          persist-credentials: false
-          fetch-depth: 0
-      - name: Checkout PR source (never execute its scripts)
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          path: source
-          persist-credentials: false
-          fetch-depth: 0
-      - name: Prepare bounded diff
-        id: prepare
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPO: ${{ github.repository }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
-        run: |
-          set -eu
-          checkpoint="$(python3 .github/scripts/review_helper.py checkpoint --token "$GH_TOKEN" --repo "$REPO" --number "$PR_NUMBER")"
-          last_sha="$(printf '%s' "$checkpoint" | jq -r '.head_sha // empty')"
-          previous_base="$(printf '%s' "$checkpoint" | jq -r '.base_sha // empty')"
-          if [ "$last_sha" = "${{ github.event.pull_request.head.sha }}" ] && [ "$previous_base" = "${{ github.event.pull_request.base.sha }}" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          issue_number="$(python3 -c 'import os,re; s=os.environ.get("PR_TITLE","")+" "+os.environ.get("PR_BRANCH",""); m=re.search(r"\(#([0-9]+)\)",s); print(m.group(1) if m else "")')"
-          issue_args=()
-          if [ -n "$issue_number" ]; then
-            python3 .github/scripts/review_helper.py issue-context --token "$GH_TOKEN" --repo "$REPO" --number "$issue_number" > issue-context.json
-            issue_args=(--issue-context issue-context.json)
-          fi
-          python3 .github/scripts/review_helper.py prepare \
-            --repo source --base "${{ github.event.pull_request.base.sha }}" \
-            --head "${{ github.event.pull_request.head.sha }}" \
-            --last-sha "$last_sha" --previous-base "$previous_base" \
-            --prompt .github/scripts/review_prompt.md --output review-input.json --scope review-scope.json "${issue_args[@]}"
-      - name: Install OpenCode CLI
-        if: steps.prepare.outputs.skip != 'true'
-        run: curl -fsSL https://opencode.ai/install | bash
-      - name: Ask model for strict findings only
-        if: steps.prepare.outputs.skip != 'true'
-        env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          OPENCODE_PERMISSION: '{"*":"deny"}'
-          OPENCODE_DISABLE_DEFAULT_PLUGINS: '1'
-        run: |
-          set -eu
-          export PATH="$HOME/.opencode/bin:$PATH"
-          opencode --version
-          scratch="$(mktemp -d)"
-          cp model_prompt.md "$scratch/prompt.md"
-          cd "$scratch"
-          opencode run --model opencode-go/glm-5.3 --format json < prompt.md > "$GITHUB_WORKSPACE/model-events.json" 2> "$GITHUB_WORKSPACE/opencode-stderr.log"
-          cd "$GITHUB_WORKSPACE"
-          python3 .github/scripts/review_helper.py extract --input model-events.json --output findings.json
-      - name: Summarize model diagnostics
-        if: always() && steps.prepare.outputs.skip != 'true'
-        run: |
-          set -eu
-          for file in model-events.json opencode-stderr.log; do
-            if [ -f "$file" ]; then
-              bytes="$(wc -c < "$file" | tr -d ' ')"
-              echo "diagnostic $file: ${bytes} bytes"
-            else
-              echo "warning: diagnostic file missing: $file"
-            fi
-          done
-          if [ -f model-events.json ]; then
-            event_count="$(python3 - model-events.json <<'PY'
-          import sys
-
-          count = 0
-          with open(sys.argv[1], encoding="utf-8") as stream:
-              for line in stream:
-                  if line.strip():
-                      count += 1
-          print(count)
-          PY
-            )"
-            echo "model-events.json: $event_count non-empty event lines"
-          fi
-      - name: Upload model diagnostics
-        if: always() && steps.prepare.outputs.skip != 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: opencode-model-diagnostics
-          path: |
-            model-events.json
-            opencode-stderr.log
-          if-no-files-found: warn
-          # Estos archivos pueden contener código del PR o mensajes sensibles; solo se retienen 1 día.
-          retention-days: 1
-      - name: Upload validated model result
-        if: steps.prepare.outputs.skip != 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: opencode-findings
-          path: |
-            findings.json
-            review-scope.json
-          if-no-files-found: error
-
-  publish:
-    needs: analyze
-    if: needs.analyze.result == 'success' && needs.analyze.outputs.review_needed != 'false'
-    runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
+      issues: read
     steps:
-      - name: Checkout trusted publisher helper
+      - name: Checkout trusted checkpoint control
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.base.sha }}
+          path: .review-control
           persist-credentials: false
           fetch-depth: 1
-      - uses: actions/download-artifact@v4
-        with:
-          name: opencode-findings
-      - name: Publish current-head native review
+
+      - name: Move trusted checkpoint control outside workspace
         env:
-          GH_TOKEN: ${{ github.token }}
+          RUNNER_TEMP: ${{ runner.temp }}
         run: |
           set -eu
-          python3 .github/scripts/review_helper.py publish \
-            --findings findings.json --token "$GH_TOKEN" --repo "${{ github.repository }}" \
-            --scope review-scope.json \
-            --number "${{ github.event.pull_request.number }}" \
-            --head "${{ github.event.pull_request.head.sha }}" \
-            --base "${{ github.event.pull_request.base.sha }}"
+          trusted_control="$RUNNER_TEMP/opencode-review-control"
+          if [ -f .review-control/.github/scripts/review_checkpoint.py ]; then
+            mkdir -p "$trusted_control/.github/scripts"
+            cp .review-control/.github/scripts/review_checkpoint.py \
+              "$trusted_control/.github/scripts/review_checkpoint.py"
+            chmod 500 "$trusted_control/.github/scripts/review_checkpoint.py"
+          fi
+          mv .review-control "$RUNNER_TEMP/trusted-review-checkout"
+
+      - name: Checkout PR
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Check successful review checkpoint
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: |
+          set -eu
+          gh api --paginate --slurp "repos/$REPO/issues/$PR_NUMBER/comments" > comments.json
+          control_script="$RUNNER_TEMP/opencode-review-control/.github/scripts/review_checkpoint.py"
+          if [ -f "$control_script" ]; then
+            last_sha="$(python3 "$control_script" candidate "$BASE_SHA" < comments.json)"
+          else
+            # The base predates the trusted control script; never run PR code.
+            last_sha=""
+          fi
+          compare='{}'
+          if [ -n "$last_sha" ]; then
+            set +e
+            compare="$(gh api "repos/$REPO/compare/$last_sha...$HEAD_SHA" 2>/dev/null)"
+            compare_status=$?
+            set -e
+            if [ "$compare_status" -ne 0 ]; then
+              compare='{}'
+            fi
+          fi
+          if [ -f "$control_script" ]; then
+            result="$(python3 "$control_script" "$HEAD_SHA" "$BASE_SHA" "$compare" < comments.json)"
+          else
+            result='{"mode":"full","last_successful_sha":""}'
+          fi
+          mode="$(printf '%s' "$result" | jq -r .mode)"
+          checkpoint="$(printf '%s' "$result" | jq -r .last_successful_sha)"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "last_sha=$checkpoint" >> "$GITHUB_OUTPUT"
+          if [ "$mode" = skip ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run OpenCode review
+        if: steps.prepare.outputs.skip != 'true'
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          model: opencode-go/glm-5.3
+          use_github_token: true
+          prompt: |
+            Revisa este pull request y responde en español.
+            Este es el último SHA de una revisión exitosa para esta misma base:
+            ${{ steps.prepare.outputs.last_sha || 'ninguno; revisa el PR completo' }}.
+            Si existe, úsalo como referencia para concentrarte en los cambios desde
+            ese SHA. Esta indicación es orientativa: no asumas que el contexto cargado
+            por la acción fue recortado y revisa el contexto disponible. Si no hay
+            ascendencia válida (por ejemplo, un force-push), revisa el PR completo.
+            - Contrasta contra docs/flujo_matricula_casa_amarilla_2027_ia.md: estados Solicitud/Matrícula/Pago, invitación 48 h, documentos 7 días calendario, pago 72 h, vacantes (capacidad menos PENDIENTE_PAGO/ACTIVA) y unicidad activa por Alumno. No inventes reglas de “Pendiente de definición”.
+            - Identifica el issue del título/rama `type(#NN)` y verifica sus comentarios si el contexto lo permite. Lee CONTEXT.md: usa Alumno, Apoderado, Apoderado principal/adicional y Personal; señala términos evitables como estudiante, padre, tutor o usuario.
+            - Busca únicamente bugs reales: nulls, límites, duplicados, transiciones inválidas y edad al 31/03/2027. Mantén excepciones en src/modelo, negocio en src/negocio y sin dominio en src/ui. No exijas JUnit: el proyecto no tiene framework de tests.
+            - No revises `src/PruebaPagos.java`; su exclusión es temporal y exacta.
+            - Si cambia src/ui, contrasta con el Figma indicado solo si FIGMA_TOKEN permite verificarlo; si no, indica honestamente “fidelidad de diseño no verificable en CI: requiere revisión manual contra el Figma”.
+            - Un blocker rompe una regla funcional o requerimiento y exige cambios. Un nonblocker es una observación real no bloqueante. No hagas nitpicking.
+            - Cada id debe ser estable entre revisiones (basado en el problema/concepto, no en una línea que pueda desplazarse). Cada hallazgo inline debe usar la ruta y línea RIGHT del diff completo. Los bloqueadores sin línea válida se conservarán en el resumen.
+            - Devuelve solamente el resultado de revisión solicitado por la acción.
+
+      - name: Verify current head before checkpoint
+        if: success() && steps.prepare.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -eu
+          current="$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq '[.head.sha, .base.sha] | @tsv')"
+          expected="$HEAD_SHA$(printf '\t')$BASE_SHA"
+          [ "$current" = "$expected" ]
+
+      - name: Record successful review checkpoint
+        if: success() && steps.prepare.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -eu
+          gh api --method POST "repos/$REPO/issues/$PR_NUMBER/comments" \
+            -f body="<!-- opencode-review-checkpoint:v1 workflow=opencode-review head_sha=$HEAD_SHA base_sha=$BASE_SHA -->"
