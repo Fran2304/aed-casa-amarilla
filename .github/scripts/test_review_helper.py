@@ -87,6 +87,30 @@ diff --git "a/old name.txt" "b/new name.txt"
             model_prompt = (root / "model_prompt.md").read_text()
             self.assertIn("Alumno", model_prompt); self.assertIn("48 h", model_prompt); self.assertIn("class A { int changed", model_prompt)
 
+    def test_prepare_excludes_exact_path_from_diffs_scope_and_context(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); repo = root / "repo"; repo.mkdir()
+            helper.run_git("init", cwd=str(repo))
+            (repo / "src").mkdir()
+            (repo / "src/PruebaPagos.java").write_text("class Payments { int old = 1; }\n")
+            (repo / "src/Keep.java").write_text("class Keep { int old = 1; }\n")
+            helper.run_git("add", ".", cwd=str(repo)); helper.run_git("-c", "user.email=a@b", "-c", "user.name=a", "commit", "-m", "base", cwd=str(repo))
+            base = helper.run_git("rev-parse", "HEAD", cwd=str(repo)).strip()
+            (repo / "src/PruebaPagos.java").write_text("class Payments { int excluded = 2; }\n")
+            (repo / "src/Keep.java").write_text("class Keep { int included = 2; }\n")
+            helper.run_git("add", ".", cwd=str(repo)); helper.run_git("-c", "user.email=a@b", "-c", "user.name=a", "commit", "-m", "changed", cwd=str(repo))
+            head = helper.run_git("rev-parse", "HEAD", cwd=str(repo)).strip()
+            prompt = root / "prompt"; prompt.write_text("rules")
+            output, scope = root / "input", root / "scope"
+            helper.prepare(ns(repo=str(repo), base=base, head=head, last_sha="", previous_base="",
+                              prompt=str(prompt), output=str(output), scope=str(scope), context_root=str(root)))
+            payload = json.loads(output.read_text())
+            saved_scope = json.loads(scope.read_text())
+            model_prompt = (root / "model_prompt.md").read_text()
+            self.assertNotIn("PruebaPagos.java", payload["review_diff"] + payload["full_pr_diff"] + model_prompt)
+            self.assertNotIn("src/PruebaPagos.java", saved_scope["full_lines"])
+            self.assertEqual(saved_scope["full_lines"], {"src/Keep.java": [1]})
+
     def test_checkpoint_authentication_and_pagination(self):
         reviews = [{"user": {"login": "evil-bot"}, "body": "<!-- opencode-review:v1 commit_id=bad base_sha=x -->"},
                    {"user": {"login": "github-actions[bot]"}, "body": "<!-- opencode-review:v1 commit_id=head base_sha=base -->"}]
@@ -132,7 +156,7 @@ diff --git "a/old name.txt" "b/new name.txt"
             scope = Path(tmp) / "scope.json"
             scope.write_text(json.dumps({"schema": "opencode-review-scope/v1", "base_sha": "base", "head_sha": "head", "start_sha": "last", "incremental": True, "new_lines": {"src/A.java": [3]}, "full_lines": {"src/A.java": [2, 3]}}))
             args = ns(findings=str(findings), scope=str(scope), token="t", repo="r", number="1", head="head", base="base")
-            common = [{"head": {"sha": "head"}, "base": {"sha": "base"}}, [{"user": {"login": "github-actions[bot]"}, "body": "<!-- opencode-review:v1 commit_id=last base_sha=base -->"}], {"status": "ahead", "files": [{"filename": "src/A.java", "patch": "@@ -2,0 +3,1 @@\n+new\n"}]}, [{"filename": "src/A.java", "patch": "@@ -1,0 +2,2 @@\n+old-change\n+new\n"}], []]
+            common = [{"head": {"sha": "head"}, "base": {"sha": "base"}}, [{"user": {"login": "github-actions[bot]"}, "body": "<!-- opencode-review:v1 commit_id=last base_sha=base -->"}], {"status": "ahead", "files": [{"filename": "src/A.java", "patch": "@@ -2,0 +3,1 @@\n+new\n"}, {"filename": helper.EXCLUDED_PATH}, {"filename": helper.EXCLUDED_PATH, "patch": None}]}, [{"filename": "src/A.java", "patch": "@@ -1,0 +2,2 @@\n+old-change\n+new\n"}], []]
             findings.write_text(json.dumps({"schema": "opencode-findings/v1", "findings": [new_finding]}))
             with patch.object(helper.GitHub, "request", side_effect=common + [None]) as request:
                 helper.publish(args)
@@ -142,6 +166,32 @@ diff --git "a/old name.txt" "b/new name.txt"
                 with self.assertRaisesRegex(ValueError, "outside trusted incremental/full diff scope"):
                     helper.publish(args)
             self.assertEqual(request.call_count, 5)
+
+    def test_publish_excludes_missing_patch_and_rejects_excluded_finding(self):
+        excluded_finding = {"id": "excluded", "path": helper.EXCLUDED_PATH, "line": 2,
+                            "severity": "blocker", "body": "excluded"}
+        included_finding = {"id": "included", "path": "src/A.java", "line": 2,
+                            "severity": "blocker", "body": "included"}
+        with tempfile.TemporaryDirectory() as tmp:
+            findings = Path(tmp) / "findings.json"
+            scope = Path(tmp) / "scope.json"
+            scope.write_text(json.dumps({"schema": "opencode-review-scope/v1", "base_sha": "base", "head_sha": "head",
+                                         "start_sha": "base", "incremental": False, "new_lines": {"src/A.java": [2]},
+                                         "full_lines": {"src/A.java": [2]}}))
+            args = ns(findings=str(findings), scope=str(scope), token="t", repo="r", number="1", head="head", base="base")
+            responses = [{"head": {"sha": "head"}, "base": {"sha": "base"}}, [],
+                         [{"filename": helper.EXCLUDED_PATH}, {"filename": helper.EXCLUDED_PATH, "patch": None},
+                          {"filename": "src/A.java", "patch": "@@ -1,1 +1,2 @@\n old\n+new\n"}], [], None]
+            findings.write_text(json.dumps({"schema": "opencode-findings/v1", "findings": [included_finding]}))
+            with patch.object(helper.GitHub, "request", side_effect=responses) as request:
+                helper.publish(args)
+            self.assertEqual(request.call_args.args[2]["comments"][0]["path"], "src/A.java")
+
+            findings.write_text(json.dumps({"schema": "opencode-findings/v1", "findings": [excluded_finding]}))
+            with patch.object(helper.GitHub, "request", side_effect=responses) as request:
+                with self.assertRaisesRegex(ValueError, "outside trusted incremental/full diff scope"):
+                    helper.publish(args)
+            self.assertEqual(request.call_count, 4)
 
     def test_integrated_restore_line_normalizes_to_clean_checkpoint(self):
         with tempfile.TemporaryDirectory() as tmp:
