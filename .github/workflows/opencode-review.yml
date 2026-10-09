@@ -75,12 +75,50 @@ jobs:
         run: |
           set -eu
           export PATH="$HOME/.opencode/bin:$PATH"
+          opencode --version
           scratch="$(mktemp -d)"
           cp model_prompt.md "$scratch/prompt.md"
           cd "$scratch"
-          opencode run --model opencode-go/glm-5.3 --format json < prompt.md > "$GITHUB_WORKSPACE/model-events.json"
+          opencode run --model opencode-go/glm-5.3 --format json < prompt.md > "$GITHUB_WORKSPACE/model-events.json" 2> "$GITHUB_WORKSPACE/opencode-stderr.log"
           cd "$GITHUB_WORKSPACE"
           python3 .github/scripts/review_helper.py extract --input model-events.json --output findings.json
+      - name: Summarize model diagnostics
+        if: always() && steps.prepare.outputs.skip != 'true'
+        run: |
+          set -eu
+          for file in model-events.json opencode-stderr.log; do
+            if [ -f "$file" ]; then
+              bytes="$(wc -c < "$file" | tr -d ' ')"
+              echo "diagnostic $file: ${bytes} bytes"
+            else
+              echo "warning: diagnostic file missing: $file"
+            fi
+          done
+          if [ -f model-events.json ]; then
+            event_count="$(python3 - model-events.json <<'PY'
+          import sys
+
+          count = 0
+          with open(sys.argv[1], encoding="utf-8") as stream:
+              for line in stream:
+                  if line.strip():
+                      count += 1
+          print(count)
+          PY
+            )"
+            echo "model-events.json: $event_count non-empty event lines"
+          fi
+      - name: Upload model diagnostics
+        if: always() && steps.prepare.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencode-model-diagnostics
+          path: |
+            model-events.json
+            opencode-stderr.log
+          if-no-files-found: warn
+          # Estos archivos pueden contener código del PR o mensajes sensibles; solo se retienen 1 día.
+          retention-days: 1
       - name: Upload validated model result
         if: steps.prepare.outputs.skip != 'true'
         uses: actions/upload-artifact@v4

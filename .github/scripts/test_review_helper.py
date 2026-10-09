@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -240,13 +241,19 @@ diff --git "a/old name.txt" "b/new name.txt"
     def test_workflow_streams_large_prompt_over_stdin(self):
         workflow = Path(__file__).parent.parent / "workflows" / "opencode-review.yml"
         text = workflow.read_text()
+        self.assertIn("opencode --version", text)
         self.assertIn("opencode run --model opencode-go/glm-5.3 --format json < prompt.md", text)
+        self.assertIn('> \"$GITHUB_WORKSPACE/model-events.json\" 2> \"$GITHUB_WORKSPACE/opencode-stderr.log\"', text)
+        self.assertIn("name: Upload model diagnostics", text)
+        self.assertIn("if: always() && steps.prepare.outputs.skip != 'true'", text)
+        self.assertIn("retention-days: 1", text)
         self.assertNotIn('opencode run --model opencode-go/glm-5.3 --format json "$(cat prompt.md)"', text)
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            bin_dir = root / "bin"
-            bin_dir.mkdir()
+            home = root / "home"
+            bin_dir = home / ".opencode" / "bin"
+            bin_dir.mkdir(parents=True)
             captured_args = root / "args.json"
             captured_stdin = root / "stdin"
             stub = bin_dir / "opencode"
@@ -255,23 +262,35 @@ diff --git "a/old name.txt" "b/new name.txt"
                 "import json, os, sys\n"
                 f"Path = __import__('pathlib').Path\n"
                 f"Path({str(captured_args)!r}).write_text(json.dumps(sys.argv[1:]))\n"
+                "if sys.argv[1:] == ['--version']:\n"
+                "    print('opencode 1.18.35')\n"
+                "    raise SystemExit(0)\n"
                 f"Path({str(captured_stdin)!r}).write_bytes(sys.stdin.buffer.read())\n"
-                "print(json.dumps({'type': 'text', 'part': {'type': 'text', "
-                "'text': '{\"schema\":\"opencode-findings/v1\",\"findings\":[]}'}}))\n"
+                "mode = os.environ['STUB_MODE']\n"
+                "print('stub stderr ' + mode, file=sys.stderr)\n"
+                "if mode == 'invalid':\n"
+                "    print(json.dumps({'type': 'text', 'part': {'type': 'text', 'text': '{\"schema\":\"wrong\"}'}}))\n"
+                "elif mode == 'error':\n"
+                "    print(json.dumps({'type': 'text', 'part': {'type': 'text', 'text': '{\"schema\":\"opencode-findings/v1\",\"findings\":[]}'}}))\n"
+                "    raise SystemExit(7)\n"
+                "else:\n"
+                "    print(json.dumps({'type': 'text', 'part': {'type': 'text', 'text': '{\"schema\":\"opencode-findings/v1\",\"findings\":[]}'}}))\n"
             )
             stub.chmod(0o755)
             prompt = ("prompt-" + "x" * (128 * 1024 + 1)).encode()
             (root / "model_prompt.md").write_bytes(prompt)
-            script = """\
-set -eu
-export PATH="$STUB_BIN:$PATH"
-scratch="$(mktemp -d)"
-cp "$GITHUB_WORKSPACE/model_prompt.md" "$scratch/prompt.md"
-cd "$scratch"
-opencode run --model opencode-go/glm-5.3 --format json < prompt.md > "$GITHUB_WORKSPACE/model-events.json"
-"""
-            environment = dict(os.environ, GITHUB_WORKSPACE=str(root), STUB_BIN=str(bin_dir))
-            subprocess.run(["bash", "-eu", "-c", script], check=True, env=environment)
+            trusted_helper = root / ".github" / "scripts" / "review_helper.py"
+            trusted_helper.parent.mkdir(parents=True)
+            shutil.copy2(Path(__file__).with_name("review_helper.py"), trusted_helper)
+            step_start = text.index("      - name: Ask model for strict findings only")
+            run_start = text.index("        run: |\n", step_start) + len("        run: |\n")
+            run_end = text.index("\n      - name:", run_start)
+            run_lines = text[run_start:run_end].splitlines()
+            self.assertTrue(all(not line or line.startswith(" " * 10) for line in run_lines))
+            script = "\n".join(line[10:] if line else "" for line in run_lines) + "\n"
+            environment = dict(os.environ, GITHUB_WORKSPACE=str(root), HOME=str(home), STUB_MODE="success")
+            result = subprocess.run(["bash", "-eu", "-c", script], check=False, cwd=root, env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            self.assertEqual(result.returncode, 0, result.stderr.decode())
 
             self.assertEqual(json.loads(captured_args.read_text()), [
                 "run", "--model", "opencode-go/glm-5.3", "--format", "json",
@@ -280,6 +299,17 @@ opencode run --model opencode-go/glm-5.3 --format json < prompt.md > "$GITHUB_WO
             self.assertLess(sum(len(argument) for argument in json.loads(captured_args.read_text())), 128 * 1024)
             event = json.loads((root / "model-events.json").read_text())
             self.assertEqual(json.loads(event["part"]["text"])["findings"], [])
+            self.assertIn("stub stderr success", (root / "opencode-stderr.log").read_text())
+
+            for mode in ("error", "invalid"):
+                for file in (root / "model-events.json", root / "opencode-stderr.log", root / "findings.json"):
+                    file.unlink(missing_ok=True)
+                failing_environment = dict(environment, STUB_MODE=mode)
+                result = subprocess.run(["bash", "-eu", "-c", script], check=False, cwd=root, env=failing_environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertTrue((root / "model-events.json").exists())
+                self.assertTrue((root / "opencode-stderr.log").exists())
+                self.assertIn("stub stderr " + mode, (root / "opencode-stderr.log").read_text())
 
 
 if __name__ == "__main__":
