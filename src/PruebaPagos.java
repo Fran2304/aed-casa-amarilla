@@ -23,10 +23,12 @@ import modelo.EstadoSolicitud;
 import modelo.Matricula;
 import modelo.Pago;
 import modelo.MedioPago;
+import modelo.Oferta;
 import modelo.ReglaDominioException;
 import modelo.Solicitud;
 import modelo.TransicionInvalidaException;
 import negocio.Cobros;
+import negocio.Turnos;
 import datos.ArregloPagos;
 import datos.ArregloSolicitudes;
 import ui.PrincipalUI;
@@ -68,6 +70,9 @@ public class PruebaPagos {
         probarProteccionDeInscripcionConMatriculaVigente();
         probarComprobanteDePagoAnulado();
         probarIntegracionUiTrasAnulacionExitosa();
+        probarNuevaOfertaTrasAnulacionDeMatricula();
+        probarCicloDeOfertaRechazadaYRechazosAtomicos();
+        probarCiclosIndependientesConFechasNoMonotonicas();
         LocalDateTime base = LocalDateTime.of(2026, 10, 8, 10, 0);
         ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
         ArregloSolicitudes solicitudes = new ArregloSolicitudes();
@@ -498,6 +503,275 @@ public class PruebaPagos {
                         == pendienteSolicitud
                 && pendienteSolicitud.getFechaIngresoCola().equals(base.plusSeconds(1)),
                 "matrícula pendiente vencida conserva cola real y fecha asignada");
+    }
+
+    private static void probarNuevaOfertaTrasAnulacionDeMatricula() throws Exception {
+        LocalDateTime base = LocalDateTime.of(2026, 10, 8, 10, 0);
+        ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
+        Aula aula = new Aula("NAMED-OFFER-NEW", "Ofertas nuevas", 4, 1);
+        ArregloSolicitudes solicitudes = new ArregloSolicitudes();
+        ArregloPagos pagos = new ArregloPagos();
+        java.util.ArrayList<Matricula> matriculas = new java.util.ArrayList<Matricula>();
+
+        CicloFixture fixture = prepararCicloOferta(solicitudes, pagos, matriculas, aula,
+                "OFFER-NEW", base);
+        Oferta primera = Turnos.confirmarOferta(fixture.solicitud, true, "Personal inicial",
+                fixture.fechaOferta, solicitudes, matriculas);
+        comprobar(primera.isAceptada() && fixture.solicitud.tieneOfertaAceptada()
+                && fixture.solicitud.getOfertas().size() == 1,
+                "oferta inicial aceptada queda en el ciclo actual");
+        comprobarCronologia(fixture, primera.getFechaHora(), "oferta inicial");
+        comprobarDocumentosValidados(fixture.solicitud, "oferta inicial");
+
+        Snapshot antesTrueDuplicado = snapshot(null, fixture.solicitud, null, solicitudes,
+                matriculas, pagos);
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> Turnos.confirmarOferta(fixture.solicitud, true, "Personal duplicado true",
+                        fixture.fechaOferta.plusMinutes(1), solicitudes, matriculas),
+                "segunda aceptación true del ciclo es atómica", "ya aceptó una oferta");
+        assertSnapshot(antesTrueDuplicado, null, fixture.solicitud, null, solicitudes, matriculas,
+                pagos, "segunda aceptación true conserva historial y ciclo");
+        Snapshot antesFalseDuplicado = snapshot(null, fixture.solicitud, null, solicitudes,
+                matriculas, pagos);
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> Turnos.confirmarOferta(fixture.solicitud, false, "Personal duplicado false",
+                        fixture.fechaOferta.plusMinutes(2), solicitudes, matriculas),
+                "segunda respuesta false del ciclo es atómica", "ya aceptó una oferta");
+        assertSnapshot(antesFalseDuplicado, null, fixture.solicitud, null, solicitudes, matriculas,
+                pagos, "segunda respuesta false conserva historial y ciclo");
+
+        LocalDateTime creacion = fixture.fechaOferta.plusHours(1);
+        Matricula matricula = new Matricula(fixture.solicitud, creacion);
+        matriculas.add(matricula);
+        Pago pagoMatricula = pagoMatriculaConFechas(fixture.solicitud, matricula,
+                creacion.plusHours(1), creacion.plusHours(2), "offer-new-matricula", cuotas);
+        pagoMatricula.confirmar();
+        pagos.agregar(pagoMatricula);
+        matricula.activar();
+        Oferta ofertaHistorica = fixture.solicitud.getOfertas().get(0);
+        LocalDateTime anulacion = matricula.getVencimientoPagoOriginal();
+        Cobros.anularPago(pagoMatricula, "vencimiento de prueba", "Personal de caja", anulacion,
+                solicitudes, matriculas, pagos);
+        comprobar(matricula.getEstado() == EstadoMatricula.CANCELADA
+                && fixture.solicitud.getEstado() == EstadoSolicitud.EN_ESPERA_FAVORABLE
+                && fixture.solicitud.getOfertas().get(0) == ofertaHistorica
+                && fixture.solicitud.getOfertas().size() == 1
+                && matricula.getFechaHoraCreacion().equals(creacion)
+                && pagoMatricula.getFechaHoraOperacion().isBefore(anulacion)
+                && pagoMatricula.getFechaHoraRegistro().isBefore(anulacion),
+                "anulación en deadline conserva matrícula, fechas y oferta aceptada");
+
+        Oferta segunda = Turnos.confirmarOferta(fixture.solicitud, true, "Personal de reingreso",
+                anulacion.plusMinutes(1), solicitudes, matriculas);
+        comprobar(segunda != primera && segunda.isAceptada()
+                && fixture.solicitud.getOfertas().size() == 2
+                && fixture.solicitud.getOfertas().get(0) == primera
+                && fixture.solicitud.getOfertas().get(1) == segunda
+                && fixture.solicitud.tieneOfertaAceptada(),
+                "reingreso favorable inicia ciclo y permite nueva oferta aceptada");
+
+        Snapshot antesTrueSegundoCiclo = snapshot(null, fixture.solicitud, matricula, solicitudes,
+                matriculas, pagos);
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> Turnos.confirmarOferta(fixture.solicitud, true,
+                        "Personal duplicado true segundo ciclo", anulacion.plusMinutes(2),
+                        solicitudes, matriculas),
+                "segunda aceptación true del segundo ciclo es atómica", "ya aceptó una oferta");
+        assertSnapshot(antesTrueSegundoCiclo, null, fixture.solicitud, matricula, solicitudes,
+                matriculas, pagos, "true repetido no inserta oferta ni modifica la cola");
+        Snapshot antesFalseSegundoCiclo = snapshot(null, fixture.solicitud, matricula, solicitudes,
+                matriculas, pagos);
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> Turnos.confirmarOferta(fixture.solicitud, false,
+                        "Personal duplicado false segundo ciclo", anulacion.plusMinutes(3),
+                        solicitudes, matriculas),
+                "segunda respuesta false del segundo ciclo es atómica", "ya aceptó una oferta");
+        assertSnapshot(antesFalseSegundoCiclo, null, fixture.solicitud, matricula, solicitudes,
+                matriculas, pagos, "false repetido no inserta oferta ni modifica la cola");
+        comprobar(fixture.solicitud.tieneOfertaAceptada()
+                && fixture.solicitud.getOfertas().size() == 2
+                && fixture.solicitud.getOfertas().get(0) == primera
+                && fixture.solicitud.getOfertas().get(1) == segunda,
+                "segundo ciclo conserva ambas identidades y aceptación actual");
+
+        Snapshot snapshotNulo = snapshot(null, fixture.solicitud, matricula, solicitudes,
+                matriculas, pagos);
+        comprobar(fixture.solicitud.tieneOfertaAceptada()
+                && fixture.solicitud.getOfertas().size() == 2
+                && fixture.solicitud.getOfertas().get(0) == primera
+                && fixture.solicitud.getOfertas().get(1) == segunda,
+                "antes de fecha nula existe aceptación actual e historial completo");
+        esperarFallo(DatoInvalidoException.class,
+                () -> fixture.solicitud.ingresarAColaFavorable(null),
+                "reingreso con fecha nula rechaza antes de mutar");
+        assertSnapshot(snapshotNulo, null, fixture.solicitud, matricula, solicitudes, matriculas,
+                pagos, "reingreso nulo conserva historial y relaciones");
+    }
+
+    private static void probarCicloDeOfertaRechazadaYRechazosAtomicos() throws Exception {
+        LocalDateTime base = LocalDateTime.of(2026, 10, 9, 10, 0);
+        ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
+        Aula aula = new Aula("NAMED-OFFER-DECLINE", "Oferta rechazada", 4, 1);
+        ArregloSolicitudes solicitudes = new ArregloSolicitudes();
+        ArregloPagos pagos = new ArregloPagos();
+        java.util.ArrayList<Matricula> matriculas = new java.util.ArrayList<Matricula>();
+
+        CicloFixture fixture = prepararCicloOferta(solicitudes, pagos, matriculas, aula,
+                "OFFER-DECLINE", base);
+        Solicitud objetivo = fixture.solicitud;
+        Oferta aceptadaAnterior = Turnos.confirmarOferta(objetivo, true, "Personal anterior",
+                fixture.fechaOferta, solicitudes, matriculas);
+
+        LocalDateTime creacion = fixture.fechaOferta.plusHours(1);
+        Matricula matricula = new Matricula(objetivo, creacion);
+        matriculas.add(matricula);
+        Pago pagoMatricula = pagoMatriculaConFechas(objetivo, matricula, creacion.plusHours(1),
+                creacion.plusHours(2), "offer-decline-matricula", cuotas);
+        pagoMatricula.confirmar();
+        pagos.agregar(pagoMatricula);
+        matricula.activar();
+        LocalDateTime anulacion = matricula.getVencimientoPagoOriginal();
+        Cobros.anularPago(pagoMatricula, "matrícula vencida", "Personal de caja", anulacion,
+                solicitudes, matriculas, pagos);
+
+        CicloFixture otraFixture = prepararCicloOfertaSinTurno(solicitudes, pagos, matriculas, aula,
+                "OFFER-AHEAD", anulacion.plusMinutes(4));
+        Solicitud otra = otraFixture.solicitud;
+        java.util.ArrayList<Matricula> matriculasAntesRechazo =
+                new java.util.ArrayList<Matricula>(matriculas);
+        int vacantesAntesRechazo = negocio.Vacantes.calcular(aula, matriculas);
+        Oferta rechazada = Turnos.confirmarOferta(objetivo, false, "Personal de turno",
+                anulacion.plusMinutes(3), solicitudes, matriculas);
+        comprobar(rechazada != aceptadaAnterior && !rechazada.isAceptada()
+                && solicitudOrdenadaPrimero(solicitudes, aula, otra)
+                && !objetivo.tieneOfertaAceptada()
+                && objetivo.getOfertas().size() == 2
+                && objetivo.getOfertas().get(0) == aceptadaAnterior
+                && objetivo.getOfertas().get(1) == rechazada
+                && objetivo.getFechaIngresoCola().isAfter(otra.getFechaIngresoCola())
+                && matricula.getEstado() == EstadoMatricula.CANCELADA
+                && matriculas.equals(matriculasAntesRechazo)
+                && negocio.Vacantes.calcular(aula, matriculas) == vacantesAntesRechazo
+                && pagos.inscripcionConfirmada(objetivo),
+                "rechazo inicia ciclo nuevo, conserva aceptación anterior y respeta cola real");
+
+        Oferta ofertaDeOtra = Turnos.confirmarOferta(otra, true, "Personal para otra",
+                anulacion.plusMinutes(4),
+                solicitudes, matriculas);
+        comprobar(ofertaDeOtra.isAceptada() && otra.tieneOfertaAceptada()
+                && objetivo.getOfertas().get(0).isAceptada()
+                && objetivo.getOfertas().get(1) == rechazada,
+                "otra solicitud en cabeza puede aceptar sin borrar historial objetivo");
+
+        Solicitud invalida = solicitud("OFFER-INVALID", base, aula);
+        Oferta historialAceptado = new Oferta(base.plusHours(1), "Personal de fixture", true);
+        invalida.registrarOferta(historialAceptado);
+        Snapshot snapshotInvalida = snapshot(null, invalida, null, solicitudes, matriculas, pagos);
+        comprobar(invalida.tieneOfertaAceptada() && invalida.getOfertas().size() == 1,
+                "fixture unitario inválido inicia con aceptación histórica actual");
+        esperarFalloConMensaje(TransicionInvalidaException.class,
+                () -> invalida.ingresarAColaFavorable(base.plusMinutes(1)),
+                "ingreso favorable inválido conserva aceptación histórica",
+                "EN_ESPERA_SIN_PAGO a EN_ESPERA_FAVORABLE");
+        assertSnapshot(snapshotInvalida, null, invalida, null, solicitudes, matriculas, pagos,
+                "ingreso favorable inválido no muta aceptación histórica ni colecciones");
+        comprobar(invalida.tieneOfertaAceptada() && invalida.getOfertas().size() == 1
+                && invalida.getOfertas().get(0) == historialAceptado
+                && invalida.getEstado() == EstadoSolicitud.EN_ESPERA_SIN_PAGO,
+                "ingreso favorable inválido no cambia índice, identidad, cantidad ni estado");
+    }
+
+    private static boolean solicitudOrdenadaPrimero(ArregloSolicitudes solicitudes, Aula aula,
+            Solicitud esperada) {
+        return solicitudes.colaFavorable(aula).get(0) == esperada;
+    }
+
+    private static void probarCiclosIndependientesConFechasNoMonotonicas() throws Exception {
+        LocalDateTime fechaOfertaAnterior = LocalDateTime.of(2026, 10, 20, 10, 0);
+        LocalDateTime fechaReingreso = fechaOfertaAnterior;
+        Aula aula = new Aula("NAMED-OFFER-DATES", "Fechas de ciclos", 4, 2);
+        ArregloSolicitudes solicitudes = new ArregloSolicitudes();
+        java.util.ArrayList<Matricula> matriculas = new java.util.ArrayList<Matricula>();
+        Solicitud mismaFecha = registrarSolicitud(solicitudes, aula, "OFFER-SAME-DATE",
+                fechaReingreso.minusDays(3));
+        mismaFecha.habilitarParaPago(fechaReingreso.minusHours(1));
+        mismaFecha.confirmarInscripcion(fechaReingreso);
+        mismaFecha.ingresarAColaFavorable(fechaReingreso);
+        Oferta historica = Turnos.confirmarOferta(mismaFecha, true, "Personal histórico",
+                fechaOfertaAnterior, solicitudes, matriculas);
+        mismaFecha.ingresarAColaFavorable(fechaReingreso);
+        Oferta actual = Turnos.confirmarOferta(mismaFecha, true, "Personal actual",
+                fechaOfertaAnterior, solicitudes, matriculas);
+        comprobar(historica != actual && historica.getFechaHora().equals(actual.getFechaHora())
+                && mismaFecha.getOfertas().size() == 2 && mismaFecha.tieneOfertaAceptada(),
+                "unitario de índice permite reingreso con misma fecha de oferta y conserva identidad");
+
+        Solicitud fechaDecreciente = registrarSolicitud(solicitudes, aula, "OFFER-BACKWARD",
+                fechaReingreso.minusDays(2));
+        fechaDecreciente.habilitarParaPago(fechaReingreso.minusHours(1));
+        fechaDecreciente.confirmarInscripcion(fechaReingreso);
+        fechaDecreciente.ingresarAColaFavorable(fechaOfertaAnterior);
+        Oferta ofertaFutura = Turnos.confirmarOferta(fechaDecreciente, true, "Personal futuro",
+                fechaOfertaAnterior.plusDays(1), solicitudes, matriculas);
+        fechaDecreciente.ingresarAColaFavorable(fechaReingreso);
+        Oferta ofertaAnterior = Turnos.confirmarOferta(fechaDecreciente, true, "Personal anterior",
+                fechaReingreso, solicitudes, matriculas);
+        comprobar(ofertaFutura.getFechaHora().isAfter(ofertaAnterior.getFechaHora())
+                && fechaDecreciente.getOfertas().get(0) == ofertaFutura
+                && fechaDecreciente.getOfertas().get(1) == ofertaAnterior,
+                "unitario de índice conserva ofertas aunque la fecha asignada retroceda");
+
+        LocalDateTime cicloBase = LocalDateTime.of(2026, 10, 22, 10, 0);
+        Aula aulaVencida = new Aula("NAMED-OFFER-FUTURE", "Cola futura", 4, 1);
+        ArregloSolicitudes solicitudesVencida = new ArregloSolicitudes();
+        ArregloPagos pagosVencida = new ArregloPagos();
+        java.util.ArrayList<Matricula> matriculasVencida = new java.util.ArrayList<Matricula>();
+        CicloFixture objetivo = prepararCicloOferta(solicitudesVencida, pagosVencida,
+                matriculasVencida, aulaVencida, "OFFER-FUTURE-TARGET", cicloBase);
+        Oferta ofertaObjetivo = Turnos.confirmarOferta(objetivo.solicitud, true,
+                "Personal objetivo futuro", objetivo.fechaOferta, solicitudesVencida,
+                matriculasVencida);
+        LocalDateTime creacion = objetivo.fechaOferta.plusHours(1);
+        Matricula matricula = new Matricula(objetivo.solicitud, creacion);
+        matriculasVencida.add(matricula);
+        Pago pago = pagoMatriculaConFechas(objetivo.solicitud, matricula, creacion.plusHours(1),
+                creacion.plusHours(2), "future-target-matricula", new ConfiguracionCuotas());
+        pago.confirmar();
+        pagosVencida.agregar(pago);
+        matricula.activar();
+        LocalDateTime anulacion = matricula.getVencimientoPagoOriginal();
+        LocalDateTime fechaAsignadaFutura = anulacion.plusDays(1);
+        Solicitud colaFutura = registrarSolicitud(solicitudesVencida, aulaVencida,
+                "OFFER-FUTURE-OTHER", cicloBase.minusDays(2));
+        colaFutura.habilitarParaPago(cicloBase.minusHours(6));
+        colaFutura.confirmarInscripcion(cicloBase.minusHours(5));
+        registrarYValidarDocumentos(colaFutura, cicloBase.minusHours(4), cicloBase.minusHours(3));
+        colaFutura.ingresarAColaFavorable(fechaAsignadaFutura);
+        Cobros.anularPago(pago, "vencimiento futuro", "Personal de caja", anulacion,
+                solicitudesVencida, matriculasVencida, pagosVencida);
+        comprobar(objetivo.solicitud.getEstado() == EstadoSolicitud.EN_ESPERA_FAVORABLE
+                && objetivo.solicitud.getFechaIngresoCola().equals(fechaAsignadaFutura.plusSeconds(1))
+                && !objetivo.solicitud.tieneOfertaAceptada()
+                && objetivo.solicitud.getOfertas().size() == 1
+                && objetivo.solicitud.getOfertas().get(0) == ofertaObjetivo
+                && colaFutura.getFechaIngresoCola().equals(fechaAsignadaFutura),
+                "anulación real reingresa después de la fecha futura máxima y conserva historial");
+        Oferta ofertaActual = new Oferta(anulacion.plusMinutes(1), "Personal índice", true);
+        objetivo.solicitud.registrarOferta(ofertaActual);
+        comprobar(objetivo.solicitud.tieneOfertaAceptada()
+                && objetivo.solicitud.getOfertas().size() == 2
+                && objetivo.solicitud.getOfertas().get(0) == ofertaObjetivo
+                && objetivo.solicitud.getOfertas().get(1) == ofertaActual,
+                "unitario de índice cuenta aceptación actual aunque su fecha sea anterior a cola futura");
+        Snapshot snapshotOfertaActual = snapshot(null, objetivo.solicitud, matricula,
+                solicitudesVencida, matriculasVencida, pagosVencida);
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> Turnos.confirmarOferta(objetivo.solicitud, false, "Personal duplicado futuro",
+                        anulacion.plusMinutes(2), solicitudesVencida, matriculasVencida),
+                "aceptación actual bloquea oferta con cola futura", "ya aceptó una oferta");
+        assertSnapshot(snapshotOfertaActual, null, objetivo.solicitud, matricula,
+                solicitudesVencida, matriculasVencida, pagosVencida,
+                "cola futura no desplaza el índice de aceptación actual");
     }
 
     private static void probarColasConEmpates() throws Exception {
@@ -1198,6 +1472,129 @@ public class PruebaPagos {
         }
     }
 
+    /**
+     * Prepara el contrato existente hasta la cola favorable. El dominio actual no implementa
+     * todavía el registro de entrevista: ingresarAColaFavorable representa aquí el estado
+     * favorable suministrado por la API pública disponible, sin afirmar cobertura de entrevista.
+     */
+    private static CicloFixture prepararCicloOferta(ArregloSolicitudes solicitudes,
+            ArregloPagos pagos, java.util.ArrayList<Matricula> matriculas, Aula aula,
+            String codigo, LocalDateTime base) throws Exception {
+        ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
+        LocalDateTime registroSolicitud = base.minusDays(3);
+        LocalDateTime habilitacion = base.minusHours(6);
+        LocalDateTime operacionInscripcion = base.minusHours(2);
+        LocalDateTime registroInscripcion = base.minusHours(1);
+        Solicitud solicitud = registrarSolicitud(solicitudes, aula, codigo, registroSolicitud);
+        solicitud.habilitarParaPago(habilitacion);
+        Pago pagoInscripcion = Cobros.confirmarInscripcion(solicitud,
+                cuotas.getCuotaInscripcion(), MedioPago.EFECTIVO, "", operacionInscripcion,
+                codigo + "-inscripcion", registroInscripcion, solicitudes, matriculas, pagos,
+                cuotas);
+        comprobar(pagoInscripcion.estaConfirmado()
+                && solicitud.getEstado() == EstadoSolicitud.EN_DOCUMENTACION,
+                codigo + " confirma inscripción antes de documentos");
+        LocalDateTime entregaDocumentos = base.minusMinutes(50);
+        LocalDateTime validacionDocumentos = base.minusMinutes(40);
+        registrarYValidarDocumentos(solicitud, entregaDocumentos, validacionDocumentos);
+        comprobarDocumentosValidados(solicitud, codigo + " documentos");
+
+        // Contrato público actual: no existe una API de entrevista en este dominio.
+        solicitud.ingresarAColaFavorable(base);
+        return new CicloFixture(solicitud, pagoInscripcion, registroSolicitud, habilitacion,
+                operacionInscripcion, registroInscripcion, entregaDocumentos,
+                validacionDocumentos, base.plusMinutes(30));
+    }
+
+    private static CicloFixture prepararCicloOfertaSinTurno(ArregloSolicitudes solicitudes,
+            ArregloPagos pagos, java.util.ArrayList<Matricula> matriculas, Aula aula,
+            String codigo, LocalDateTime base) throws Exception {
+        ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
+        LocalDateTime registroSolicitud = base.minusDays(3);
+        LocalDateTime habilitacion = base.minusHours(6);
+        LocalDateTime operacionInscripcion = base.minusHours(2);
+        LocalDateTime registroInscripcion = base.minusHours(1);
+        Solicitud solicitud = registrarSolicitud(solicitudes, aula, codigo, registroSolicitud);
+        solicitud.habilitarParaPago(habilitacion);
+        Pago pagoInscripcion = new Pago(solicitud, ConceptoPago.INSCRIPCION, null,
+                cuotas.getCuotaInscripcion(), MedioPago.EFECTIVO, "", operacionInscripcion,
+                registroInscripcion, codigo + "-inscripcion", cuotas);
+        pagoInscripcion.confirmar();
+        pagos.agregar(pagoInscripcion);
+        solicitud.confirmarInscripcion(registroInscripcion);
+        LocalDateTime entregaDocumentos = base.minusMinutes(50);
+        LocalDateTime validacionDocumentos = base.minusMinutes(40);
+        registrarYValidarDocumentos(solicitud, entregaDocumentos, validacionDocumentos);
+        comprobarDocumentosValidados(solicitud, codigo + " documentos");
+        solicitud.ingresarAColaFavorable(base);
+        return new CicloFixture(solicitud, pagoInscripcion, registroSolicitud, habilitacion,
+                operacionInscripcion, registroInscripcion, entregaDocumentos,
+                validacionDocumentos, base.plusMinutes(30));
+    }
+
+    private static void registrarYValidarDocumentos(Solicitud solicitud,
+            LocalDateTime entrega, LocalDateTime validacion) throws Exception {
+        for (modelo.Documento documento : solicitud.getExpediente().getDocumentos()) {
+            documento.registrarEntrega(entrega);
+            documento.validar();
+        }
+        comprobar(solicitud.getExpediente().puedeAgendarEntrevista(),
+                solicitud.getCodigo() + " permite continuar solo tras validar los cuatro documentos");
+        comprobar(solicitud.getExpediente().getDocumentos().size() == 4
+                && solicitud.getExpediente().getDocumentos().stream()
+                        .allMatch(modelo.Documento::estaValidado)
+                && validacion.isAfter(entrega),
+                solicitud.getCodigo() + " valida los cuatro documentos con fecha posterior a entrega");
+    }
+
+    private static void comprobarDocumentosValidados(Solicitud solicitud, String descripcion) {
+        comprobar(solicitud.getExpediente() != null
+                && solicitud.getExpediente().getDocumentos().size() == 4
+                && solicitud.getExpediente().getDocumentos().stream()
+                        .allMatch(modelo.Documento::estaValidado),
+                descripcion + ": DNI alumno, DNI apoderado, partida y carné validados");
+    }
+
+    private static void comprobarCronologia(CicloFixture fixture, LocalDateTime oferta,
+            String descripcion) {
+        comprobar(fixture.solicitud.getFechaRegistro().equals(fixture.registroSolicitud)
+                && fixture.registroSolicitud.isBefore(fixture.habilitacion)
+                && fixture.habilitacion.isBefore(fixture.solicitud.getFechaConfirmacionInscripcion())
+                && fixture.solicitud.getFechaConfirmacionInscripcion().isBefore(
+                        fixture.entregaDocumentos)
+                && fixture.entregaDocumentos.isBefore(fixture.validacionDocumentos)
+                && fixture.validacionDocumentos.isBefore(oferta),
+                descripcion + " respeta registro -> habilitación -> inscripción -> documentos -> oferta");
+    }
+
+    private static final class CicloFixture {
+        private final Solicitud solicitud;
+        private final Pago pagoInscripcion;
+        private final LocalDateTime registroSolicitud;
+        private final LocalDateTime habilitacion;
+        private final LocalDateTime operacionInscripcion;
+        private final LocalDateTime registroInscripcion;
+        private final LocalDateTime entregaDocumentos;
+        private final LocalDateTime validacionDocumentos;
+        private final LocalDateTime fechaOferta;
+
+        private CicloFixture(Solicitud solicitud, Pago pagoInscripcion,
+                LocalDateTime registroSolicitud, LocalDateTime habilitacion,
+                LocalDateTime operacionInscripcion, LocalDateTime registroInscripcion,
+                LocalDateTime entregaDocumentos, LocalDateTime validacionDocumentos,
+                LocalDateTime fechaOferta) {
+            this.solicitud = solicitud;
+            this.pagoInscripcion = pagoInscripcion;
+            this.registroSolicitud = registroSolicitud;
+            this.habilitacion = habilitacion;
+            this.operacionInscripcion = operacionInscripcion;
+            this.registroInscripcion = registroInscripcion;
+            this.entregaDocumentos = entregaDocumentos;
+            this.validacionDocumentos = validacionDocumentos;
+            this.fechaOferta = fechaOferta;
+        }
+    }
+
     private static Pago pagoMatricula(Solicitud solicitud, Matricula matricula,
             LocalDateTime base, ConfiguracionCuotas cuotas, String comprobante)
             throws ReglaDominioException {
@@ -1232,6 +1629,19 @@ public class PruebaPagos {
                 comprobante, cuotas);
     }
 
+    private static Pago pagoMatriculaConFechas(Solicitud solicitud, Matricula matricula,
+            LocalDateTime operacion, LocalDateTime registro, String comprobante,
+            ConfiguracionCuotas cuotas) throws ReglaDominioException {
+        comprobar(matricula.getFechaHoraCreacion().isBefore(operacion)
+                && operacion.isBefore(registro)
+                && !operacion.isBefore(solicitud.getFechaRegistro())
+                && registro.isBefore(matricula.getVencimientoPagoOriginal()),
+                "pago de matrícula respeta creación -> operación -> registro -> deadline");
+        return new Pago(solicitud, ConceptoPago.MATRICULA, matricula,
+                cuotas.getCuotaMatricula(), MedioPago.EFECTIVO, "", operacion, registro,
+                comprobante, cuotas);
+    }
+
     private static final class Snapshot {
         private final modelo.EstadoPago estadoPago;
         private final LocalDateTime fechaAnulacion;
@@ -1246,6 +1656,8 @@ public class PruebaPagos {
         private final EstadoMatricula estadoMatricula;
         private final LocalDateTime creacionMatricula;
         private final LocalDateTime vencimientoMatricula;
+        private final java.util.ArrayList<Oferta> ofertas;
+        private final boolean tieneOfertaAceptada;
         private final java.util.ArrayList<Solicitud> solicitudes;
         private final java.util.ArrayList<Matricula> matriculas;
         private final java.util.ArrayList<Pago> pagos;
@@ -1267,6 +1679,8 @@ public class PruebaPagos {
             estadoMatricula = matricula == null ? null : matricula.getEstado();
             creacionMatricula = matricula == null ? null : matricula.getFechaHoraCreacion();
             vencimientoMatricula = matricula == null ? null : matricula.getVencimientoPagoOriginal();
+            ofertas = solicitud == null ? new java.util.ArrayList<Oferta>() : solicitud.getOfertas();
+            tieneOfertaAceptada = solicitud != null && solicitud.tieneOfertaAceptada();
             solicitudes = arregloSolicitudes.listar();
             matriculas = new java.util.ArrayList<Matricula>(arregloMatriculas);
             pagos = arregloPagos.listar();
@@ -1305,9 +1719,29 @@ public class PruebaPagos {
                         matricula == null ? null : matricula.getFechaHoraCreacion())
                 && java.util.Objects.equals(antes.vencimientoMatricula,
                         matricula == null ? null : matricula.getVencimientoPagoOriginal())
+                && ofertasSemanticaIgual(antes.ofertas,
+                        solicitud == null ? new java.util.ArrayList<Oferta>() : solicitud.getOfertas())
+                && antes.tieneOfertaAceptada == (solicitud != null && solicitud.tieneOfertaAceptada())
                 && antes.solicitudes.equals(solicitudes.listar())
                 && antes.matriculas.equals(matriculas)
                 && antes.pagos.equals(pagos.listar()), descripcion);
+    }
+
+    private static boolean ofertasSemanticaIgual(java.util.ArrayList<Oferta> antes,
+            java.util.ArrayList<Oferta> despues) {
+        if (antes.size() != despues.size()) {
+            return false;
+        }
+        for (int i = 0; i < antes.size(); i++) {
+            Oferta ofertaAntes = antes.get(i);
+            Oferta ofertaDespues = despues.get(i);
+            if (!ofertaAntes.getFechaHora().equals(ofertaDespues.getFechaHora())
+                    || !ofertaAntes.getPersonal().equals(ofertaDespues.getPersonal())
+                    || ofertaAntes.isAceptada() != ofertaDespues.isAceptada()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static void assertAuditoria(Pago pago, LocalDateTime fecha, String motivo,
