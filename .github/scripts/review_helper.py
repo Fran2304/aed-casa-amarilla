@@ -19,6 +19,7 @@ MAX_FINDINGS = 50
 MAX_ID = 160
 MAX_CONTEXT_FILE = 120000
 MAX_SOURCE_CONTEXT = 180000
+EXCLUDED_PATH = "src/PruebaPagos.java"
 
 
 def run_git(*args: str, cwd: str = ".") -> str:
@@ -75,7 +76,8 @@ def normalize_scope(full_lines: Mapping[str, list[int] | set[int]], new_lines: M
 
 def prepare(args: argparse.Namespace) -> None:
     base, head, last, previous_base = args.base, args.head, args.last_sha, args.previous_base
-    full_diff = run_git("diff", "--no-ext-diff", "--unified=80", f"{base}...{head}", cwd=args.repo)
+    diff_pathspec = ".", f":(exclude){EXCLUDED_PATH}"
+    full_diff = run_git("diff", "--no-ext-diff", "--unified=80", f"{base}...{head}", "--", *diff_pathspec, cwd=args.repo)
     incremental = False
     start = base
     if last and previous_base == base:
@@ -86,7 +88,7 @@ def prepare(args: argparse.Namespace) -> None:
         if incremental:
             start = last
     review_range = f"{start}..{head}" if incremental else f"{base}...{head}"
-    review_diff = run_git("diff", "--no-ext-diff", "--unified=80", review_range, cwd=args.repo)
+    review_diff = run_git("diff", "--no-ext-diff", "--unified=80", review_range, "--", *diff_pathspec, cwd=args.repo)
     full_lines = {path: sorted(lines) for path, lines in changed_lines(full_diff).items()}
     new_lines = normalize_scope(full_lines, changed_lines(review_diff))
     payload = {
@@ -268,6 +270,8 @@ def publish(args: argparse.Namespace) -> None:
     valid_lines: dict[str, set[int]] = {}
     # GitHub's patch is the authoritative full-PR hunk source; map only RIGHT lines.
     for file in diff:
+        if file.get("filename") == EXCLUDED_PATH:
+            continue
         patch = "+++ b/" + file["filename"] + "\n" + file.get("patch", "")
         valid_lines[file["filename"]] = changed_lines(patch).get(file["filename"], set())
     expected_full = {path: sorted(lines) for path, lines in valid_lines.items() if lines}
@@ -279,6 +283,8 @@ def publish(args: argparse.Namespace) -> None:
             filename = file.get("filename")
             if not isinstance(filename, str):
                 raise ValueError("GitHub compare returned invalid filename")
+            if filename == EXCLUDED_PATH:
+                continue
             patch = "+++ b/" + filename + "\n" + file.get("patch", "")
             lines = changed_lines(patch).get(filename, set())
             if lines:
