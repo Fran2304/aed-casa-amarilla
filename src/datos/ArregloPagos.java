@@ -6,6 +6,7 @@ import modelo.ConceptoPago;
 import modelo.DatoInvalidoException;
 import modelo.Pago;
 import modelo.Solicitud;
+import modelo.Matricula;
 
 public class ArregloPagos {
 
@@ -35,6 +36,32 @@ public class ArregloPagos {
     public boolean inscripcionConfirmada(Solicitud solicitud) {
         for (Pago pago : deSolicitud(solicitud)) {
             if (pago.getConcepto() == ConceptoPago.INSCRIPCION && pago.estaConfirmado()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean matriculaConfirmada(Matricula matricula) {
+        for (Pago pago : pagos) {
+            if (pago.getConcepto() == ConceptoPago.MATRICULA
+                    && pago.getMatricula() == matricula && pago.estaConfirmado()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean contiene(Pago pago) {
+        return pagos.contains(pago);
+    }
+
+    public boolean otroConfirmado(Pago pago) {
+        for (Pago otro : pagos) {
+            if (otro != pago && otro.estaConfirmado()
+                    && otro.getConcepto() == pago.getConcepto()
+                    && otro.getSolicitud() == pago.getSolicitud()
+                    && otro.getMatricula() == pago.getMatricula()) {
                 return true;
             }
         }

@@ -18,6 +18,9 @@ public class Pago {
     private final String rutaComprobantePago;
     private String comprobante;
     private EstadoPago estado;
+    private LocalDateTime fechaAnulacion;
+    private String motivoAnulacion;
+    private String responsableAnulacion;
 
     public Pago(Solicitud solicitud, ConceptoPago concepto, Matricula matricula,
             double montoPagado, MedioPago medio, String numeroOperacion,
@@ -135,7 +138,15 @@ public class Pago {
         if (estado != EstadoSolicitud.EN_DOCUMENTACION
                 && estado != EstadoSolicitud.EN_ESPERA_FAVORABLE) {
             throw new ReglaDominioException(solicitud.getCodigo() + " está en " + estado
-                    + " y no puede pagar la matrícula.");
+                + " y no puede pagar la matrícula.");
+        }
+        if (matricula.pagoOriginalVencido(fechaHoraOperacion)) {
+            throw new ReglaDominioException("La operación del pago de matrícula ocurre en o después"
+                    + " del vencimiento original " + matricula.getVencimientoPagoOriginal() + ".");
+        }
+        if (matricula.pagoOriginalVencido(fechaHoraRegistro)) {
+            throw new ReglaDominioException("El registro del pago de matrícula ocurre en o después"
+                    + " del vencimiento original " + matricula.getVencimientoPagoOriginal() + ".");
         }
     }
 
@@ -160,7 +171,25 @@ public class Pago {
         estado = EstadoPago.CONFIRMADO;
     }
 
+    public void anular(String motivo, String responsable, LocalDateTime fechaHora)
+            throws ReglaDominioException {
+        String motivoLimpio = Validaciones.exigirNoVacio("motivo de anulación", motivo);
+        String responsableLimpio = Validaciones.exigirNoVacio("responsable de anulación",
+                responsable);
+        if (fechaHora == null) {
+            throw new DatoInvalidoException("La fecha y hora de anulación es obligatoria.");
+        }
+        Transiciones.exigirTransicion(estado, EstadoPago.ANULADO);
+        estado = EstadoPago.ANULADO;
+        fechaAnulacion = fechaHora;
+        motivoAnulacion = motivoLimpio;
+        responsableAnulacion = responsableLimpio;
+    }
+
     public void registrarComprobante(String numero) throws ReglaDominioException {
+        if (estado == EstadoPago.ANULADO) {
+            throw new ReglaDominioException("No se puede registrar un comprobante en un pago anulado.");
+        }
         String limpio = Validaciones.exigirSoloDigitos("número de comprobante", numero);
         if (tieneComprobante()) {
             throw new ReglaDominioException(
@@ -176,6 +205,12 @@ public class Pago {
     public boolean estaConfirmado() {
         return estado == EstadoPago.CONFIRMADO;
     }
+
+    public LocalDateTime getFechaAnulacion() { return fechaAnulacion; }
+
+    public String getMotivoAnulacion() { return motivoAnulacion; }
+
+    public String getResponsableAnulacion() { return responsableAnulacion; }
 
     public Solicitud getSolicitud() {
         return solicitud;

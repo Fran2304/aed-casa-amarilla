@@ -45,10 +45,16 @@ public class TarjetasPago extends JPanel {
                 throws ReglaDominioException;
     }
 
+    public interface AccionAnular {
+        void anular(Pago pago, String motivo, String responsable, LocalDateTime fechaHora)
+                throws ReglaDominioException;
+    }
+
     public static final DateTimeFormatter FORMATO_FECHA =
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     private final AccionConfirmar accion;
+    private AccionAnular accionAnular;
 
     private double cuota;
     private LocalDateTime inicioPlazo;
@@ -74,6 +80,10 @@ public class TarjetasPago extends JPanel {
     private final JLabel[] motivos = new JLabel[4];
     private final JCheckBox revisado = new JCheckBox("Comprobante revisado por el personal");
     private final JButton botonConfirmar;
+    private final JPanel panelAnulacion = new JPanel(new GridLayout(3, 2, 8, 6));
+    private final JTextField campoMotivoAnulacion = Estilos.campo(new JTextField());
+    private final JTextField campoResponsableAnulacion = Estilos.campo(new JTextField());
+    private final JButton botonAnular = Estilos.botonSecundario("Anular pago confirmado");
     private final JTextArea mensaje = textoAjustable();
 
     private final JPanel boleta = new JPanel(new GridBagLayout());
@@ -103,6 +113,10 @@ public class TarjetasPago extends JPanel {
         reiniciar();
     }
 
+    public void configurarAnulacion(AccionAnular accionAnular) {
+        this.accionAnular = accionAnular;
+    }
+
     public void reiniciar() {
         esperar(Estilos.ESPERA, Estilos.TEXTO_ESPERA, "BUSQUE UNA SOLICITUD",
                 "Ingrese su código para registrar el pago.");
@@ -119,12 +133,15 @@ public class TarjetasPago extends JPanel {
         campoFecha.setText(LocalDateTime.now().format(FORMATO_FECHA));
         mostrarComprobante(null);
         revisado.setSelected(false);
+        campoMotivoAnulacion.setText("");
+        campoResponsableAnulacion.setText("");
         pintarAviso(Estilos.ALERTA, Estilos.TEXTO_ALERTA,
                 "EN REVISIÓN · Recibir no equivale a confirmar",
                 "Plazo de pago: " + inicioPlazo.format(FORMATO_FECHA) + "  →  "
                         + finPlazo.format(FORMATO_FECHA) + ".");
         mostrarMensaje(" ", false);
         boleta.setVisible(false);
+        panelAnulacion.setVisible(false);
         setEditable(true);
     }
 
@@ -143,6 +160,7 @@ public class TarjetasPago extends JPanel {
         for (int i = 0; i < items.length; i++) {
             marcar(i, null);
         }
+        panelAnulacion.setVisible(true);
     }
 
     public void bloquear(String motivo) {
@@ -161,6 +179,7 @@ public class TarjetasPago extends JPanel {
         pintarAviso(fondo, texto, titulo, detalle);
         mostrarMensaje(" ", false);
         boleta.setVisible(false);
+        panelAnulacion.setVisible(false);
         for (int i = 0; i < items.length; i++) {
             items[i].setText("○  " + items[i].getName());
             items[i].setForeground(Estilos.SECUNDARIO);
@@ -329,6 +348,8 @@ public class TarjetasPago extends JPanel {
         c.gridy++;
         c.insets = new Insets(0, 0, 8, 0);
         tarjeta.add(botonConfirmar, c);
+        c.gridy++;
+        tarjeta.add(crearAnulacion(), c);
 
         mensaje.setFont(Estilos.fuente(Font.PLAIN, 13));
         c.gridy++;
@@ -342,6 +363,19 @@ public class TarjetasPago extends JPanel {
         c.weighty = 1;
         tarjeta.add(new JLabel(" "), c);
         return tarjeta;
+    }
+
+    private JPanel crearAnulacion() {
+        panelAnulacion.setOpaque(false);
+        panelAnulacion.add(Estilos.etiquetaCampo("Motivo de anulación"));
+        panelAnulacion.add(campoMotivoAnulacion);
+        panelAnulacion.add(Estilos.etiquetaCampo("Responsable (Personal)"));
+        panelAnulacion.add(campoResponsableAnulacion);
+        panelAnulacion.add(new JLabel(" "));
+        panelAnulacion.add(botonAnular);
+        botonAnular.addActionListener(evento -> anularPago());
+        panelAnulacion.setVisible(false);
+        return panelAnulacion;
     }
 
     private JPanel crearBoleta() {
@@ -494,6 +528,20 @@ public class TarjetasPago extends JPanel {
         mostrarBoleta();
         mensajeBoleta.setText("Boleta registrada.");
         mensajeBoleta.setForeground(Estilos.BOTON_PRINCIPAL);
+    }
+
+    private void anularPago() {
+        if (accionAnular == null || pagoConfirmado == null) {
+            return;
+        }
+        try {
+            accionAnular.anular(pagoConfirmado, campoMotivoAnulacion.getText(),
+                    campoResponsableAnulacion.getText(), LocalDateTime.now());
+            mostrarMensaje("Pago anulado; se conservó su auditoría y el formulario fue actualizado.",
+                    false);
+        } catch (ReglaDominioException e) {
+            mostrarMensaje(e.getMessage(), true);
+        }
     }
 
     private void mostrarBoleta() {

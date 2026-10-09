@@ -17,9 +17,11 @@ public class Solicitud {
     private EstadoSolicitud estado;
     private LocalDateTime fechaIngresoCola;
     private LocalDateTime fechaHabilitacion;
+    private LocalDateTime vencimientoHabilitacionOriginal;
     private LocalDateTime fechaConfirmacionInscripcion;
     private ExpedienteDocumentos expediente;
     private ArrayList<Oferta> ofertas;
+    private int inicioCicloOfertas;
 
     public Solicitud(String codigo, Alumno alumno, Aula aula, LocalDateTime fechaRegistro) {
         this.codigo = codigo;
@@ -31,6 +33,7 @@ public class Solicitud {
         // Solo está en la cola cuando además tiene fecha de ingreso (ingresarAColaSinPago).
         this.estado = EstadoSolicitud.EN_ESPERA_SIN_PAGO;
         this.ofertas = new ArrayList<Oferta>();
+        this.inicioCicloOfertas = 0;
     }
 
     public void cambiarEstado(EstadoSolicitud nuevo) throws TransicionInvalidaException {
@@ -86,6 +89,7 @@ public class Solicitud {
         }
         aplicarTransicion(EstadoSolicitud.HABILITADA_PARA_PAGO);
         fechaHabilitacion = fecha;
+        vencimientoHabilitacionOriginal = fecha.plusHours(HORAS_HABILITACION);
     }
 
     public LocalDateTime getVencimientoHabilitacion() {
@@ -135,6 +139,27 @@ public class Solicitud {
         expediente = nuevo;
     }
 
+    public LocalDateTime getVencimientoHabilitacionOriginal() {
+        return vencimientoHabilitacionOriginal;
+    }
+
+    public void revertirInscripcion(LocalDateTime ahora, LocalDateTime fechaCola)
+            throws ReglaDominioException {
+        if (ahora == null || fechaCola == null) {
+            throw new DatoInvalidoException("La fecha de reversión es obligatoria.");
+        }
+        if (estado != EstadoSolicitud.EN_DOCUMENTACION) {
+            throw new ReglaDominioException(codigo + " no tiene una inscripción confirmada para revertir.");
+        }
+        aplicarTransicion(EstadoSolicitud.EN_ESPERA_SIN_PAGO);
+        if (ahora.isBefore(vencimientoHabilitacionOriginal)) {
+            aplicarTransicion(EstadoSolicitud.HABILITADA_PARA_PAGO);
+            fechaHabilitacion = vencimientoHabilitacionOriginal.minusHours(HORAS_HABILITACION);
+        } else {
+            ingresarAColaSinPago(fechaCola);
+        }
+    }
+
     public void ingresarAColaFavorable(LocalDateTime fecha) throws ReglaDominioException {
         if (fecha == null) {
             throw new DatoInvalidoException("La fecha de ingreso a la cola es obligatoria.");
@@ -143,6 +168,7 @@ public class Solicitud {
             aplicarTransicion(EstadoSolicitud.EN_ESPERA_FAVORABLE);
         }
         fechaIngresoCola = fecha;
+        inicioCicloOfertas = ofertas.size();
     }
 
     public boolean estaEnColaFavorable() {
@@ -157,7 +183,9 @@ public class Solicitud {
     }
 
     public boolean tieneOfertaAceptada() {
-        return !ofertas.isEmpty() && ofertas.get(ofertas.size() - 1).isAceptada();
+        // Una aceptación histórica no bloquea el ciclo que empieza al reingresar a la cola.
+        return ofertas.size() > inicioCicloOfertas
+                && ofertas.get(ofertas.size() - 1).isAceptada();
     }
 
     // Canceladas y rechazadas quedan como historial y no bloquean una solicitud nueva.

@@ -24,7 +24,8 @@ public final class Transiciones {
         TRANSICIONES_SOLICITUD.put(EstadoSolicitud.HABILITADA_PARA_PAGO,
                 Set.of(EstadoSolicitud.EN_DOCUMENTACION, EstadoSolicitud.EN_ESPERA_SIN_PAGO));
         TRANSICIONES_SOLICITUD.put(EstadoSolicitud.EN_DOCUMENTACION,
-                Set.of(EstadoSolicitud.EN_ESPERA_FAVORABLE,
+                Set.of(EstadoSolicitud.HABILITADA_PARA_PAGO, EstadoSolicitud.EN_ESPERA_SIN_PAGO,
+                        EstadoSolicitud.EN_ESPERA_FAVORABLE,
                         EstadoSolicitud.RECHAZADA,
                         EstadoSolicitud.CANCELADA));
         TRANSICIONES_SOLICITUD.put(EstadoSolicitud.EN_ESPERA_FAVORABLE, Set.of());
@@ -35,12 +36,13 @@ public final class Transiciones {
         TRANSICIONES_MATRICULA.put(EstadoMatricula.PENDIENTE_PAGO,
                 Set.of(EstadoMatricula.ACTIVA, EstadoMatricula.CANCELADA));
         TRANSICIONES_MATRICULA.put(EstadoMatricula.ACTIVA,
-                Set.of(EstadoMatricula.PENDIENTE_PAGO));
+                Set.of(EstadoMatricula.PENDIENTE_PAGO, EstadoMatricula.CANCELADA));
         TRANSICIONES_MATRICULA.put(EstadoMatricula.CANCELADA, Set.of());
 
         TRANSICIONES_PAGO = new EnumMap<>(EstadoPago.class);
         TRANSICIONES_PAGO.put(EstadoPago.RECIBIDO, Set.of(EstadoPago.CONFIRMADO));
-        TRANSICIONES_PAGO.put(EstadoPago.CONFIRMADO, Set.of());
+        TRANSICIONES_PAGO.put(EstadoPago.CONFIRMADO, Set.of(EstadoPago.ANULADO));
+        TRANSICIONES_PAGO.put(EstadoPago.ANULADO, Set.of());
 
         TRANSICIONES_DOCUMENTO = new EnumMap<>(EstadoDocumento.class);
         TRANSICIONES_DOCUMENTO.put(EstadoDocumento.EN_REVISION,
