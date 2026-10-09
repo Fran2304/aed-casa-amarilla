@@ -55,7 +55,7 @@ elif '/pulls/' in endpoint:
         )
         gh.chmod(gh.stat().st_mode | stat.S_IXUSR)
 
-    def execute(self, block, directory, **extra):
+    def execute(self, block, directory, cwd=None, **extra):
         env = os.environ.copy()
         env.update(
             REPO="example/repo",
@@ -72,7 +72,7 @@ elif '/pulls/' in endpoint:
             PATH=f"{directory}:{env['PATH']}",
         )
         env.update(extra)
-        return subprocess.run(["bash", "-eu", "-c", block], cwd=directory, env=env, text=True, capture_output=True)
+        return subprocess.run(["bash", "-eu", "-c", block], cwd=cwd or directory, env=env, text=True, capture_output=True)
 
     def test_prepare_block_skips_same_head_and_runs_full_without_trusted_script(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -107,6 +107,64 @@ elif '/pulls/' in endpoint:
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("mode=full", Path(tmp, "output").read_text())
 
+    def test_prepare_block_keeps_comments_out_of_workspace(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            runner = Path(tmp) / "runner"
+            workspace = Path(tmp) / "workspace"
+            runner.mkdir()
+            workspace.mkdir()
+            self.fake_gh(tmp)
+            marker = workspace / "tracked-marker"
+            marker.write_text("unchanged")
+            subprocess.run(["git", "-C", str(workspace), "init"], check=True, capture_output=True, text=True)
+            subprocess.run(["git", "-C", str(workspace), "add", "tracked-marker"], check=True, capture_output=True, text=True)
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(workspace),
+                    "-c",
+                    "user.name=Workflow test",
+                    "-c",
+                    "user.email=workflow-test@example.invalid",
+                    "commit",
+                    "-m",
+                    "Add tracked marker",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            before_status = subprocess.run(
+                ["git", "-C", str(workspace), "status", "--porcelain"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+            self.assertEqual(before_status, "")
+            before = sorted(path.relative_to(workspace).as_posix() for path in workspace.rglob("*"))
+
+            result = self.execute(
+                self.prepare,
+                tmp,
+                cwd=workspace,
+                RUNNER_TEMP=str(runner),
+                MOCK_COMMENTS="[]",
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            after = sorted(path.relative_to(workspace).as_posix() for path in workspace.rglob("*"))
+            self.assertEqual(after, before)
+            after_status = subprocess.run(
+                ["git", "-C", str(workspace), "status", "--porcelain"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+            self.assertEqual(after_status, "")
+            self.assertFalse((workspace / "comments.json").exists())
+            self.assertTrue((runner / "opencode-review-comments.json").exists())
+
     def test_stale_head_cannot_record_checkpoint(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.fake_gh(tmp)
@@ -126,29 +184,35 @@ elif '/pulls/' in endpoint:
 
     def test_move_block_removes_trusted_checkout_before_pr_workspace_is_used(self):
         with tempfile.TemporaryDirectory() as tmp:
+            runner = Path(tmp) / "runner"
+            workspace = Path(tmp) / "workspace"
+            runner.mkdir()
+            workspace.mkdir()
             self.fake_gh(tmp)
-            source = Path(tmp) / ".review-control/.github/scripts"
+            source = workspace / ".review-control/.github/scripts"
             source.mkdir(parents=True)
             (source / CONTROL.name).write_text(CONTROL.read_text())
-            moved = self.execute(self.move, tmp)
+            moved = self.execute(self.move, tmp, cwd=workspace, RUNNER_TEMP=str(runner))
             self.assertEqual(moved.returncode, 0, moved.stderr)
-            trusted = Path(tmp, "opencode-review-control/.github/scripts/review_checkpoint.py")
+            trusted = runner / "opencode-review-control/.github/scripts/review_checkpoint.py"
             self.assertTrue(trusted.exists())
-            self.assertFalse(Path(tmp, ".review-control").exists())
+            self.assertFalse((workspace / ".review-control").exists())
 
-            malicious = Path(tmp, ".review-control/.github/scripts")
+            malicious = workspace / ".review-control/.github/scripts"
             malicious.mkdir(parents=True)
             (malicious / CONTROL.name).write_text("raise RuntimeError('PR code')")
             comments = '[{"user":{"login":"github-actions[bot]","type":"Bot"},"body":"<!-- opencode-review-checkpoint:v1 workflow=opencode-review head_sha=head base_sha=base -->"}]'
-            result = self.execute(self.prepare, tmp, MOCK_COMMENTS=comments)
+            result = self.execute(self.prepare, tmp, cwd=workspace, RUNNER_TEMP=str(runner), MOCK_COMMENTS=comments)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("skip=true", Path(tmp, "output").read_text())
 
     def test_workflow_uses_trusted_checkout_and_success_conditions(self):
         text = WORKFLOW.read_text()
         self.assertLess(text.index("path: .review-control"), text.index("- name: Checkout PR"))
-        self.assertIn('mv .review-control "$RUNNER_TEMP/trusted-review-checkout"', text)
-        self.assertIn('control_script="$RUNNER_TEMP/opencode-review-control/.github/scripts/review_checkpoint.py"', text)
+        self.assertIn('mv .review-control "$runner_temp/trusted-review-checkout"', text)
+        self.assertIn('comments_file="$runner_temp/opencode-review-comments.json"', text)
+        self.assertIn('control_script="$runner_temp/opencode-review-control/.github/scripts/review_checkpoint.py"', text)
+        self.assertNotIn('> comments.json', text)
         action_condition = re.search(r"- name: Run OpenCode review\n        if: (.+)", text)
         self.assertEqual(
             action_condition.group(1) if action_condition else None,
