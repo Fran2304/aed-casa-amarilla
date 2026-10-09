@@ -61,3 +61,5 @@ Ejecuta los comandos desde la raíz del proyecto. Configura `JAVA_HOME` con un *
 ## Nota temporal del review automático
 
 La exclusión exacta de `src/PruebaPagos.java` del review automático es temporal. No elimina la obligación de ejecutar y mantener las pruebas funcionales. Cuando se retire la exclusión, conserva las instrucciones del proyecto de este archivo al integrar los cambios.
+
+La exclusión se mantiene únicamente en el prompt de revisión; no debe convertirse en un filtro rígido del control de checkpoints.
