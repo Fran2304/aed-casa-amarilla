@@ -57,3 +57,7 @@ Ejecuta los comandos desde la raíz del proyecto. Configura `JAVA_HOME` con un *
 - No incluyas clases compiladas, listas de fuentes generadas, logs, comprobantes de prueba ni pruebas auxiliares temporales en los commits. Añade explícitamente los archivos que correspondan.
 - `.gitignore` excluye `/bin/`, `/reviews/` y `.opencode/`; no asumas que `out/` u otros directorios de salida están ignorados.
 - Revisa `.github/workflows/opencode-review.yml` para conocer las comprobaciones automáticas. Antes de dar un cambio por terminado, contrástalo siempre con la spec del proyecto; si hay ambigüedad, pregunta. No afirmes fidelidad visual sin comprobar el diseño y la interfaz ejecutada.
+
+## Nota temporal del review automático
+
+La exclusión exacta de `src/PruebaPagos.java` del review automático es temporal. No elimina la obligación de ejecutar y mantener las pruebas funcionales. Cuando se retire la exclusión, conserva las instrucciones del proyecto de este archivo al integrar los cambios.
