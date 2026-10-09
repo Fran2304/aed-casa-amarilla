@@ -33,14 +33,16 @@ jobs:
           RUNNER_TEMP: ${{ runner.temp }}
         run: |
           set -eu
-          trusted_control="$RUNNER_TEMP/opencode-review-control"
+          runner_temp="${RUNNER_TEMP:?RUNNER_TEMP is required}"
+          mkdir -p "$runner_temp"
+          trusted_control="$runner_temp/opencode-review-control"
           if [ -f .review-control/.github/scripts/review_checkpoint.py ]; then
             mkdir -p "$trusted_control/.github/scripts"
             cp .review-control/.github/scripts/review_checkpoint.py \
               "$trusted_control/.github/scripts/review_checkpoint.py"
             chmod 500 "$trusted_control/.github/scripts/review_checkpoint.py"
           fi
-          mv .review-control "$RUNNER_TEMP/trusted-review-checkout"
+          mv .review-control "$runner_temp/trusted-review-checkout"
 
       - name: Checkout PR
         uses: actions/checkout@v6
@@ -58,10 +60,13 @@ jobs:
           RUNNER_TEMP: ${{ runner.temp }}
         run: |
           set -eu
-          gh api --paginate --slurp "repos/$REPO/issues/$PR_NUMBER/comments" > comments.json
-          control_script="$RUNNER_TEMP/opencode-review-control/.github/scripts/review_checkpoint.py"
+          runner_temp="${RUNNER_TEMP:?RUNNER_TEMP is required}"
+          mkdir -p "$runner_temp"
+          comments_file="$runner_temp/opencode-review-comments.json"
+          gh api --paginate --slurp "repos/$REPO/issues/$PR_NUMBER/comments" > "$comments_file"
+          control_script="$runner_temp/opencode-review-control/.github/scripts/review_checkpoint.py"
           if [ -f "$control_script" ]; then
-            last_sha="$(python3 "$control_script" candidate "$BASE_SHA" < comments.json)"
+            last_sha="$(python3 "$control_script" candidate "$BASE_SHA" < "$comments_file")"
           else
             # The base predates the trusted control script; never run PR code.
             last_sha=""
@@ -77,7 +82,7 @@ jobs:
             fi
           fi
           if [ -f "$control_script" ]; then
-            result="$(python3 "$control_script" "$HEAD_SHA" "$BASE_SHA" "$compare" < comments.json)"
+            result="$(python3 "$control_script" "$HEAD_SHA" "$BASE_SHA" "$compare" < "$comments_file")"
           else
             result='{"mode":"full","last_successful_sha":""}'
           fi
