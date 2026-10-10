@@ -7,6 +7,7 @@ Aplicación de escritorio en Java 21 para la admisión y matrícula del Nido La 
 ## Spec del proyecto y fuentes de consulta
 
 - **`docs/flujo_matricula_casa_amarilla_2027_ia.md` es la spec del proyecto.** Antes de implementar y al revisar cualquier cambio, comprueba que el comportamiento respete ese documento. Las pruebas deben cubrir las reglas aplicables de la spec.
+- **La spec vive únicamente en ese documento:** las decisiones nuevas se pliegan ahí (patrón tachado + **Resuelto**); no se crean archivos spec duplicados.
 - **Si una regla es ambigua, está pendiente de definición o entra en conflicto con otra fuente, pregunta antes de implementar.** No inventes criterios ni resuelvas contradicciones por tu cuenta.
 - Lee `CONTEXT.md` para usar la terminología del dominio: Alumno, Apoderado principal/adicional y Personal. Sigue su glosario en lugar de la terminología genérica del curso.
 - Consulta el issue y sus comentarios para conocer el alcance y los acuerdos. Una especificación de tarea o un comentario no autoriza a contradecir la spec del proyecto; ante diferencias, consulta y deja explícito el acuerdo.
