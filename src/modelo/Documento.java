@@ -1,5 +1,6 @@
 package modelo;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import negocio.Transiciones;
@@ -13,7 +14,7 @@ public class Documento {
     private LocalDateTime fechaHoraCorreccion;
     private EstadoDocumento estado;
     private String observacion;
-    private LocalDateTime fechaHoraComunicacion;
+    private LocalDate fechaComunicacion;
 
     public Documento(TipoDocumento tipo) throws DatoInvalidoException {
         if (tipo == null) {
@@ -40,15 +41,15 @@ public class Documento {
         estado = EstadoDocumento.VALIDADO;
     }
 
-    public void observar(String motivo, LocalDateTime comunicadaEl) throws ReglaDominioException {
+    public void observar(String motivo, LocalDate comunicadaEl) throws ReglaDominioException {
         exigirEntregado();
         String motivoLimpio = Validaciones.exigirNoVacio("motivo de la observación", motivo);
         if (comunicadaEl == null) {
-            throw new DatoInvalidoException("La fecha y hora de comunicación es obligatoria.");
+            throw new DatoInvalidoException("La fecha de comunicación es obligatoria.");
         }
         Transiciones.exigirTransicion(estado, EstadoDocumento.OBSERVADO);
         observacion = motivoLimpio;
-        fechaHoraComunicacion = comunicadaEl;
+        fechaComunicacion = comunicadaEl;
         estado = EstadoDocumento.OBSERVADO;
     }
 
@@ -58,7 +59,7 @@ public class Documento {
         }
         exigirEntregado();
         Transiciones.exigirTransicion(estado, EstadoDocumento.EN_REVISION);
-        if (correccionVencida(fechaHora)) {
+        if (correccionVencida(fechaHora.toLocalDate())) {
             throw new ReglaDominioException("El plazo para corregir el "
                     + tipo.getDescripcion() + " venció el " + fechaLimiteCorreccion() + ".");
         }
@@ -67,17 +68,16 @@ public class Documento {
     }
 
     /** Solo existe mientras el documento está observado. */
-    public LocalDateTime fechaLimiteCorreccion() {
+    public LocalDate fechaLimiteCorreccion() {
         if (estado != EstadoDocumento.OBSERVADO) {
             return null;
         }
-        return fechaHoraComunicacion.plusDays(DIAS_CORRECCION);
+        return fechaComunicacion.plusDays(DIAS_CORRECCION);
     }
 
-    // Plazo en días calendario: el último día cuenta completo, sin importar la hora.
-    public boolean correccionVencida(LocalDateTime ahora) {
-        LocalDateTime limite = fechaLimiteCorreccion();
-        return limite != null && ahora.toLocalDate().isAfter(limite.toLocalDate());
+    public boolean correccionVencida(LocalDate hoy) {
+        LocalDate limite = fechaLimiteCorreccion();
+        return limite != null && hoy.isAfter(limite);
     }
 
     public boolean estaEntregado() {
@@ -116,7 +116,7 @@ public class Documento {
         return observacion;
     }
 
-    public LocalDateTime getFechaHoraComunicacion() {
-        return fechaHoraComunicacion;
+    public LocalDate getFechaComunicacion() {
+        return fechaComunicacion;
     }
 }

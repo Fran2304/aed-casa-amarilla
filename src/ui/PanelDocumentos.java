@@ -29,7 +29,6 @@ import modelo.Alumno;
 import modelo.Apoderado;
 import modelo.Documento;
 import modelo.EstadoDocumento;
-import modelo.EstadoSolicitud;
 import modelo.ReglaDominioException;
 import modelo.Solicitud;
 import modelo.TipoDocumento;
@@ -60,18 +59,14 @@ public class PanelDocumentos extends JPanel {
         setLayout(new BorderLayout());
         setBorder(BorderFactory.createEmptyBorder(32, 32, 32, 34));
 
-        // Todavía no hay flujo que cree expedientes reales (pago de inscripción, #13):
-        // se muestra el ejemplo del diseño para poder operar la pantalla.
-        Solicitud ejemplo = null;
-        ExpedienteDocumentos expedienteEjemplo = null;
+        // Se muestra el ejemplo del diseño para poder operar la pantalla, sin mezclarlo con
+        // las solicitudes de la app.
         try {
-            ejemplo = crearSolicitudEjemplo(principal);
-            expedienteEjemplo = crearExpedienteEjemplo();
+            solicitud = crearSolicitudEjemplo(principal);
         } catch (ReglaDominioException e) {
             throw new IllegalStateException("El ejemplo del diseño 03 no es válido.", e);
         }
-        solicitud = ejemplo;
-        expediente = expedienteEjemplo;
+        expediente = solicitud.getExpediente();
 
         add(crearEncabezado(), BorderLayout.NORTH);
         JScrollPane desplazable = new JScrollPane(crearCuerpo(),
@@ -255,9 +250,9 @@ public class PanelDocumentos extends JPanel {
 
         estadoSolicitud.setText("ESTADO: " + solicitud.getEstado().name());
         plazoEntrega.setText("Inscripción confirmada "
-                + formatear(expediente.getInscripcionConfirmadaEl()) + " → entrega hasta "
+                + formatear(solicitud.getFechaConfirmacionInscripcion()) + " → entrega hasta "
                 + formatear(expediente.fechaLimiteEntrega()));
-        LocalDateTime limiteCorreccion = limiteCorreccionMasProximo();
+        LocalDate limiteCorreccion = limiteCorreccionMasProximo();
         plazoCorreccion.setText(limiteCorreccion == null ? ""
                 : "Corrección: " + formatear(limiteCorreccion));
 
@@ -271,7 +266,7 @@ public class PanelDocumentos extends JPanel {
             filas.add(crearFila(documento));
             if (documento.getEstado() == EstadoDocumento.OBSERVADO) {
                 observaciones.add(alinear(texto(documento.getObservacion() + " · comunicado "
-                        + formatear(documento.getFechaHoraComunicacion()), Estilos.TEXTO_ALERTA)));
+                        + formatear(documento.getFechaComunicacion()), Estilos.TEXTO_ALERTA)));
                 observaciones.add(Box.createVerticalStrut(6));
             }
         }
@@ -358,7 +353,7 @@ public class PanelDocumentos extends JPanel {
         if (motivo == null) {
             return;
         }
-        ejecutar(() -> documento.observar(motivo, LocalDateTime.now()));
+        ejecutar(() -> documento.observar(motivo, LocalDate.now()));
     }
 
     private Documento documentoSeleccionado() {
@@ -407,10 +402,10 @@ public class PanelDocumentos extends JPanel {
         }
     }
 
-    private LocalDateTime limiteCorreccionMasProximo() {
-        LocalDateTime proximo = null;
+    private LocalDate limiteCorreccionMasProximo() {
+        LocalDate proximo = null;
         for (Documento documento : expediente.getDocumentos()) {
-            LocalDateTime limite = documento.fechaLimiteCorreccion();
+            LocalDate limite = documento.fechaLimiteCorreccion();
             if (limite != null && (proximo == null || limite.isBefore(proximo))) {
                 proximo = limite;
             }
@@ -420,8 +415,13 @@ public class PanelDocumentos extends JPanel {
 
     // Formato del diseño ("23 sep · 15:00"); el de Java para es-PE daría "23 sept.".
     private static String formatear(LocalDateTime fechaHora) {
-        return fechaHora.getDayOfMonth() + " " + MESES[fechaHora.getMonthValue() - 1] + " · "
+        return formatear(fechaHora.toLocalDate()) + " · "
                 + String.format("%02d:%02d", fechaHora.getHour(), fechaHora.getMinute());
+    }
+
+    // Los plazos documentales son por día calendario (§4.4): se muestran sin hora.
+    private static String formatear(LocalDate fecha) {
+        return fecha.getDayOfMonth() + " " + MESES[fecha.getMonthValue() - 1];
     }
 
     private static JPanel fila(JComponent documento, JComponent entregado, JComponent revision,
@@ -483,13 +483,11 @@ public class PanelDocumentos extends JPanel {
         noa.agregarApoderado(new Apoderado("41526378", "Ana", "Ruiz", "987654321"), true);
         Solicitud solicitud = new Solicitud("SOL-1038", noa, principal.getAulas().buscar("AUL-02"),
                 LocalDate.now().minusDays(6).atTime(9, 40));
-        solicitud.cambiarEstado(EstadoSolicitud.EN_DOCUMENTACION);
-        return solicitud;
-    }
-
-    private static ExpedienteDocumentos crearExpedienteEjemplo() throws ReglaDominioException {
+        // Mismos intervalos que el diseño, contados desde hoy para que el plazo siga vigente.
         LocalDate inicio = LocalDate.now().minusDays(4);
-        ExpedienteDocumentos expediente = new ExpedienteDocumentos(inicio.atTime(10, 30));
+        solicitud.habilitarParaPago(inicio.atTime(9, 0));
+        solicitud.confirmarInscripcion(inicio.atTime(10, 30));
+        ExpedienteDocumentos expediente = solicitud.getExpediente();
         Documento dniAlumno = expediente.getDocumento(TipoDocumento.DNI_ALUMNO);
         dniAlumno.registrarEntrega(inicio.plusDays(2).atTime(9, 0));
         dniAlumno.validar();
@@ -501,7 +499,7 @@ public class PanelDocumentos extends JPanel {
         partida.validar();
         Documento carne = expediente.getDocumento(TipoDocumento.CARNE_VACUNAS);
         carne.registrarEntrega(inicio.plusDays(3).atTime(13, 20));
-        carne.observar("Falta página de refuerzo", inicio.plusDays(3).atTime(15, 0));
-        return expediente;
+        carne.observar("Falta página de refuerzo", inicio.plusDays(3));
+        return solicitud;
     }
 }

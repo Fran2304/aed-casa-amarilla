@@ -1,7 +1,6 @@
 package negocio;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.Map;
@@ -15,10 +14,10 @@ public class ExpedienteDocumentos {
 
     public static final int DIAS_ENTREGA = 7;
 
-    private final LocalDateTime inscripcionConfirmadaEl;
+    private final LocalDate inscripcionConfirmadaEl;
     private final Map<TipoDocumento, Documento> documentos;
 
-    public ExpedienteDocumentos(LocalDateTime inscripcionConfirmadaEl) throws DatoInvalidoException {
+    public ExpedienteDocumentos(LocalDate inscripcionConfirmadaEl) throws DatoInvalidoException {
         if (inscripcionConfirmadaEl == null) {
             throw new DatoInvalidoException(
                     "La fecha de confirmación de la inscripción es obligatoria.");
@@ -30,37 +29,27 @@ public class ExpedienteDocumentos {
         }
     }
 
-    public LocalDateTime fechaLimiteEntrega() {
+    public LocalDate fechaLimiteEntrega() {
         return inscripcionConfirmadaEl.plusDays(DIAS_ENTREGA);
     }
 
-    /**
-     * El plazo inicial exige entrega, no validación: la revisión pendiente no cuenta en contra.
-     * Es en días calendario: el último día cuenta completo, sin importar la hora.
-     */
+    /** El plazo inicial exige entrega, no validación: la revisión pendiente no cuenta en contra. */
     public boolean entregaOportuna() {
-        LocalDate ultimoDia = fechaLimiteEntrega().toLocalDate();
         for (Documento documento : documentos.values()) {
             if (!documento.estaEntregado()
-                    || documento.getFechaHoraEntrega().toLocalDate().isAfter(ultimoDia)) {
+                    || documento.getFechaHoraEntrega().toLocalDate().isAfter(fechaLimiteEntrega())) {
                 return false;
             }
         }
         return true;
     }
 
-    // PlazosDocumentales (#17) evalúa con la fecha de hoy.
     public boolean debeCancelarse(LocalDate hoy) {
-        return debeCancelarse(hoy.atStartOfDay());
-    }
-
-    public boolean debeCancelarse(LocalDateTime ahora) {
-        boolean plazoVencido = ahora.toLocalDate().isAfter(fechaLimiteEntrega().toLocalDate());
-        if (plazoVencido && !entregaOportuna()) {
+        if (hoy.isAfter(fechaLimiteEntrega()) && !entregaOportuna()) {
             return true;
         }
         for (Documento documento : documentos.values()) {
-            if (documento.correccionVencida(ahora)) {
+            if (documento.correccionVencida(hoy)) {
                 return true;
             }
         }
@@ -118,7 +107,7 @@ public class ExpedienteDocumentos {
         return new ArrayList<Documento>(documentos.values());
     }
 
-    public LocalDateTime getInscripcionConfirmadaEl() {
+    public LocalDate getInscripcionConfirmadaEl() {
         return inscripcionConfirmadaEl;
     }
 }
