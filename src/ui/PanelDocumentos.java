@@ -35,7 +35,6 @@ import modelo.Solicitud;
 import modelo.TipoDocumento;
 import negocio.ExpedienteDocumentos;
 
-// Diseño 03 · Expediente, documentos y entrevista (issue #19).
 public class PanelDocumentos extends JPanel {
 
     private static final String[] MESES = { "ene", "feb", "mar", "abr", "may", "jun", "jul",
@@ -380,8 +379,6 @@ public class PanelDocumentos extends JPanel {
         void ejecutar() throws ReglaDominioException;
     }
 
-    // Toma el ancho de la ventana en vez de ensancharse con el contenido: sin esto el
-    // desplazable abre una barra horizontal y corta la tarjeta de entrevista.
     private static final class CuerpoAnchoFijo extends JPanel implements Scrollable {
 
         @Override
@@ -490,8 +487,6 @@ public class PanelDocumentos extends JPanel {
         return solicitud;
     }
 
-    // Mismos intervalos que el diseño (20, 22 y 23 sep), contados desde hoy: con las fechas
-    // fijas el plazo de corrección ya habría vencido y no se podría operar la pantalla.
     private static ExpedienteDocumentos crearExpedienteEjemplo() throws ReglaDominioException {
         LocalDate inicio = LocalDate.now().minusDays(4);
         ExpedienteDocumentos expediente = new ExpedienteDocumentos(inicio.atTime(10, 30));

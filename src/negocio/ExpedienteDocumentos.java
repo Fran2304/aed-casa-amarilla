@@ -34,25 +34,29 @@ public class ExpedienteDocumentos {
         return inscripcionConfirmadaEl.plusDays(DIAS_ENTREGA);
     }
 
-    /** El plazo inicial exige entrega, no validación: la revisión pendiente no cuenta en contra. */
+    /**
+     * El plazo inicial exige entrega, no validación: la revisión pendiente no cuenta en contra.
+     * Es en días calendario: el último día cuenta completo, sin importar la hora.
+     */
     public boolean entregaOportuna() {
+        LocalDate ultimoDia = fechaLimiteEntrega().toLocalDate();
         for (Documento documento : documentos.values()) {
             if (!documento.estaEntregado()
-                    || documento.getFechaHoraEntrega().isAfter(fechaLimiteEntrega())) {
+                    || documento.getFechaHoraEntrega().toLocalDate().isAfter(ultimoDia)) {
                 return false;
             }
         }
         return true;
     }
 
-    // Por día, como en #16: PlazosDocumentales (#17) evalúa con la fecha de hoy. Tomar el
-    // inicio del día da lo mismo que comparar solo fechas: vence recién el día siguiente.
+    // PlazosDocumentales (#17) evalúa con la fecha de hoy.
     public boolean debeCancelarse(LocalDate hoy) {
         return debeCancelarse(hoy.atStartOfDay());
     }
 
     public boolean debeCancelarse(LocalDateTime ahora) {
-        if (ahora.isAfter(fechaLimiteEntrega()) && !entregaOportuna()) {
+        boolean plazoVencido = ahora.toLocalDate().isAfter(fechaLimiteEntrega().toLocalDate());
+        if (plazoVencido && !entregaOportuna()) {
             return true;
         }
         for (Documento documento : documentos.values()) {

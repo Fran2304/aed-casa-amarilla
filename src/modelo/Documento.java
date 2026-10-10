@@ -74,9 +74,10 @@ public class Documento {
         return fechaHoraComunicacion.plusDays(DIAS_CORRECCION);
     }
 
+    // Plazo en días calendario: el último día cuenta completo, sin importar la hora.
     public boolean correccionVencida(LocalDateTime ahora) {
         LocalDateTime limite = fechaLimiteCorreccion();
-        return limite != null && ahora.isAfter(limite);
+        return limite != null && ahora.toLocalDate().isAfter(limite.toLocalDate());
     }
 
     public boolean estaEntregado() {
