@@ -19,6 +19,9 @@ public class Solicitud {
     private LocalDateTime fechaHabilitacion;
     private LocalDateTime vencimientoHabilitacionOriginal;
     private LocalDateTime fechaConfirmacionInscripcion;
+    private LocalDateTime fechaCancelacion;
+    private String motivoCancelacion;
+    private String responsableCancelacion;
     private ExpedienteDocumentos expediente;
     private ArrayList<Oferta> ofertas;
     private int inicioCicloOfertas;
@@ -118,6 +121,28 @@ public class Solicitud {
         }
         aplicarTransicion(EstadoSolicitud.EN_ESPERA_SIN_PAGO);
         ingresarAColaSinPago(fecha);
+    }
+
+    public void cancelarPorDocumentacion(LocalDateTime ahora, String motivo, String responsable)
+            throws ReglaDominioException {
+        String motivoLimpio = Validaciones.exigirNoVacio("motivo de cancelación", motivo);
+        String responsableLimpio = Validaciones.exigirNoVacio("responsable de cancelación",
+                responsable);
+        if (ahora == null) {
+            throw new DatoInvalidoException("La fecha y hora de cancelación es obligatoria.");
+        }
+        if (estado != EstadoSolicitud.EN_DOCUMENTACION) {
+            throw new ReglaDominioException(codigo + " está en " + estado
+                    + " y solo puede cancelarse por documentación desde EN_DOCUMENTACION.");
+        }
+        if (!expediente.debeCancelarse(ahora.toLocalDate())) {
+            throw new ReglaDominioException("El plazo documental de " + codigo
+                    + " todavía no venció; no se puede cancelar por documentación.");
+        }
+        aplicarTransicion(EstadoSolicitud.CANCELADA);
+        fechaCancelacion = ahora;
+        motivoCancelacion = motivoLimpio;
+        responsableCancelacion = responsableLimpio;
     }
 
     public void confirmarInscripcion(LocalDateTime fecha) throws ReglaDominioException {
@@ -223,6 +248,18 @@ public class Solicitud {
 
     public LocalDateTime getFechaConfirmacionInscripcion() {
         return fechaConfirmacionInscripcion;
+    }
+
+    public LocalDateTime getFechaCancelacion() {
+        return fechaCancelacion;
+    }
+
+    public String getMotivoCancelacion() {
+        return motivoCancelacion;
+    }
+
+    public String getResponsableCancelacion() {
+        return responsableCancelacion;
     }
 
     public ExpedienteDocumentos getExpediente() {

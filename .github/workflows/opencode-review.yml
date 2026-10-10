@@ -49,6 +49,27 @@ jobs:
         with:
           persist-credentials: false
 
+      # La acción de review hace un commit local del veredicto y un `git push`
+      # que no se pueden desactivar. Sin identidad de git el commit muere; con
+      # push real el commit aterrizaría en la rama y dispararía un loop de
+      # synchronize. Identidad local + pushInsteadOf hacia un repo bare en el
+      # runner: solo el push se redirige (el fetch de la rama del PR sigue
+      # yendo a GitHub), el push "tiene éxito" sin tocar la rama real
+      # (contents: read) y la acción sigue a crear el comentario del veredicto.
+      - name: Sandbox the review verdict commit and push
+        env:
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git init --bare "$RUNNER_TEMP/verdict-sandbox.git" >/dev/null
+          # El checkout del runner es shallow (fetch-depth: 1); sin esto el
+          # receive-pack del sandbox rechaza el push con "shallow update not
+          # allowed" (reproducido localmente).
+          git --git-dir="$RUNNER_TEMP/verdict-sandbox.git" config receive.shallowupdate true
+          git config "url.$RUNNER_TEMP/verdict-sandbox.git.pushInsteadOf" \
+            "https://github.com/${{ github.repository }}"
+
       - name: Check successful review checkpoint
         id: prepare
         env:

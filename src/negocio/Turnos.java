@@ -21,6 +21,7 @@ public final class Turnos {
             ArregloSolicitudes solicitudes, ArrayList<Matricula> matriculas,
             LocalDateTime ahora) throws ReglaDominioException {
         solicitudes.vencerHabilitaciones(ahora);
+        solicitudes.cancelarDocumentacionVencida(ahora.toLocalDate(), "Personal de turnos");
         ArrayList<Solicitud> enCola = solicitudes.colaFavorable(aula);
         enCola.addAll(solicitudes.enDocumentacion(aula));
         enCola.addAll(solicitudes.habilitadas(aula));

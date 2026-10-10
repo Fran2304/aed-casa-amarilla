@@ -1,6 +1,7 @@
 package datos;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.ArrayList;
 
 import modelo.Alumno;
@@ -119,6 +120,20 @@ public class ArregloSolicitudes {
         for (Solicitud solicitud : solicitudes) {
             if (solicitud.habilitacionVencida(ahora)) {
                 solicitud.vencerHabilitacion(solicitud.getVencimientoHabilitacion());
+            }
+        }
+    }
+
+    public void cancelarDocumentacionVencida(LocalDate hoy, String responsable)
+            throws ReglaDominioException {
+        if (hoy == null) {
+            throw new DatoInvalidoException("La fecha de revisión es obligatoria.");
+        }
+        for (Solicitud solicitud : solicitudes) {
+            if (solicitud.getEstado() == EstadoSolicitud.EN_DOCUMENTACION
+                    && solicitud.getExpediente().debeCancelarse(hoy)) {
+                solicitud.cancelarPorDocumentacion(hoy.atStartOfDay(),
+                        solicitud.getExpediente().motivoCancelacion(hoy), responsable);
             }
         }
     }
