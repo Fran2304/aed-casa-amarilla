@@ -136,6 +136,13 @@ public class PanelPagos extends JPanel {
         }
 
         LocalDateTime ahora = LocalDateTime.now();
+        try {
+            solicitudes.cancelarDocumentacionVencida(ahora.toLocalDate(), "Personal de caja");
+        } catch (ReglaDominioException e) {
+            mostrarResumen(actual);
+            tarjetas.bloquear(e.getMessage());
+            return;
+        }
         if (actual.habilitacionVencida(ahora)) {
             LocalDateTime vencio = actual.getVencimientoHabilitacion();
             String motivo = "La habilitación venció el " + vencio.format(TarjetasPago.FORMATO_FECHA)
@@ -221,6 +228,10 @@ public class PanelPagos extends JPanel {
     }
 
     private static String detalleConfirmado(Solicitud solicitud) {
+        if (solicitud.getEstado() == EstadoSolicitud.CANCELADA) {
+            return "Solicitud CANCELADA · " + solicitud.getMotivoCancelacion()
+                    + " Sin reembolso de la inscripción.";
+        }
         if (solicitud.getExpediente() == null) {
             return "Inscripción pagada.";
         }

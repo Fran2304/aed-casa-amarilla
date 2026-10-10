@@ -70,9 +70,11 @@ public class PruebaPagos {
         probarRechazosAtomicos();
         probarAuditoriaInmutable();
         probarPlazoOriginalDeMatriculaParaAmbasFechas();
+        probarPlazosDocumentalesYCancelacion();
         probarProteccionDeInscripcionConMatriculaVigente();
         probarComprobanteDePagoAnulado();
         probarIntegracionUiTrasAnulacionExitosa();
+        probarIntegracionUiBarridoDocumental();
         probarNuevaOfertaTrasAnulacionDeMatricula();
         probarCicloDeOfertaRechazadaYRechazosAtomicos();
         probarCiclosIndependientesConFechasNoMonotonicas();
@@ -1532,6 +1534,44 @@ public class PruebaPagos {
         }
     }
 
+    private static void probarIntegracionUiBarridoDocumental() throws Exception {
+        final RuntimeException[] failure = new RuntimeException[1];
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                LocalDateTime ahora = LocalDateTime.now();
+                Aula aula = new Aula("NAMED-UI-DOC", "UI documental", 4, 1);
+                ArregloSolicitudes solicitudes = new ArregloSolicitudes();
+                ArregloPagos pagos = new ArregloPagos();
+                java.util.ArrayList<Matricula> matriculas = new java.util.ArrayList<Matricula>();
+                Solicitud solicitud = registrarSolicitud(solicitudes, aula, "NAMED-UI-DOC-S",
+                        ahora.minusDays(10));
+                LocalDateTime confirmacion = ahora.minusDays(9);
+                solicitud.habilitarParaPago(confirmacion.minusHours(1));
+                solicitud.confirmarInscripcion(confirmacion);
+
+                ui.PanelPagos panel = new ui.PanelPagos(solicitudes, pagos, matriculas,
+                        new ConfiguracionCuotas());
+                ((javax.swing.JTextField) campoPrivado(panel, "campoCodigo")).setText(
+                        solicitud.getCodigo());
+                java.lang.reflect.Method buscar = panel.getClass().getDeclaredMethod("buscar");
+                buscar.setAccessible(true);
+                buscar.invoke(panel);
+
+                comprobar(solicitud.getEstado() == EstadoSolicitud.CANCELADA
+                        && solicitud.getFechaCancelacion() != null
+                        && solicitud.getMotivoCancelacion() != null
+                        && !solicitud.getMotivoCancelacion().isEmpty()
+                        && "Personal de caja".equals(solicitud.getResponsableCancelacion()),
+                        "UI buscar cancela documentación vencida con auditoría completa");
+            } catch (Exception e) {
+                failure[0] = new RuntimeException(e);
+            }
+        });
+        if (failure[0] != null) {
+            throw failure[0];
+        }
+    }
+
     /**
      * Prepara el contrato existente hasta la cola favorable. El dominio actual no implementa
      * todavía el registro de entrevista: ingresarAColaFavorable representa aquí el estado
@@ -1713,6 +1753,9 @@ public class PruebaPagos {
         private final LocalDateTime fechaHabilitacion;
         private final LocalDateTime vencimientoHabilitacion;
         private final LocalDateTime fechaConfirmacion;
+        private final LocalDateTime fechaCancelacion;
+        private final String motivoCancelacion;
+        private final String responsableCancelacion;
         private final EstadoMatricula estadoMatricula;
         private final LocalDateTime creacionMatricula;
         private final LocalDateTime vencimientoMatricula;
@@ -1736,6 +1779,9 @@ public class PruebaPagos {
             vencimientoHabilitacion = solicitud == null
                     ? null : solicitud.getVencimientoHabilitacionOriginal();
             fechaConfirmacion = solicitud == null ? null : solicitud.getFechaConfirmacionInscripcion();
+            fechaCancelacion = solicitud == null ? null : solicitud.getFechaCancelacion();
+            motivoCancelacion = solicitud == null ? null : solicitud.getMotivoCancelacion();
+            responsableCancelacion = solicitud == null ? null : solicitud.getResponsableCancelacion();
             estadoMatricula = matricula == null ? null : matricula.getEstado();
             creacionMatricula = matricula == null ? null : matricula.getFechaHoraCreacion();
             vencimientoMatricula = matricula == null ? null : matricula.getVencimientoPagoOriginal();
@@ -1774,6 +1820,12 @@ public class PruebaPagos {
                         solicitud == null ? null : solicitud.getVencimientoHabilitacionOriginal())
                 && java.util.Objects.equals(antes.fechaConfirmacion,
                         solicitud == null ? null : solicitud.getFechaConfirmacionInscripcion())
+                && java.util.Objects.equals(antes.fechaCancelacion,
+                        solicitud == null ? null : solicitud.getFechaCancelacion())
+                && java.util.Objects.equals(antes.motivoCancelacion,
+                        solicitud == null ? null : solicitud.getMotivoCancelacion())
+                && java.util.Objects.equals(antes.responsableCancelacion,
+                        solicitud == null ? null : solicitud.getResponsableCancelacion())
                 && antes.estadoMatricula == (matricula == null ? null : matricula.getEstado())
                 && java.util.Objects.equals(antes.creacionMatricula,
                         matricula == null ? null : matricula.getFechaHoraCreacion())
@@ -1823,6 +1875,119 @@ public class PruebaPagos {
             rechazo = true;
         }
         comprobar(rechazo, "esperarFallo no acepta excepciones inesperadas");
+    }
+
+    private static void probarPlazosDocumentalesYCancelacion() throws Exception {
+        Aula aula = new Aula("AUL-DOC", "Documentación", 4, 2);
+        LocalDateTime confirmacion = LocalDateTime.of(2026, 9, 20, 10, 0);
+
+        Solicitud inicial = solicitud("DOC-INICIAL", confirmacion.minusDays(2), aula);
+        inicial.habilitarParaPago(confirmacion.minusHours(2));
+        ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
+        ArregloSolicitudes solicitudesInicial = new ArregloSolicitudes();
+        java.util.ArrayList<Matricula> matriculasInicial = new java.util.ArrayList<Matricula>();
+        ArregloPagos pagosCancelacion = new ArregloPagos();
+        Pago pagoCancelado = Cobros.confirmarInscripcion(inicial, cuotas.getCuotaInscripcion(),
+                MedioPago.EFECTIVO, "", confirmacion, "comprobante-documental", confirmacion,
+                solicitudesInicial, matriculasInicial, pagosCancelacion, cuotas);
+        Matricula matriculaCancelada = new Matricula(inicial, confirmacion.plusHours(1));
+        comprobar(inicial.getExpediente().debeCancelarse(LocalDate.of(2026, 9, 28)),
+                "el plazo inicial vencido permite cancelar");
+        inicial.cancelarPorDocumentacion(LocalDateTime.of(2026, 9, 28, 9, 0),
+                "Venció el plazo inicial", "Personal documental");
+        comprobar(inicial.getEstado() == EstadoSolicitud.CANCELADA
+                && inicial.getFechaCancelacion().equals(LocalDateTime.of(2026, 9, 28, 9, 0))
+                && inicial.getMotivoCancelacion().equals("Venció el plazo inicial")
+                && inicial.getResponsableCancelacion().equals("Personal documental"),
+                "cancelación inicial conserva el evento de auditoría");
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> Cobros.confirmarInscripcion(inicial, cuotas.getCuotaInscripcion(),
+                        MedioPago.EFECTIVO, "", confirmacion.plusDays(9), "otro",
+                        confirmacion.plusDays(9), solicitudesInicial, matriculasInicial,
+                        pagosCancelacion, cuotas),
+                "una cancelada no recibe pagos", "ya tiene la inscripción pagada");
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> new Pago(inicial, ConceptoPago.MATRICULA, matriculaCancelada,
+                        cuotas.getCuotaMatricula(), MedioPago.EFECTIVO, "",
+                        confirmacion.plusDays(9), confirmacion.plusDays(9),
+                        "matricula-cancelada", cuotas),
+                "una cancelada no recibe pago de matrícula", "no puede pagar la matrícula");
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> Cobros.anularPago(pagoCancelado, "error", "Personal", confirmacion.plusDays(9),
+                        solicitudesInicial, matriculasInicial, pagosCancelacion),
+                "no se anula el pago de una cancelada", "no está en documentación");
+        comprobar(pagoCancelado.estaConfirmado(), "el pago confirmado de una cancelada no se reembolsa");
+        esperarFallo(TransicionInvalidaException.class,
+                () -> inicial.cambiarEstado(EstadoSolicitud.EN_ESPERA_SIN_PAGO),
+                "una solicitud cancelada es terminal");
+
+        Solicitud correccion = solicitud("DOC-CORRECCION", confirmacion.minusDays(2), aula);
+        correccion.habilitarParaPago(confirmacion.minusHours(2));
+        correccion.confirmarInscripcion(confirmacion);
+        modelo.Documento observado = correccion.getExpediente().getDocumentos().get(0);
+        observado.registrarEntrega(confirmacion.plusHours(1));
+        observado.observar("Foto ilegible", LocalDate.of(2026, 9, 25));
+        comprobar(!observado.correccionVencida(LocalDate.of(2026, 10, 2))
+                && observado.correccionVencida(LocalDate.of(2026, 10, 3)),
+                "la corrección vence el día posterior al límite");
+        correccion.cancelarPorDocumentacion(LocalDateTime.of(2026, 10, 3, 9, 0),
+                "Venció el plazo de corrección", "Personal documental");
+        comprobar(correccion.getEstado() == EstadoSolicitud.CANCELADA
+                && correccion.getMotivoCancelacion().contains("corrección"),
+                "cancelación por corrección conserva el evento");
+
+        Solicitud entregaUltimoDia = solicitud("DOC-ULTIMO-DIA", confirmacion.minusDays(2), aula);
+        entregaUltimoDia.habilitarParaPago(confirmacion.minusHours(2));
+        entregaUltimoDia.confirmarInscripcion(confirmacion);
+        for (modelo.Documento documento : entregaUltimoDia.getExpediente().getDocumentos()) {
+            documento.registrarEntrega(LocalDateTime.of(2026, 9, 27, 20, 0));
+        }
+        comprobar(entregaUltimoDia.getExpediente().entregaOportuna()
+                && !entregaUltimoDia.getExpediente().debeCancelarse(LocalDate.of(2026, 9, 28)),
+                "los cuatro documentos entregados el último día son oportunos");
+
+        Solicitud correccionUltimoDia = solicitud("DOC-CORR-ULTIMO", confirmacion.minusDays(2), aula);
+        correccionUltimoDia.habilitarParaPago(confirmacion.minusHours(2));
+        correccionUltimoDia.confirmarInscripcion(confirmacion);
+        modelo.Documento documento = correccionUltimoDia.getExpediente().getDocumentos().get(0);
+        documento.registrarEntrega(confirmacion);
+        documento.observar("Falta dato", LocalDate.of(2026, 9, 25));
+        documento.entregarCorreccion(LocalDateTime.of(2026, 10, 2, 23, 59));
+        comprobar(!documento.correccionVencida(LocalDate.of(2026, 10, 3)),
+                "la corrección entregada en el límite ya no vence");
+
+        ArregloSolicitudes solicitudes = new ArregloSolicitudes();
+        java.util.ArrayList<Matricula> matriculas = new java.util.ArrayList<Matricula>();
+        Solicitud barrida = solicitud("DOC-BARRIDA", confirmacion.minusDays(2), aula);
+        barrida.habilitarParaPago(confirmacion.minusHours(2));
+        barrida.confirmarInscripcion(confirmacion);
+        java.util.ArrayList<Solicitud> almacen =
+                (java.util.ArrayList<Solicitud>) campoPrivado(solicitudes, "solicitudes");
+        almacen.add(barrida);
+        solicitudes.cancelarDocumentacionVencida(LocalDate.of(2026, 9, 28), "Personal de turnos");
+        comprobar(barrida.getEstado() == EstadoSolicitud.CANCELADA,
+                "el barrido cancela documentación vencida");
+        Solicitud barridaPorOrden = solicitud("DOC-BARRIDA-ORDEN", confirmacion.minusDays(3), aula);
+        barridaPorOrden.habilitarParaPago(confirmacion.minusHours(2));
+        barridaPorOrden.confirmarInscripcion(confirmacion.minusDays(1));
+        almacen.add(barridaPorOrden);
+        comprobar(!Turnos.ordenPorPrioridad(aula, solicitudes, matriculas,
+                LocalDateTime.of(2026, 9, 28, 10, 0)).contains(barrida),
+                "la solicitud cancelada no aparece en la cola");
+        comprobar(barridaPorOrden.getEstado() == EstadoSolicitud.CANCELADA
+                && barridaPorOrden.getFechaCancelacion().equals(LocalDate.of(2026, 9, 28)
+                        .atStartOfDay())
+                && "Personal de turnos".equals(barridaPorOrden.getResponsableCancelacion()),
+                "ordenPorPrioridad cancela documentación vencida con auditoría");
+
+        Snapshot antes = snapshot(null, correccionUltimoDia, null, new ArregloSolicitudes(),
+                matriculas, new ArregloPagos());
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> correccionUltimoDia.cancelarPorDocumentacion(
+                        LocalDateTime.of(2026, 9, 20, 12, 0), "prematura", "Personal"),
+                "cancelación prematura rechazada", "todavía no venció");
+        assertSnapshot(antes, null, correccionUltimoDia, null, new ArregloSolicitudes(),
+                matriculas, new ArregloPagos(), "cancelación prematura no altera el estado");
     }
 
     private static Solicitud solicitud(String codigo, LocalDateTime registro, Aula aula)
@@ -1967,10 +2132,17 @@ public class PruebaPagos {
                 cuatroAnios, girasoles);
         vencida.habilitarParaPago(ahora.minusHours(50));
 
+        Solicitud documentalVencida = registrar(ventana, alumnos, apoderados, "Ana", "Torres",
+                cuatroAnios, girasoles);
+        LocalDateTime confirmacionDocumental = ahora.minusDays(9);
+        documentalVencida.habilitarParaPago(confirmacionDocumental.minusHours(2));
+        documentalVencida.confirmarInscripcion(confirmacionDocumental);
+
         System.out.println("Casos de prueba de Pagos:");
         System.out.println("  " + vigente.getCodigo() + "  habilitada hace 2 h (pagar)");
         System.out.println("  " + otraVigente.getCodigo() + "  habilitada hace 47 h (vence en 1 h)");
         System.out.println("  " + vencida.getCodigo() + "  habilitación vencida");
+        System.out.println("  " + documentalVencida.getCodigo() + "  documentación vencida (barrido)");
         System.out.println("  " + enCola.getCodigo() + "  en cola sin pago (no habilitada)");
         System.out.println("  " + pagada.getCodigo() + "  inscripción ya pagada (solo lectura)");
         System.out.println("  SOL-9999  no existe");
