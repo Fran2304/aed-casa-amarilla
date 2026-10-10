@@ -6,6 +6,7 @@ import negocio.Transiciones;
 
 public class Matricula {
 
+    private final int numMatricula;
     private final Solicitud solicitud;
     private final Aula aula;
     private EstadoMatricula estado;
@@ -17,8 +18,18 @@ public class Matricula {
         this(solicitud, LocalDateTime.now());
     }
 
+    // Sin número correlativo (0): lo asigna ArregloMatriculas.crear al registrarla.
     public Matricula(Solicitud solicitud, LocalDateTime fechaHoraCreacion)
             throws DatoInvalidoException {
+        this(0, solicitud, fechaHoraCreacion);
+    }
+
+    public Matricula(int numMatricula, Solicitud solicitud, LocalDateTime fechaHoraCreacion)
+            throws DatoInvalidoException {
+        if (numMatricula < 0) {
+            throw new DatoInvalidoException("El número de matrícula no puede ser negativo.");
+        }
+        this.numMatricula = numMatricula;
         if (solicitud == null) {
             throw new DatoInvalidoException("La solicitud es obligatoria.");
         }
@@ -34,6 +45,10 @@ public class Matricula {
 
     public boolean estaVigente() {
         return estado == EstadoMatricula.PENDIENTE_PAGO || estado == EstadoMatricula.ACTIVA;
+    }
+
+    public int getNumMatricula() {
+        return numMatricula;
     }
 
     public Solicitud getSolicitud() {
