@@ -18,7 +18,7 @@ public final class Vacantes {
         return aula.getCapacidad() - pendientes - activas;
     }
 
-    private static int contar(Aula aula, ArrayList<Matricula> matriculas, EstadoMatricula estado) {
+    public static int contar(Aula aula, ArrayList<Matricula> matriculas, EstadoMatricula estado) {
         int cantidad = 0;
         for (Matricula matricula : matriculas) {
             if (matricula.getAula() == aula && matricula.getEstado() == estado) {
