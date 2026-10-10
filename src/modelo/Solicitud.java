@@ -3,9 +3,12 @@ package modelo;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 
+import negocio.ExpedienteDocumentos;
 import negocio.Transiciones;
 
 public class Solicitud {
+
+    public static final int HORAS_HABILITACION = 48;
 
     private final String codigo;
     private final Alumno alumno;
@@ -13,7 +16,15 @@ public class Solicitud {
     private final LocalDateTime fechaRegistro;
     private EstadoSolicitud estado;
     private LocalDateTime fechaIngresoCola;
+    private LocalDateTime fechaHabilitacion;
+    private LocalDateTime vencimientoHabilitacionOriginal;
+    private LocalDateTime fechaConfirmacionInscripcion;
+    private LocalDateTime fechaCancelacion;
+    private String motivoCancelacion;
+    private String responsableCancelacion;
+    private ExpedienteDocumentos expediente;
     private ArrayList<Oferta> ofertas;
+    private int inicioCicloOfertas;
 
     public Solicitud(String codigo, Alumno alumno, Aula aula, LocalDateTime fechaRegistro) {
         this.codigo = codigo;
@@ -23,15 +34,28 @@ public class Solicitud {
         // El flujo no nombra un estado para "registrada, sin evaluar vacante" (§6.6) y no se
         // inventan estados: nace en el único estado de origen de la tabla de Transiciones.
         // Solo está en la cola cuando además tiene fecha de ingreso (ingresarAColaSinPago).
-        // La vía directa pasa a EN_DOCUMENTACION al confirmarse el pago de inscripción.
         this.estado = EstadoSolicitud.EN_ESPERA_SIN_PAGO;
         this.ofertas = new ArrayList<Oferta>();
+        this.inicioCicloOfertas = 0;
     }
 
     public void cambiarEstado(EstadoSolicitud nuevo) throws TransicionInvalidaException {
         if (nuevo == EstadoSolicitud.EN_ESPERA_FAVORABLE) {
             throw new TransicionInvalidaException(codigo
                     + " entra a la cola favorable con ingresarAColaFavorable y su fecha.");
+        }
+        if (nuevo == EstadoSolicitud.HABILITADA_PARA_PAGO) {
+            throw new TransicionInvalidaException(codigo
+                    + " se habilita con habilitarParaPago y su fecha.");
+        }
+        if (nuevo == EstadoSolicitud.EN_DOCUMENTACION) {
+            throw new TransicionInvalidaException(codigo
+                    + " pasa a documentación con confirmarInscripcion y su fecha.");
+        }
+        if (estado == EstadoSolicitud.HABILITADA_PARA_PAGO
+                && nuevo == EstadoSolicitud.EN_ESPERA_SIN_PAGO) {
+            throw new TransicionInvalidaException(codigo
+                    + " vuelve a la cola con vencerHabilitacion, al final y con fecha nueva.");
         }
         aplicarTransicion(nuevo);
     }
@@ -40,10 +64,9 @@ public class Solicitud {
         Transiciones.exigirTransicion(estado, nuevo);
         estado = nuevo;
         fechaIngresoCola = null;
+        fechaHabilitacion = null;
     }
 
-    // También sirve para reingresar tras una invitación vencida (#9): la fecha nueva es la
-    // más reciente, así que la solicitud queda al final de la cola.
     public void ingresarAColaSinPago(LocalDateTime fecha) throws ReglaDominioException {
         if (fecha == null) {
             throw new DatoInvalidoException("La fecha de ingreso a la cola es obligatoria.");
@@ -59,6 +82,109 @@ public class Solicitud {
         return estado == EstadoSolicitud.EN_ESPERA_SIN_PAGO && fechaIngresoCola != null;
     }
 
+    public void habilitarParaPago(LocalDateTime fecha) throws ReglaDominioException {
+        if (fecha == null) {
+            throw new DatoInvalidoException("La fecha de habilitación es obligatoria.");
+        }
+        if (estado != EstadoSolicitud.EN_ESPERA_SIN_PAGO) {
+            throw new ReglaDominioException(codigo + " está en " + estado
+                    + " y solo se habilita una solicitud nueva o en espera sin pago.");
+        }
+        aplicarTransicion(EstadoSolicitud.HABILITADA_PARA_PAGO);
+        fechaHabilitacion = fecha;
+        vencimientoHabilitacionOriginal = fecha.plusHours(HORAS_HABILITACION);
+    }
+
+    public LocalDateTime getVencimientoHabilitacion() {
+        if (fechaHabilitacion == null) {
+            return null;
+        }
+        return fechaHabilitacion.plusHours(HORAS_HABILITACION);
+    }
+
+    public boolean habilitacionVencida(LocalDateTime ahora) {
+        return estado == EstadoSolicitud.HABILITADA_PARA_PAGO
+                && !ahora.isBefore(getVencimientoHabilitacion());
+    }
+
+    public void vencerHabilitacion(LocalDateTime fecha) throws ReglaDominioException {
+        if (fecha == null) {
+            throw new DatoInvalidoException("La fecha de vencimiento es obligatoria.");
+        }
+        if (estado != EstadoSolicitud.HABILITADA_PARA_PAGO) {
+            throw new ReglaDominioException(codigo + " está en " + estado
+                    + " y no tiene una habilitación para pago que vencer.");
+        }
+        if (!habilitacionVencida(fecha)) {
+            throw new ReglaDominioException("La habilitación de " + codigo + " vence el "
+                    + getVencimientoHabilitacion() + ".");
+        }
+        aplicarTransicion(EstadoSolicitud.EN_ESPERA_SIN_PAGO);
+        ingresarAColaSinPago(fecha);
+    }
+
+    public void cancelarPorDocumentacion(LocalDateTime ahora, String motivo, String responsable)
+            throws ReglaDominioException {
+        String motivoLimpio = Validaciones.exigirNoVacio("motivo de cancelación", motivo);
+        String responsableLimpio = Validaciones.exigirNoVacio("responsable de cancelación",
+                responsable);
+        if (ahora == null) {
+            throw new DatoInvalidoException("La fecha y hora de cancelación es obligatoria.");
+        }
+        if (estado != EstadoSolicitud.EN_DOCUMENTACION) {
+            throw new ReglaDominioException(codigo + " está en " + estado
+                    + " y solo puede cancelarse por documentación desde EN_DOCUMENTACION.");
+        }
+        if (!expediente.debeCancelarse(ahora.toLocalDate())) {
+            throw new ReglaDominioException("El plazo documental de " + codigo
+                    + " todavía no venció; no se puede cancelar por documentación.");
+        }
+        aplicarTransicion(EstadoSolicitud.CANCELADA);
+        fechaCancelacion = ahora;
+        motivoCancelacion = motivoLimpio;
+        responsableCancelacion = responsableLimpio;
+    }
+
+    public void confirmarInscripcion(LocalDateTime fecha) throws ReglaDominioException {
+        if (fecha == null) {
+            throw new DatoInvalidoException("La fecha de confirmación de la inscripción es"
+                    + " obligatoria.");
+        }
+        if (estado != EstadoSolicitud.HABILITADA_PARA_PAGO) {
+            throw new ReglaDominioException(codigo + " está en " + estado
+                    + " y no está habilitada para confirmar la inscripción.");
+        }
+        if (habilitacionVencida(fecha)) {
+            throw new ReglaDominioException("La habilitación de " + codigo + " venció el "
+                    + getVencimientoHabilitacion() + ".");
+        }
+        ExpedienteDocumentos nuevo = new ExpedienteDocumentos(fecha.toLocalDate());
+        aplicarTransicion(EstadoSolicitud.EN_DOCUMENTACION);
+        fechaConfirmacionInscripcion = fecha;
+        expediente = nuevo;
+    }
+
+    public LocalDateTime getVencimientoHabilitacionOriginal() {
+        return vencimientoHabilitacionOriginal;
+    }
+
+    public void revertirInscripcion(LocalDateTime ahora, LocalDateTime fechaCola)
+            throws ReglaDominioException {
+        if (ahora == null || fechaCola == null) {
+            throw new DatoInvalidoException("La fecha de reversión es obligatoria.");
+        }
+        if (estado != EstadoSolicitud.EN_DOCUMENTACION) {
+            throw new ReglaDominioException(codigo + " no tiene una inscripción confirmada para revertir.");
+        }
+        aplicarTransicion(EstadoSolicitud.EN_ESPERA_SIN_PAGO);
+        if (ahora.isBefore(vencimientoHabilitacionOriginal)) {
+            aplicarTransicion(EstadoSolicitud.HABILITADA_PARA_PAGO);
+            fechaHabilitacion = vencimientoHabilitacionOriginal.minusHours(HORAS_HABILITACION);
+        } else {
+            ingresarAColaSinPago(fechaCola);
+        }
+    }
+
     public void ingresarAColaFavorable(LocalDateTime fecha) throws ReglaDominioException {
         if (fecha == null) {
             throw new DatoInvalidoException("La fecha de ingreso a la cola es obligatoria.");
@@ -67,6 +193,7 @@ public class Solicitud {
             aplicarTransicion(EstadoSolicitud.EN_ESPERA_FAVORABLE);
         }
         fechaIngresoCola = fecha;
+        inicioCicloOfertas = ofertas.size();
     }
 
     public boolean estaEnColaFavorable() {
@@ -81,14 +208,9 @@ public class Solicitud {
     }
 
     public boolean tieneOfertaAceptada() {
-        return !ofertas.isEmpty() && ofertas.get(ofertas.size() - 1).isAceptada();
-    }
-
-    public void exigirFueraDeColaSinPago(String operacion) throws ReglaDominioException {
-        if (estaEnColaSinPago()) {
-            throw new ReglaDominioException(codigo + " está en espera sin pago: no se puede "
-                    + operacion + ".");
-        }
+        // Una aceptación histórica no bloquea el ciclo que empieza al reingresar a la cola.
+        return ofertas.size() > inicioCicloOfertas
+                && ofertas.get(ofertas.size() - 1).isAceptada();
     }
 
     // Canceladas y rechazadas quedan como historial y no bloquean una solicitud nueva.
@@ -118,6 +240,30 @@ public class Solicitud {
 
     public LocalDateTime getFechaIngresoCola() {
         return fechaIngresoCola;
+    }
+
+    public LocalDateTime getFechaHabilitacion() {
+        return fechaHabilitacion;
+    }
+
+    public LocalDateTime getFechaConfirmacionInscripcion() {
+        return fechaConfirmacionInscripcion;
+    }
+
+    public LocalDateTime getFechaCancelacion() {
+        return fechaCancelacion;
+    }
+
+    public String getMotivoCancelacion() {
+        return motivoCancelacion;
+    }
+
+    public String getResponsableCancelacion() {
+        return responsableCancelacion;
+    }
+
+    public ExpedienteDocumentos getExpediente() {
+        return expediente;
     }
 
     public ArrayList<Oferta> getOfertas() {

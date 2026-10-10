@@ -22,6 +22,12 @@ public final class Validaciones {
             throw new DatoInvalidoException(
                     "El " + campo + " debe tener " + largo + " dígitos.");
         }
+        return exigirSoloDigitos(campo, limpio);
+    }
+
+    public static String exigirSoloDigitos(String campo, String valor)
+            throws DatoInvalidoException {
+        String limpio = exigirNoVacio(campo, valor);
         for (int i = 0; i < limpio.length(); i++) {
             char c = limpio.charAt(i);
             if (c < '0' || c > '9') {

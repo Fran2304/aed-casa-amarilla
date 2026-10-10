@@ -15,8 +15,10 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 
 import datos.ArregloAulas;
+import datos.ArregloPagos;
 import datos.ArregloSolicitudes;
 import modelo.ConfiguracionCuotas;
+import modelo.Matricula;
 
 public class PrincipalUI extends JFrame {
 
@@ -37,6 +39,8 @@ public class PrincipalUI extends JFrame {
     private final ArregloAulas aulas = new ArregloAulas();
     private final ArregloSolicitudes solicitudes = new ArregloSolicitudes();
     private final ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
+    private final ArregloPagos pagos = new ArregloPagos();
+    private final ArrayList<Matricula> matriculas = new ArrayList<Matricula>();
 
     public PrincipalUI() {
         super("La Casa Amarilla · Matrícula 2027");
@@ -73,6 +77,14 @@ public class PrincipalUI extends JFrame {
 
     public ConfiguracionCuotas getCuotas() {
         return cuotas;
+    }
+
+    public ArregloPagos getPagos() {
+        return pagos;
+    }
+
+    public ArrayList<Matricula> getMatriculas() {
+        return matriculas;
     }
 
     private JPanel crearCabecera() {
@@ -131,7 +143,7 @@ public class PrincipalUI extends JFrame {
         agregarPanel(new PanelColas(), COLAS);
         agregarPanel(new PanelDocumentos(), DOCUMENTOS);
         agregarPanel(new PanelEntrevistas(), ENTREVISTAS);
-        agregarPanel(new PanelPagos(), PAGOS);
+        agregarPanel(new PanelPagos(solicitudes, pagos, matriculas, cuotas), PAGOS);
         agregarPanel(new PanelHistorial(), HISTORIAL);
         agregarPanel(new PanelCuotas(cuotas), CUOTAS);
         return panelCentral;
