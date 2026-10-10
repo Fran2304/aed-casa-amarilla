@@ -49,6 +49,14 @@ jobs:
         with:
           persist-credentials: false
 
+      # La acción de review hace un commit local del veredicto y no permite
+      # desactivarlo; sin identidad de git el job muere antes de dejar el
+      # comentario del veredicto. El commit nunca sale del runner (contents: read).
+      - name: Configure git identity for the review verdict commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
       - name: Check successful review checkpoint
         id: prepare
         env:
