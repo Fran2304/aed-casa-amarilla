@@ -228,6 +228,10 @@ public class PanelPagos extends JPanel {
     }
 
     private static String detalleConfirmado(Solicitud solicitud) {
+        if (solicitud.getEstado() == EstadoSolicitud.CANCELADA) {
+            return "Solicitud CANCELADA · " + solicitud.getMotivoCancelacion()
+                    + " Sin reembolso de la inscripción.";
+        }
         if (solicitud.getExpediente() == null) {
             return "Inscripción pagada.";
         }
