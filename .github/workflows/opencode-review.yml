@@ -49,13 +49,20 @@ jobs:
         with:
           persist-credentials: false
 
-      # La acción de review hace un commit local del veredicto y no permite
-      # desactivarlo; sin identidad de git el job muere antes de dejar el
-      # comentario del veredicto. El commit nunca sale del runner (contents: read).
-      - name: Configure git identity for the review verdict commit
+      # La acción de review hace un commit local del veredicto y un `git push`
+      # que no se pueden desactivar. Sin identidad de git el commit muere; con
+      # push real el commit aterrizaría en la rama y dispararía un loop de
+      # synchronize. Identidad local + origin redirigido a un repo bare en el
+      # runner: el push "tiene éxito" sin tocar la rama real (contents: read)
+      # y la acción sigue a crear el comentario del veredicto.
+      - name: Sandbox the review verdict commit and push
+        env:
+          RUNNER_TEMP: ${{ runner.temp }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git init --bare "$RUNNER_TEMP/verdict-sandbox.git" >/dev/null
+          git remote set-url origin "$RUNNER_TEMP/verdict-sandbox.git"
 
       - name: Check successful review checkpoint
         id: prepare
