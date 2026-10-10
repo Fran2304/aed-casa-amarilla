@@ -7,6 +7,8 @@ import datos.ArregloAulas;
 import datos.ArregloSolicitudes;
 import modelo.Aula;
 import modelo.DatoInvalidoException;
+import modelo.EstadoMatricula;
+import modelo.EstadoSolicitud;
 import modelo.Matricula;
 import modelo.Oferta;
 import modelo.ReglaDominioException;
@@ -22,6 +24,7 @@ public final class Turnos {
             LocalDateTime ahora) throws ReglaDominioException {
         solicitudes.vencerHabilitaciones(ahora);
         solicitudes.cancelarDocumentacionVencida(ahora.toLocalDate(), "Personal de turnos");
+        cancelarMatriculasVencidas(solicitudes, matriculas, ahora);
         ArrayList<Solicitud> enCola = solicitudes.colaFavorable(aula);
         enCola.addAll(solicitudes.enDocumentacion(aula));
         enCola.addAll(solicitudes.habilitadas(aula));
@@ -155,6 +158,32 @@ public final class Turnos {
             solicitud.ingresarAColaFavorable(fechaAlFinal(solicitud, fechaHora, solicitudes));
         }
         return oferta;
+    }
+
+    // §4.7: más de 72 h sin pago registrado libera la vacante y la misma solicitud vuelve
+    // al final de EN_ESPERA_FAVORABLE, conservando su inscripción pagada.
+    public static ArrayList<Matricula> cancelarMatriculasVencidas(ArregloSolicitudes solicitudes,
+            ArrayList<Matricula> matriculas, LocalDateTime ahora) throws ReglaDominioException {
+        if (ahora == null) {
+            throw new DatoInvalidoException("La fecha y hora de revisión es obligatoria.");
+        }
+        ArrayList<Matricula> canceladas = new ArrayList<Matricula>();
+        for (Matricula matricula : matriculas) {
+            if (matricula.getEstado() != EstadoMatricula.PENDIENTE_PAGO
+                    || !matricula.pagoOriginalVencido(ahora)) {
+                continue;
+            }
+            Solicitud solicitud = matricula.getSolicitud();
+            if (solicitud.getEstado() != EstadoSolicitud.EN_ESPERA_FAVORABLE) {
+                throw new ReglaDominioException(solicitud.getCodigo() + " está en "
+                        + solicitud.getEstado() + " y no puede volver a la cola favorable.");
+            }
+            LocalDateTime reingreso = fechaAlFinal(solicitud, ahora, solicitudes);
+            matricula.cancelarPorVencimiento(ahora);
+            solicitud.ingresarAColaFavorable(reingreso);
+            canceladas.add(matricula);
+        }
+        return canceladas;
     }
 
     private static LocalDateTime fechaAlFinal(Solicitud rechazada, LocalDateTime fechaRechazo,

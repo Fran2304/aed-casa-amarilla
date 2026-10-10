@@ -65,6 +65,8 @@ public class PruebaPagos {
 
     private static void ejecutarAserciones() throws Exception {
         probarCreacionDeMatricula();
+        probarPagoDeMatriculaEnPlazo();
+        probarMatriculaVencidaSinPago();
         probarMatriculaActivaVigenteYVencida();
         probarColasConEmpates();
         probarRechazosAtomicos();
@@ -463,6 +465,101 @@ public class PruebaPagos {
         comprobar(matriculas.listar().size() == 2 && matriculas.buscarVigenteDe(
                 sinCupo.solicitud.getAlumno()) == null,
                 "el rechazo sin vacante no agrega matrícula");
+    }
+
+    // Ejemplo del issue #24: matrícula creada el 28/sep 12:00, vence el 01/oct 12:00.
+    private static final LocalDateTime CREACION_72H = LocalDateTime.of(2026, 9, 28, 12, 0);
+
+    private static Matricula crearMatriculaDeEjemplo(ArregloSolicitudes solicitudes,
+            ArregloPagos pagos, ArregloMatriculas matriculas, Aula aula, String codigo)
+            throws Exception {
+        CicloFixture fixture = prepararCicloOferta(solicitudes, pagos, matriculas.listar(), aula,
+                codigo, CREACION_72H.minusMinutes(20));
+        Turnos.confirmarOferta(fixture.solicitud, true, "Personal de admisión",
+                CREACION_72H.minusMinutes(10), solicitudes, matriculas.listar());
+        return matriculas.crear(fixture.solicitud, CREACION_72H, solicitudes);
+    }
+
+    private static void probarPagoDeMatriculaEnPlazo() throws Exception {
+        Aula aula = new Aula("AUL-72A", "Pago 72h", 4, 1);
+        ArregloSolicitudes solicitudes = new ArregloSolicitudes();
+        ArregloPagos pagos = new ArregloPagos();
+        ArregloMatriculas matriculas = new ArregloMatriculas();
+        ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
+        Matricula matricula = crearMatriculaDeEjemplo(solicitudes, pagos, matriculas, aula,
+                "MIA-LEON");
+        comprobar(Vacantes.calcular(aula, matriculas.listar()) == 0,
+                "la matrícula PENDIENTE_PAGO reserva el único cupo");
+
+        LocalDateTime operacion = LocalDateTime.of(2026, 9, 29, 9, 0);
+        Pago pago = Cobros.confirmarMatricula(matricula, cuotas.getCuotaMatricula(),
+                MedioPago.YAPE, "YP-8291457", operacion, "voucher-yape", operacion.plusMinutes(5),
+                matriculas.listar(), pagos, cuotas);
+        comprobar(pago.estaConfirmado() && matricula.getEstado() == EstadoMatricula.ACTIVA,
+                "pago Yape el 29/sep 09:00 dentro de las 72 h activa la matrícula");
+        comprobar(Vacantes.calcular(aula, matriculas.listar()) == 0,
+                "ACTIVA mantiene la vacante sin doble descuento");
+        comprobar(pagos.matriculaConfirmada(matricula),
+                "el pago de matrícula queda registrado");
+
+        int pagosAntes = pagos.listar().size();
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> Cobros.confirmarMatricula(matricula, cuotas.getCuotaMatricula(),
+                        MedioPago.EFECTIVO, "", operacion.plusHours(1), "voucher-repetido",
+                        operacion.plusHours(1), matriculas.listar(), pagos, cuotas),
+                "una matrícula activa no recibe un segundo pago", "ya tiene un pago confirmado");
+        comprobar(pagos.listar().size() == pagosAntes
+                && matricula.getEstado() == EstadoMatricula.ACTIVA,
+                "el segundo pago rechazado deja todo intacto");
+        comprobar(Turnos.cancelarMatriculasVencidas(solicitudes, matriculas.listar(),
+                CREACION_72H.plusDays(5)).isEmpty() && matricula.getEstado() == EstadoMatricula.ACTIVA,
+                "una matrícula pagada no se cancela al pasar las 72 h");
+    }
+
+    private static void probarMatriculaVencidaSinPago() throws Exception {
+        Aula aula = new Aula("AUL-72B", "Vence 72h", 4, 1);
+        ArregloSolicitudes solicitudes = new ArregloSolicitudes();
+        ArregloPagos pagos = new ArregloPagos();
+        ArregloMatriculas matriculas = new ArregloMatriculas();
+        ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
+        Matricula matricula = crearMatriculaDeEjemplo(solicitudes, pagos, matriculas, aula,
+                "MIA-LEON-2");
+        Solicitud mia = matricula.getSolicitud();
+        CicloFixture otra = prepararCicloOfertaSinTurno(solicitudes, pagos, matriculas.listar(),
+                aula, "ESPERA-30", LocalDateTime.of(2026, 9, 30, 10, 0));
+        LocalDateTime vencimiento = LocalDateTime.of(2026, 10, 1, 12, 0);
+        comprobar(matricula.getVencimientoPagoOriginal().equals(vencimiento),
+                "la matrícula del 28/sep 12:00 vence el 01/oct 12:00");
+
+        comprobar(Turnos.cancelarMatriculasVencidas(solicitudes, matriculas.listar(),
+                vencimiento.minusMinutes(1)).isEmpty()
+                && matricula.getEstado() == EstadoMatricula.PENDIENTE_PAGO,
+                "a las 11:59 del 01/oct la matrícula sigue pendiente");
+
+        esperarFallo(ReglaDominioException.class,
+                () -> Cobros.confirmarMatricula(matricula, cuotas.getCuotaMatricula(),
+                        MedioPago.PLIN, "PL-1", vencimiento, "voucher-tarde", vencimiento,
+                        matriculas.listar(), pagos, cuotas),
+                "un pago en el instante del vencimiento se rechaza");
+        comprobar(pagos.listar().stream().noneMatch(p -> p.getMatricula() == matricula)
+                && matricula.getEstado() == EstadoMatricula.PENDIENTE_PAGO,
+                "el pago rechazado no se registra ni cambia la matrícula");
+
+        java.util.ArrayList<Solicitud> orden = Turnos.ordenPorPrioridad(aula, solicitudes,
+                matriculas.listar(), vencimiento);
+        comprobar(matricula.getEstado() == EstadoMatricula.CANCELADA
+                && vencimiento.equals(matricula.getFechaCancelacion()),
+                "a las 72 h sin pago la matrícula queda CANCELADA con su fecha");
+        comprobar(Vacantes.calcular(aula, matriculas.listar()) == 1,
+                "la cancelación libera la vacante");
+        comprobar(mia.estaEnColaFavorable() && !mia.getFechaIngresoCola().isBefore(vencimiento)
+                && orden.size() == 2 && orden.get(0) == otra.solicitud && orden.get(1) == mia,
+                "la misma solicitud vuelve al final de EN_ESPERA_FAVORABLE con nueva fecha");
+        comprobar(pagos.inscripcionConfirmada(mia),
+                "la solicitud conserva su inscripción pagada");
+        comprobar(matriculas.listar().contains(matricula) && matriculas.buscarVigenteDe(
+                mia.getAlumno()) == null, "la matrícula cancelada queda en el historial");
+        comprobar(!mia.tieneOfertaAceptada(), "el reingreso abre un ciclo de oferta nuevo");
     }
 
     private static void probarMatriculaActivaVigenteYVencida() throws Exception {

@@ -49,6 +49,39 @@ public final class Cobros {
         return pago;
     }
 
+    // §4.7: pago válido dentro de las 72 h → ACTIVA. No descuenta otra vacante: ya la
+    // reservó la matrícula PENDIENTE_PAGO. Pago valida monto, medio y ambas fechas.
+    public static Pago confirmarMatricula(Matricula matricula, double montoPagado,
+            MedioPago medio, String numeroOperacion, LocalDateTime fechaHoraOperacion,
+            String rutaComprobantePago, LocalDateTime ahora, ArrayList<Matricula> matriculas,
+            ArregloPagos pagos, ConfiguracionCuotas cuotas) throws ReglaDominioException {
+        if (matricula == null) {
+            throw new DatoInvalidoException("La matrícula es obligatoria.");
+        }
+        if (ahora == null) {
+            throw new DatoInvalidoException("La fecha y hora de confirmación es obligatoria.");
+        }
+        if (matriculas == null || pagos == null) {
+            throw new DatoInvalidoException("Los datos de la matrícula son obligatorios.");
+        }
+        if (!matriculas.contains(matricula)) {
+            throw new ReglaDominioException("La matrícula no está registrada en la colección.");
+        }
+        if (pagos.matriculaConfirmada(matricula)) {
+            throw new ReglaDominioException("La matrícula " + matricula.getNumMatricula()
+                    + " ya tiene un pago confirmado.");
+        }
+
+        Pago pago = new Pago(matricula.getSolicitud(), ConceptoPago.MATRICULA, matricula,
+                montoPagado, medio, numeroOperacion, fechaHoraOperacion, ahora,
+                rutaComprobantePago, cuotas);
+        Transiciones.exigirTransicion(matricula.getEstado(), EstadoMatricula.ACTIVA);
+        pago.confirmar();
+        matricula.activar();
+        pagos.agregar(pago);
+        return pago;
+    }
+
     private static void exigirHabilitacionVigente(Solicitud solicitud,
             ArregloSolicitudes solicitudes, LocalDateTime ahora) throws ReglaDominioException {
         if (!solicitud.habilitacionVencida(ahora)) {

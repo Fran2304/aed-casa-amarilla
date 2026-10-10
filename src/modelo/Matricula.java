@@ -12,6 +12,7 @@ public class Matricula {
     private EstadoMatricula estado;
     private final LocalDateTime fechaHoraCreacion;
     private final LocalDateTime vencimientoPagoOriginal;
+    private LocalDateTime fechaCancelacion;
 
     /** Nace PENDIENTE_PAGO: su creación es lo único que reserva una vacante. */
     public Matricula(Solicitud solicitud) throws DatoInvalidoException {
@@ -63,6 +64,27 @@ public class Matricula {
     public void cancelar() throws TransicionInvalidaException {
         Transiciones.exigirTransicion(estado, EstadoMatricula.CANCELADA);
         estado = EstadoMatricula.CANCELADA;
+    }
+
+    /** Sin pago registrado al cumplirse las 72 h; queda en el historial con su fecha. */
+    public void cancelarPorVencimiento(LocalDateTime ahora) throws ReglaDominioException {
+        if (ahora == null) {
+            throw new DatoInvalidoException("La fecha y hora de cancelación es obligatoria.");
+        }
+        if (estado != EstadoMatricula.PENDIENTE_PAGO) {
+            throw new ReglaDominioException("La matrícula " + numMatricula + " está en " + estado
+                    + " y solo vence una matrícula PENDIENTE_PAGO.");
+        }
+        if (!pagoOriginalVencido(ahora)) {
+            throw new ReglaDominioException("La matrícula " + numMatricula
+                    + " todavía no venció; vence el " + vencimientoPagoOriginal + ".");
+        }
+        cancelar();
+        fechaCancelacion = ahora;
+    }
+
+    public LocalDateTime getFechaCancelacion() {
+        return fechaCancelacion;
     }
 
     public void revertirAPendiente() throws TransicionInvalidaException {
