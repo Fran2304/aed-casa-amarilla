@@ -63,6 +63,20 @@ public class ExpedienteDocumentos {
         return false;
     }
 
+    public String motivoCancelacion(LocalDate hoy) {
+        if (hoy.isAfter(fechaLimiteEntrega()) && !entregaOportuna()) {
+            return "Venció el plazo inicial de entrega de documentos el "
+                    + fechaLimiteEntrega() + ".";
+        }
+        for (Documento documento : documentos.values()) {
+            if (documento.correccionVencida(hoy)) {
+                return "Venció el plazo de corrección del " + documento.getTipo().getDescripcion()
+                        + " el " + documento.fechaLimiteCorreccion() + ".";
+            }
+        }
+        return "Incumplimiento del plazo documental.";
+    }
+
     public boolean puedeAgendarEntrevista() {
         return pendientesDeValidar().isEmpty();
     }

@@ -1,6 +1,6 @@
 # Temas del curso: Algoritmos y Estructura de Datos (4683)
 
-> **Fuente:** [Manual del curso](sources/Manual_del_curso_Algoritmos_y_Estructura_de_Datos_4683.md), 205 páginas.  
+> **Fuente:** Manual del curso, 205 páginas.  
 > **Uso:** referencia temática para una IA. Resume lo que enseña el manual; no define por sí solo los requisitos del proyecto ni la rúbrica.  
 > **Lenguaje y enfoque:** Java, programación orientada a objetos y aplicaciones prácticas.
 
