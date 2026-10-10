@@ -1866,9 +1866,9 @@ public class PruebaPagos {
         correccion.confirmarInscripcion(confirmacion);
         modelo.Documento observado = correccion.getExpediente().getDocumentos().get(0);
         observado.registrarEntrega(confirmacion.plusHours(1));
-        observado.observar("Foto ilegible", LocalDate.of(2026, 9, 25));
-        comprobar(!observado.correccionVencida(LocalDate.of(2026, 10, 2))
-                && observado.correccionVencida(LocalDate.of(2026, 10, 3)),
+        observado.observar("Foto ilegible", LocalDate.of(2026, 9, 25).atStartOfDay());
+        comprobar(!observado.correccionVencida(LocalDate.of(2026, 10, 2).atStartOfDay())
+                && observado.correccionVencida(LocalDate.of(2026, 10, 3).atStartOfDay()),
                 "la corrección vence el día posterior al límite");
         correccion.cancelarPorDocumentacion(LocalDateTime.of(2026, 10, 3, 9, 0),
                 "Venció el plazo de corrección", "Personal documental");
@@ -1891,9 +1891,9 @@ public class PruebaPagos {
         correccionUltimoDia.confirmarInscripcion(confirmacion);
         modelo.Documento documento = correccionUltimoDia.getExpediente().getDocumentos().get(0);
         documento.registrarEntrega(confirmacion);
-        documento.observar("Falta dato", LocalDate.of(2026, 9, 25));
+        documento.observar("Falta dato", LocalDate.of(2026, 9, 25).atStartOfDay());
         documento.entregarCorreccion(LocalDateTime.of(2026, 10, 2, 23, 59));
-        comprobar(!documento.correccionVencida(LocalDate.of(2026, 10, 3)),
+        comprobar(!documento.correccionVencida(LocalDate.of(2026, 10, 3).atStartOfDay()),
                 "la corrección entregada en el límite ya no vence");
 
         ArregloSolicitudes solicitudes = new ArregloSolicitudes();

@@ -158,7 +158,7 @@ public class Solicitud {
             throw new ReglaDominioException("La habilitación de " + codigo + " venció el "
                     + getVencimientoHabilitacion() + ".");
         }
-        ExpedienteDocumentos nuevo = new ExpedienteDocumentos(fecha.toLocalDate());
+        ExpedienteDocumentos nuevo = new ExpedienteDocumentos(fecha);
         aplicarTransicion(EstadoSolicitud.EN_DOCUMENTACION);
         fechaConfirmacionInscripcion = fecha;
         expediente = nuevo;

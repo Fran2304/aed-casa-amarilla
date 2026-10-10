@@ -38,21 +38,22 @@ public class ExpedienteDocumentos {
     public boolean entregaOportuna() {
         for (Documento documento : documentos.values()) {
             if (!documento.estaEntregado()
-                    || documento.getFechaHoraEntrega().isAfter(fechaLimiteEntrega())) {
+                    || documento.getFechaHoraEntrega().toLocalDate()
+                            .isAfter(fechaLimiteEntrega().toLocalDate())) {
                 return false;
             }
         }
         return true;
     }
 
-    // Por día, como en #16: PlazosDocumentales (#17) evalúa con la fecha de hoy. Tomar el
-    // inicio del día da lo mismo que comparar solo fechas: vence recién el día siguiente.
+    // Plazos de 7 días calendario: vence recién el día siguiente al límite.
     public boolean debeCancelarse(LocalDate hoy) {
         return debeCancelarse(hoy.atStartOfDay());
     }
 
     public boolean debeCancelarse(LocalDateTime ahora) {
-        if (ahora.isAfter(fechaLimiteEntrega()) && !entregaOportuna()) {
+        if (ahora.toLocalDate().isAfter(fechaLimiteEntrega().toLocalDate())
+                && !entregaOportuna()) {
             return true;
         }
         for (Documento documento : documentos.values()) {
@@ -64,12 +65,12 @@ public class ExpedienteDocumentos {
     }
 
     public String motivoCancelacion(LocalDate hoy) {
-        if (hoy.isAfter(fechaLimiteEntrega()) && !entregaOportuna()) {
+        if (hoy.isAfter(fechaLimiteEntrega().toLocalDate()) && !entregaOportuna()) {
             return "Venció el plazo inicial de entrega de documentos el "
                     + fechaLimiteEntrega() + ".";
         }
         for (Documento documento : documentos.values()) {
-            if (documento.correccionVencida(hoy)) {
+            if (documento.correccionVencida(hoy.atStartOfDay())) {
                 return "Venció el plazo de corrección del " + documento.getTipo().getDescripcion()
                         + " el " + documento.fechaLimiteCorreccion() + ".";
             }

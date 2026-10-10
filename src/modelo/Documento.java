@@ -76,7 +76,7 @@ public class Documento {
 
     public boolean correccionVencida(LocalDateTime ahora) {
         LocalDateTime limite = fechaLimiteCorreccion();
-        return limite != null && ahora.isAfter(limite);
+        return limite != null && ahora.toLocalDate().isAfter(limite.toLocalDate());
     }
 
     public boolean estaEntregado() {
