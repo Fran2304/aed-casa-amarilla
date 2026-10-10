@@ -169,4 +169,4 @@ jobs:
         run: |
           set -eu
           gh api --method POST "repos/$REPO/issues/$PR_NUMBER/comments" \
-            -f body="<!-- opencode-review-checkpoint:v1 workflow=opencode-review head_sha=$HEAD_SHA base_sha=$BASE_SHA -->"
+            -f body="LQTM <!-- opencode-review-checkpoint:v1 workflow=opencode-review head_sha=$HEAD_SHA base_sha=$BASE_SHA -->"
