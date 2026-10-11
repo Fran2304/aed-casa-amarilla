@@ -38,6 +38,7 @@ import modelo.Matricula;
 import modelo.ReglaDominioException;
 import modelo.Solicitud;
 import negocio.ExpedienteDocumentos;
+import negocio.Matriculas;
 import negocio.Turnos;
 import negocio.Vacantes;
 import util.FechasAdmision;
@@ -386,7 +387,7 @@ public class PanelColas extends JPanel {
             Turnos.confirmarOferta(turno, aceptada, personal, ahora, solicitudes,
                     matriculas.listar());
             if (aceptada) {
-                Matricula creada = matriculas.crear(turno, ahora, solicitudes);
+                Matricula creada = Matriculas.crear(turno, ahora, solicitudes, matriculas);
                 JOptionPane.showMessageDialog(this, "Matrícula " + creada.getNumMatricula()
                         + " creada en PENDIENTE_PAGO. El pago vence el "
                         + formatear(creada.getVencimientoPagoOriginal()) + ".",
@@ -472,7 +473,7 @@ public class PanelColas extends JPanel {
     }
 
     // Recorre el flujo real (inscripción, documentos, oferta) para que cada matrícula pase
-    // por ArregloMatriculas.crear. Las pendientes se crean hoy para no nacer vencidas (72 h).
+    // por Matriculas.crear. Las pendientes se crean hoy para no nacer vencidas (72 h).
     private void matricular(Aula aula, int pendientes, int activas) throws ReglaDominioException {
         LocalDateTime hoy = LocalDateTime.now();
         for (int i = 1; i <= pendientes + activas; i++) {
@@ -483,7 +484,7 @@ public class PanelColas extends JPanel {
             preparar(solicitud, creacion.minusDays(10), creacion.minusMinutes(30));
             Turnos.confirmarOferta(solicitud, true, "Personal de admisión",
                     creacion.minusMinutes(10), solicitudes, matriculas.listar());
-            Matricula matricula = matriculas.crear(solicitud, creacion, solicitudes);
+            Matricula matricula = Matriculas.crear(solicitud, creacion, solicitudes, matriculas);
             if (activa) {
                 matricula.activar();
             }
