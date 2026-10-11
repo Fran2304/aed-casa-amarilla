@@ -152,16 +152,16 @@ public final class Turnos {
         Oferta oferta = new Oferta(fechaHora, personal, aceptada);
         solicitud.registrarOferta(oferta);
         if (!aceptada) {
-            solicitud.ingresarAColaFavorable(fechaAlFinal(solicitud, fechaHora, solicitudes));
+            solicitud.ingresarAColaFavorable(
+                    fechaAlFinalFavorable(solicitud, fechaHora, solicitudes));
         }
         return oferta;
     }
 
-    private static LocalDateTime fechaAlFinal(Solicitud rechazada, LocalDateTime fechaRechazo,
+    public static LocalDateTime fechaAlFinalFavorable(Solicitud entrante, LocalDateTime fecha,
             ArregloSolicitudes solicitudes) {
-        LocalDateTime fecha = fechaRechazo;
-        for (Solicitud otra : solicitudes.colaFavorable(rechazada.getAula())) {
-            if (otra != rechazada && !otra.getFechaIngresoCola().isBefore(fecha)) {
+        for (Solicitud otra : solicitudes.colaFavorable(entrante.getAula())) {
+            if (otra != entrante && !otra.getFechaIngresoCola().isBefore(fecha)) {
                 fecha = otra.getFechaIngresoCola().plusSeconds(1);
             }
         }

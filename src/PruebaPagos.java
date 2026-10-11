@@ -56,7 +56,12 @@ public class PruebaPagos {
                 throw new IllegalStateException("No se pudieron cargar los casos: "
                         + e.getMessage(), e);
             }
-            ventana.mostrar(PrincipalUI.PAGOS);
+            if (args.length > 0 && args[0].equals("expediente")) {
+                ventana.mostrar(PrincipalUI.EXPEDIENTE);
+                SwingUtilities.invokeLater(() -> seleccionarEnExpediente(ventana, "SOL-1038"));
+            } else {
+                ventana.mostrar(PrincipalUI.PAGOS);
+            }
             ventana.setVisible(true);
         });
     }
@@ -68,6 +73,7 @@ public class PruebaPagos {
         probarAuditoriaInmutable();
         probarPlazoOriginalDeMatriculaParaAmbasFechas();
         probarPlazosDocumentalesYCancelacion();
+        probarEntrevistaYExpediente();
         probarProteccionDeInscripcionConMatriculaVigente();
         probarComprobanteDePagoAnulado();
         probarIntegracionUiTrasAnulacionExitosa();
@@ -1817,6 +1823,287 @@ public class PruebaPagos {
         comprobar(rechazo, "esperarFallo no acepta excepciones inesperadas");
     }
 
+    private static void probarEntrevistaYExpediente() throws Exception {
+        Aula aula = new Aula("AUL-ENT", "Entrevistas", 4, 2);
+        LocalDateTime base = LocalDateTime.of(2026, 9, 20, 10, 0);
+        datos.ArregloEntrevistas entrevistas = new datos.ArregloEntrevistas();
+
+        Solicitud favorable = solicitudConDocumentosValidados("ENT-FAV", base, aula);
+        modelo.Entrevista entrevista = entrevistas.agendar(favorable, favorable.getExpediente(),
+                base.plusDays(2), listaDe("Ana Ruiz", "Luis Ramos"), "Ana Ruiz");
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> entrevistas.agendar(favorable, favorable.getExpediente(), base.plusDays(3),
+                        listaDe("Ana Ruiz"), "Ana Ruiz"),
+                "no se agenda dos veces la misma solicitud", "ya está agendada");
+        entrevista.registrarAsistencia();
+        entrevista.marcarRealizada();
+        esperarFallo(DatoInvalidoException.class,
+                () -> entrevista.registrarResultado(modelo.ResultadoEntrevista.FAVORABLE, null),
+                "el resultado exige fecha de registro");
+        comprobar(entrevista.getResultado() == null
+                && favorable.getEstado() == EstadoSolicitud.EN_DOCUMENTACION,
+                "un resultado rechazado no deja la solicitud a medias");
+        LocalDateTime registro = base.plusDays(2).plusHours(1);
+        entrevista.registrarResultado(modelo.ResultadoEntrevista.FAVORABLE, registro);
+        comprobar(favorable.estaEnColaFavorable()
+                && favorable.getFechaIngresoCola().equals(registro),
+                "FAVORABLE entra a la cola favorable con la fecha del registro");
+
+        Solicitud rechazada = solicitudConDocumentosValidados("ENT-NOFAV", base, aula);
+        modelo.Entrevista noFavorable = entrevistas.agendar(rechazada,
+                rechazada.getExpediente(), base.plusDays(2), listaDe("Ana Ruiz"), "Ana Ruiz");
+        noFavorable.registrarAsistencia();
+        noFavorable.marcarRealizada();
+        noFavorable.registrarResultado(modelo.ResultadoEntrevista.NO_FAVORABLE, registro);
+        comprobar(rechazada.getEstado() == EstadoSolicitud.RECHAZADA,
+                "NO_FAVORABLE deja la solicitud RECHAZADA");
+
+        Solicitud ausente = solicitudConDocumentosValidados("ENT-AUS", base, aula);
+        modelo.Entrevista inasistida = entrevistas.agendar(ausente, ausente.getExpediente(),
+                base.plusDays(2), listaDe("Ana Ruiz"), "Ana Ruiz");
+        inasistida.registrarInasistencia(base.plusDays(5));
+        comprobar(inasistida.getInasistencias() == 1
+                && inasistida.getFechaHora().equals(base.plusDays(5))
+                && ausente.getEstado() == EstadoSolicitud.EN_DOCUMENTACION,
+                "la primera inasistencia reprograma");
+        inasistida.registrarInasistencia(null);
+        comprobar(inasistida.getInasistencias() == 2
+                && ausente.getEstado() == EstadoSolicitud.CANCELADA,
+                "la segunda inasistencia cancela");
+
+        Solicitud bloqueada = solicitud("ENT-BLOQ", base.minusDays(2), aula);
+        bloqueada.habilitarParaPago(base.minusHours(2));
+        bloqueada.confirmarInscripcion(base);
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> entrevistas.agendar(bloqueada, bloqueada.getExpediente(), base.plusDays(2),
+                        listaDe("Ana Ruiz"), "Ana Ruiz"),
+                "sin los 4 validados la entrevista está bloqueada", "Falta validar");
+
+        modelo.Documento carne = bloqueada.getExpediente()
+                .getDocumento(modelo.TipoDocumento.CARNE_VACUNAS);
+        carne.registrarEntrega(base.plusHours(1));
+        carne.observar("Falta la dosis de refuerzo", LocalDateTime.of(2026, 9, 21, 23, 30));
+        comprobar(carne.getFechaHoraComunicacion().equals(LocalDateTime.of(2026, 9, 21, 23, 30))
+                && carne.fechaLimiteCorreccion().equals(LocalDate.of(2026, 9, 28)),
+                "la hora de comunicación no cambia el plazo en días calendario");
+        esperarFallo(DatoInvalidoException.class,
+                () -> carne.entregarCorreccion(LocalDateTime.of(2026, 9, 21, 22, 0)),
+                "la corrección no puede ser anterior a la observación");
+        modelo.Documento partida = bloqueada.getExpediente()
+                .getDocumento(modelo.TipoDocumento.PARTIDA_NACIMIENTO);
+        partida.registrarEntrega(base.plusHours(3));
+        esperarFallo(DatoInvalidoException.class,
+                () -> partida.observar("Ilegible", base.plusHours(2)),
+                "la observación no puede comunicarse antes de la entrega");
+        comprobar(partida.getEstado() == modelo.EstadoDocumento.EN_REVISION,
+                "una observación rechazada no cambia el documento");
+
+        Solicitud reprogramada = solicitudConDocumentosValidados("ENT-REPRO", base, aula);
+        modelo.Entrevista cita = entrevistas.agendar(reprogramada,
+                reprogramada.getExpediente(), base.plusDays(2), listaDe("Ana Ruiz"), "Ana Ruiz");
+        esperarFallo(DatoInvalidoException.class,
+                () -> cita.registrarInasistencia(base.plusDays(1)),
+                "no se reprograma a una fecha anterior a la cita perdida");
+        comprobar(cita.getInasistencias() == 0, "la reprogramación rechazada no cuenta");
+
+        probarEntrevistaDeInscripcionAnulada(aula, base, entrevistas);
+        probarIntegracionUiExpedienteVencido();
+        probarIntegracionUiExpediente();
+    }
+
+    private static void probarEntrevistaDeInscripcionAnulada(Aula aula, LocalDateTime base,
+            datos.ArregloEntrevistas entrevistas) throws Exception {
+        Solicitud solicitud = solicitudConDocumentosValidados("ENT-ANUL", base, aula);
+        modelo.Entrevista anterior = entrevistas.agendar(solicitud, solicitud.getExpediente(),
+                base.plusDays(2), listaDe("Ana Ruiz"), "Ana Ruiz");
+        anterior.registrarAsistencia();
+        anterior.marcarRealizada();
+
+        solicitud.revertirInscripcion(base.plusHours(3), base.plusHours(3));
+        comprobar(solicitud.getEstado() == EstadoSolicitud.HABILITADA_PARA_PAGO
+                && !anterior.esDeLaInscripcionVigente(),
+                "con la inscripción anulada la entrevista deja de estar vigente");
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> anterior.registrarResultado(modelo.ResultadoEntrevista.FAVORABLE,
+                        base.plusHours(4)),
+                "sin inscripción vigente no se registra el resultado", "ya no está vigente");
+
+        solicitud.confirmarInscripcion(base.plusHours(4));
+        comprobar(entrevistas.buscarDe(solicitud) == null,
+                "el expediente nuevo no hereda la entrevista anterior");
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> anterior.registrarResultado(modelo.ResultadoEntrevista.FAVORABLE,
+                        base.plusHours(5)),
+                "la entrevista anterior no sirve para el expediente nuevo", "ya no está vigente");
+        comprobar(solicitud.getEstado() == EstadoSolicitud.EN_DOCUMENTACION,
+                "la solicitud sigue en documentación, fuera de la cola favorable");
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> entrevistas.agendar(solicitud, solicitud.getExpediente(),
+                        base.plusDays(3), listaDe("Ana Ruiz"), "Ana Ruiz"),
+                "la nueva entrevista espera los 4 documentos nuevos", "Falta validar");
+    }
+
+    private static void probarIntegracionUiExpediente() throws Exception {
+        final RuntimeException[] failure = new RuntimeException[1];
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                LocalDateTime ahora = LocalDateTime.now().withSecond(0).withNano(0);
+                Aula aula = new Aula("NAMED-UI-EXP2", "UI expediente", 4, 1);
+                ArregloSolicitudes solicitudes = new ArregloSolicitudes();
+                Solicitud solicitud = registrarSolicitud(solicitudes, aula, "NAMED-UI-EXP2-S",
+                        ahora.minusDays(3));
+                solicitud.habilitarParaPago(ahora.minusDays(2).minusHours(1));
+                solicitud.confirmarInscripcion(ahora.minusDays(2));
+                for (modelo.Documento documento : solicitud.getExpediente().getDocumentos()) {
+                    documento.registrarEntrega(ahora.minusDays(1));
+                    if (documento.getTipo() == modelo.TipoDocumento.CARNE_VACUNAS) {
+                        documento.observar("Ilegible", ahora.minusHours(5));
+                    } else {
+                        documento.validar();
+                    }
+                }
+
+                ui.PanelExpediente panel = new ui.PanelExpediente(solicitudes,
+                        new datos.ArregloEntrevistas());
+                comprobar(textoEstadoEntrevista(panel).equals("BLOQUEADA · 1 observado"),
+                        "con el carné observado la entrevista está BLOQUEADA");
+
+                javax.swing.JTable tabla = (javax.swing.JTable) campoPrivado(panel,
+                        "tablaDocumentos");
+                int filaCarne = -1;
+                for (int fila = 0; fila < tabla.getRowCount(); fila++) {
+                    if (modelo.TipoDocumento.CARNE_VACUNAS.getDescripcion()
+                            .equals(tabla.getValueAt(fila, 0))) {
+                        filaCarne = fila;
+                    }
+                }
+                tabla.setRowSelectionInterval(filaCarne, filaCarne);
+                invocarPrivado(panel, "registrarEntrega");
+                comprobar(tabla.getValueAt(filaCarne, 2) == modelo.EstadoDocumento.EN_REVISION,
+                        "la tabla refleja la corrección en vivo");
+                invocarPrivado(panel, "validarDocumento");
+                comprobar(textoEstadoEntrevista(panel).equals("AGENDABLE"),
+                        "validar el 4.º documento vuelve agendable la entrevista");
+
+                ((javax.swing.JTextField) campoPrivado(panel, "campoFechaEntrevista"))
+                        .setText(ahora.plusDays(1).format(ui.TarjetasPago.FORMATO_FECHA));
+                ((javax.swing.JTextField) campoPrivado(panel, "campoPersonal"))
+                        .setText("Ana Ruiz, Luis Ramos");
+                ((javax.swing.JComboBox<?>) campoPrivado(panel, "comboResponsable"))
+                        .setSelectedItem("Luis Ramos");
+                invocarPrivado(panel, "agendar");
+                comprobar(textoEstadoEntrevista(panel).equals("AGENDADA"),
+                        "la entrevista queda agendada");
+                invocarPrivado(panel, "registrarAsistencia");
+                ((javax.swing.JComboBox<?>) campoPrivado(panel, "comboResultado"))
+                        .setSelectedItem(modelo.ResultadoEntrevista.FAVORABLE);
+                invocarPrivado(panel, "registrarResultado");
+                comprobar(solicitud.estaEnColaFavorable(),
+                        "FAVORABLE desde el panel pasa a la cola favorable");
+                javax.swing.JPanel franja = (javax.swing.JPanel) campoPrivado(panel, "franja");
+                comprobar(textosDe(franja).contains("ESTADO: EN_ESPERA_FAVORABLE"),
+                        "la franja muestra el estado nuevo");
+
+                javax.swing.JTextField campoFecha = (javax.swing.JTextField) campoPrivado(panel,
+                        "campoFechaDocumento");
+                String horaVieja = ahora.minusHours(7).format(ui.TarjetasPago.FORMATO_FECHA);
+                campoFecha.setText(horaVieja);
+                for (java.awt.event.ComponentListener oyente : panel.getComponentListeners()) {
+                    oyente.componentShown(new java.awt.event.ComponentEvent(panel,
+                            java.awt.event.ComponentEvent.COMPONENT_SHOWN));
+                }
+                comprobar(!campoFecha.getText().equals(horaVieja),
+                        "al volver a la pantalla la hora propuesta es la actual");
+            } catch (Exception e) {
+                failure[0] = new RuntimeException(e);
+            }
+        });
+        if (failure[0] != null) {
+            throw failure[0];
+        }
+    }
+
+    private static String textoEstadoEntrevista(ui.PanelExpediente panel) throws Exception {
+        return ((javax.swing.JLabel) campoPrivado(panel, "estadoEntrevista")).getText();
+    }
+
+    private static String textosDe(java.awt.Container raiz) {
+        StringBuilder textos = new StringBuilder();
+        for (java.awt.Component hijo : raiz.getComponents()) {
+            if (hijo instanceof javax.swing.JLabel) {
+                textos.append(((javax.swing.JLabel) hijo).getText()).append(' ');
+            } else if (hijo instanceof java.awt.Container) {
+                textos.append(textosDe((java.awt.Container) hijo));
+            }
+        }
+        return textos.toString();
+    }
+
+    private static void invocarPrivado(Object objeto, String metodo) throws Exception {
+        java.lang.reflect.Method accion = objeto.getClass().getDeclaredMethod(metodo);
+        accion.setAccessible(true);
+        accion.invoke(objeto);
+    }
+
+    private static void probarIntegracionUiExpedienteVencido() throws Exception {
+        final RuntimeException[] failure = new RuntimeException[1];
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                LocalDateTime ahora = LocalDateTime.now();
+                Aula aula = new Aula("NAMED-UI-EXP", "UI expediente", 4, 1);
+                ArregloSolicitudes solicitudes = new ArregloSolicitudes();
+                Solicitud vencida = registrarSolicitud(solicitudes, aula, "NAMED-UI-EXP-S",
+                        ahora.minusDays(10));
+                vencida.habilitarParaPago(ahora.minusDays(9).minusHours(1));
+                vencida.confirmarInscripcion(ahora.minusDays(9));
+
+                new ui.PanelExpediente(solicitudes, new datos.ArregloEntrevistas());
+
+                comprobar(vencida.getEstado() == EstadoSolicitud.CANCELADA
+                        && "Sistema".equals(vencida.getResponsableCancelacion()),
+                        "abrir el expediente cancela el plazo vencido con responsable Sistema");
+
+                ArregloSolicitudes conCita = new ArregloSolicitudes();
+                Solicitud tardia = registrarSolicitud(conCita, aula, "NAMED-UI-EXP-T",
+                        ahora.minusDays(10));
+                tardia.habilitarParaPago(ahora.minusDays(9).minusHours(1));
+                tardia.confirmarInscripcion(ahora.minusDays(9));
+                registrarYValidarDocumentos(tardia, ahora.minusDays(1), ahora.minusHours(20));
+                datos.ArregloEntrevistas entrevistas = new datos.ArregloEntrevistas();
+                entrevistas.agendar(tardia, tardia.getExpediente(), ahora.plusDays(1),
+                        listaDe("Ana Ruiz"), "Ana Ruiz");
+
+                ui.PanelExpediente panel = new ui.PanelExpediente(conCita, entrevistas);
+
+                String motivoTarjeta = ((javax.swing.JLabel) campoPrivado(panel,
+                        "motivoEntrevista")).getText();
+                comprobar(tardia.getEstado() == EstadoSolicitud.CANCELADA
+                        && textoEstadoEntrevista(panel).equals("CANCELADA")
+                        && motivoTarjeta.equals(tardia.getMotivoCancelacion())
+                        && !motivoTarjeta.contains("inasistencia"),
+                        "la tarjeta de entrevista muestra el motivo real de la cancelación");
+            } catch (Exception e) {
+                failure[0] = new RuntimeException(e);
+            }
+        });
+        if (failure[0] != null) {
+            throw failure[0];
+        }
+    }
+
+    private static Solicitud solicitudConDocumentosValidados(String codigo, LocalDateTime base,
+            Aula aula) throws Exception {
+        Solicitud solicitud = solicitud(codigo, base.minusDays(2), aula);
+        solicitud.habilitarParaPago(base.minusHours(2));
+        solicitud.confirmarInscripcion(base);
+        registrarYValidarDocumentos(solicitud, base.plusHours(1), base.plusHours(2));
+        return solicitud;
+    }
+
+    private static java.util.ArrayList<String> listaDe(String... nombres) {
+        return new java.util.ArrayList<String>(java.util.Arrays.asList(nombres));
+    }
+
     private static void probarPlazosDocumentalesYCancelacion() throws Exception {
         Aula aula = new Aula("AUL-DOC", "Documentación", 4, 2);
         LocalDateTime confirmacion = LocalDateTime.of(2026, 9, 20, 10, 0);
@@ -1866,7 +2153,7 @@ public class PruebaPagos {
         correccion.confirmarInscripcion(confirmacion);
         modelo.Documento observado = correccion.getExpediente().getDocumentos().get(0);
         observado.registrarEntrega(confirmacion.plusHours(1));
-        observado.observar("Foto ilegible", LocalDate.of(2026, 9, 25));
+        observado.observar("Foto ilegible", LocalDateTime.of(2026, 9, 25, 10, 0));
         comprobar(!observado.correccionVencida(LocalDate.of(2026, 10, 2))
                 && observado.correccionVencida(LocalDate.of(2026, 10, 3)),
                 "la corrección vence el día posterior al límite");
@@ -1891,7 +2178,7 @@ public class PruebaPagos {
         correccionUltimoDia.confirmarInscripcion(confirmacion);
         modelo.Documento documento = correccionUltimoDia.getExpediente().getDocumentos().get(0);
         documento.registrarEntrega(confirmacion);
-        documento.observar("Falta dato", LocalDate.of(2026, 9, 25));
+        documento.observar("Falta dato", LocalDateTime.of(2026, 9, 25, 10, 0));
         documento.entregarCorreccion(LocalDateTime.of(2026, 10, 2, 23, 59));
         comprobar(!documento.correccionVencida(LocalDate.of(2026, 10, 3)),
                 "la corrección entregada en el límite ya no vence");
@@ -2051,7 +2338,7 @@ public class PruebaPagos {
                 cuatroAnios, girasoles);
         vigente.habilitarParaPago(ahora.minusHours(2));
 
-        Solicitud otraVigente = registrar(ventana, alumnos, apoderados, "Noa", "Ruiz",
+        Solicitud otraVigente = registrar(ventana, alumnos, apoderados, "Sofía", "Paz",
                 tresAnios, tulipanes);
         otraVigente.habilitarParaPago(ahora.minusHours(47));
 
@@ -2089,6 +2376,85 @@ public class PruebaPagos {
         System.out.println("Comprobante de ejemplo para adjuntar: " + comprobante);
         System.out.println("Las solicitudes se registran al abrir: la fecha de operación (con minutos)"
                 + " recién es válida desde el minuto siguiente.");
+
+        cargarCasosExpediente(ventana, alumnos, apoderados, tulipanes, girasoles);
+    }
+
+    private static void seleccionarEnExpediente(PrincipalUI ventana, String codigo) {
+        ui.PanelExpediente panel = buscarComponente(ventana.getContentPane(),
+                ui.PanelExpediente.class);
+        try {
+            ((javax.swing.JComboBox<?>) campoPrivado(panel, "comboSolicitud"))
+                    .setSelectedItem(ventana.getSolicitudes().buscar(codigo));
+        } catch (Exception e) {
+            throw new IllegalStateException("No se pudo seleccionar " + codigo + ".", e);
+        }
+    }
+
+    private static <T> T buscarComponente(java.awt.Container raiz, Class<T> tipo) {
+        for (java.awt.Component hijo : raiz.getComponents()) {
+            if (tipo.isInstance(hijo)) {
+                return tipo.cast(hijo);
+            }
+            if (hijo instanceof java.awt.Container) {
+                T encontrado = buscarComponente((java.awt.Container) hijo, tipo);
+                if (encontrado != null) {
+                    return encontrado;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static void cargarCasosExpediente(PrincipalUI ventana, ArregloAlumnos alumnos,
+            ArregloApoderados apoderados, Aula tulipanes, Aula girasoles)
+            throws ReglaDominioException {
+        LocalDate tresAnios = LocalDate.of(2023, 5, 10);
+        LocalDate cuatroAnios = LocalDate.of(2022, 6, 18);
+        LocalDateTime ahora = LocalDateTime.now().withSecond(0).withNano(0);
+        int relleno = 1;
+        while (ventana.getSolicitudes().listar().size() < 37) {
+            registrar(ventana, alumnos, apoderados, "Relleno", String.valueOf(relleno++),
+                    cuatroAnios, girasoles);
+        }
+
+        Alumno alumnaNoa = alumnos.registrar(String.valueOf(siguienteDni++), "Noa", "Ruiz",
+                tresAnios, null);
+        alumnaNoa.agregarApoderado(apoderados.registrar(String.valueOf(siguienteDni++), "Ana",
+                "Ruiz", "999111222"), true);
+        Solicitud noa = ventana.getSolicitudes().registrar(alumnaNoa, tulipanes);
+        LocalDateTime confirmacion = ahora.minusDays(3);
+        noa.habilitarParaPago(confirmacion.minusHours(2));
+        noa.confirmarInscripcion(confirmacion);
+        for (modelo.Documento documento : noa.getExpediente().getDocumentos()) {
+            documento.registrarEntrega(confirmacion.plusDays(1));
+            if (documento.getTipo() == modelo.TipoDocumento.CARNE_VACUNAS) {
+                documento.observar("Falta página de refuerzo",
+                        confirmacion.plusDays(2));
+            } else {
+                documento.validar();
+            }
+        }
+
+        Solicitud mateo = registrar(ventana, alumnos, apoderados, "Mateo", "Rojas",
+                cuatroAnios, girasoles);
+        mateo.habilitarParaPago(confirmacion.minusHours(2));
+        mateo.confirmarInscripcion(confirmacion);
+        for (modelo.Documento documento : mateo.getExpediente().getDocumentos()) {
+            documento.registrarEntrega(confirmacion.plusDays(1));
+            documento.validar();
+        }
+        java.util.ArrayList<String> personal = new java.util.ArrayList<String>();
+        personal.add("Ana Ruiz");
+        personal.add("Luis Ramos");
+        ventana.getEntrevistas().agendar(mateo, mateo.getExpediente(), ahora.plusDays(1),
+                personal, "Ana Ruiz");
+
+        System.out.println("Casos del expediente:");
+        System.out.println("  " + noa.getCodigo() + "  3 de 4 validados · carné OBSERVADO ·"
+                + " entrevista BLOQUEADA (ejemplo del diseño 03)");
+        System.out.println("  " + mateo.getCodigo() + "  4 validados · entrevista agendada"
+                + " (asistencia, inasistencias y resultado)");
     }
 
     private static String crearComprobanteDeEjemplo() {

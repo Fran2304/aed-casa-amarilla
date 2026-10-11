@@ -14,7 +14,7 @@ public class Documento {
     private LocalDateTime fechaHoraCorreccion;
     private EstadoDocumento estado;
     private String observacion;
-    private LocalDate fechaComunicacion;
+    private LocalDateTime fechaHoraComunicacion;
 
     public Documento(TipoDocumento tipo) throws DatoInvalidoException {
         if (tipo == null) {
@@ -41,15 +41,22 @@ public class Documento {
         estado = EstadoDocumento.VALIDADO;
     }
 
-    public void observar(String motivo, LocalDate comunicadaEl) throws ReglaDominioException {
+    public void observar(String motivo, LocalDateTime comunicadaEl)
+            throws ReglaDominioException {
         exigirEntregado();
         String motivoLimpio = Validaciones.exigirNoVacio("motivo de la observación", motivo);
         if (comunicadaEl == null) {
             throw new DatoInvalidoException("La fecha de comunicación es obligatoria.");
         }
         Transiciones.exigirTransicion(estado, EstadoDocumento.OBSERVADO);
+        LocalDateTime ultimaEntrega = fechaHoraCorreccion != null ? fechaHoraCorreccion
+                : fechaHoraEntrega;
+        if (comunicadaEl.isBefore(ultimaEntrega)) {
+            throw new DatoInvalidoException("La observación no puede comunicarse antes de la"
+                    + " entrega del " + tipo.getDescripcion() + ".");
+        }
         observacion = motivoLimpio;
-        fechaComunicacion = comunicadaEl;
+        fechaHoraComunicacion = comunicadaEl;
         estado = EstadoDocumento.OBSERVADO;
     }
 
@@ -59,6 +66,10 @@ public class Documento {
         }
         exigirEntregado();
         Transiciones.exigirTransicion(estado, EstadoDocumento.EN_REVISION);
+        if (fechaHora.isBefore(fechaHoraComunicacion)) {
+            throw new DatoInvalidoException("La corrección no puede ser anterior a la"
+                    + " observación del " + tipo.getDescripcion() + ".");
+        }
         if (correccionVencida(fechaHora.toLocalDate())) {
             throw new ReglaDominioException("El plazo para corregir el "
                     + tipo.getDescripcion() + " venció el " + fechaLimiteCorreccion() + ".");
@@ -72,7 +83,7 @@ public class Documento {
         if (estado != EstadoDocumento.OBSERVADO) {
             return null;
         }
-        return fechaComunicacion.plusDays(DIAS_CORRECCION);
+        return fechaHoraComunicacion.toLocalDate().plusDays(DIAS_CORRECCION);
     }
 
     public boolean correccionVencida(LocalDate hoy) {
@@ -116,7 +127,7 @@ public class Documento {
         return observacion;
     }
 
-    public LocalDate getFechaComunicacion() {
-        return fechaComunicacion;
+    public LocalDateTime getFechaHoraComunicacion() {
+        return fechaHoraComunicacion;
     }
 }
