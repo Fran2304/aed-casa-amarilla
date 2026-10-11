@@ -6,6 +6,8 @@ import negocio.Transiciones;
 
 public class Matricula {
 
+    public static final int HORAS_PAGO_MATRICULA = 72;
+
     private final int numMatricula;
     private final Solicitud solicitud;
     private final Aula aula;
@@ -30,7 +32,7 @@ public class Matricula {
             throw new DatoInvalidoException("La fecha de creación es obligatoria.");
         }
         this.fechaHoraCreacion = fechaHoraCreacion;
-        this.vencimientoPagoOriginal = fechaHoraCreacion.plusHours(72);
+        this.vencimientoPagoOriginal = fechaHoraCreacion.plusHours(HORAS_PAGO_MATRICULA);
     }
 
     public boolean estaVigente() {

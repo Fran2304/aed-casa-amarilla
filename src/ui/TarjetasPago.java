@@ -15,6 +15,7 @@ import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
+import util.Reloj;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Locale;
@@ -151,7 +152,7 @@ public class TarjetasPago extends JPanel {
         campoMonto.setText(soles(cuota));
         comboMedio.setSelectedItem(MedioPago.EFECTIVO);
         campoOperacion.setText("");
-        campoFecha.setText(LocalDateTime.now().format(FORMATO_FECHA));
+        campoFecha.setText(Reloj.porDefecto().now().format(FORMATO_FECHA));
         mostrarComprobante(null);
         revisado.setSelected(false);
         campoMotivoAnulacion.setText("");
@@ -514,7 +515,7 @@ public class TarjetasPago extends JPanel {
         } catch (DateTimeParseException e) {
             return "Use el formato dd/mm/aaaa hh:mm.";
         }
-        if (fecha.isAfter(LocalDateTime.now())) {
+        if (fecha.isAfter(Reloj.porDefecto().now())) {
             return "La operación no puede ser futura.";
         }
         if (fecha.isBefore(inicioPlazo)) {
@@ -566,7 +567,7 @@ public class TarjetasPago extends JPanel {
         }
         try {
             accionAnular.anular(pagoConfirmado, campoMotivoAnulacion.getText(),
-                    campoResponsableAnulacion.getText(), LocalDateTime.now());
+                    campoResponsableAnulacion.getText(), Reloj.porDefecto().now());
             mostrarMensaje("Pago anulado; se conservó su auditoría y el formulario fue actualizado.",
                     false);
         } catch (ReglaDominioException e) {

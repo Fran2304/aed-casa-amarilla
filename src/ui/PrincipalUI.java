@@ -25,10 +25,10 @@ import datos.ArregloSolicitudes;
 import modelo.ConfiguracionCuotas;
 import modelo.ReglaDominioException;
 import negocio.Vencimientos;
+import util.Reloj;
 
 public class PrincipalUI extends JFrame {
 
-    public static final String INICIO = "INICIO";
     public static final String SOLICITUDES = "SOLICITUDES";
     public static final String COLAS = "COLAS";
     public static final String EXPEDIENTE = "EXPEDIENTE";
@@ -39,8 +39,6 @@ public class PrincipalUI extends JFrame {
     private final CardLayout tarjetas = new CardLayout();
     private final JPanel panelCentral = new JPanel(tarjetas);
     private final List<BotonMenu> botonesMenu = new ArrayList<>();
-    // Una sola lista de aulas para toda la app: los paneles la piden con getAulas()
-    // en vez de crear la suya y quedar desincronizados.
     private final ArregloAulas aulas = new ArregloAulas();
     private final ArregloSolicitudes solicitudes = new ArregloSolicitudes();
     private final ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
@@ -51,8 +49,6 @@ public class PrincipalUI extends JFrame {
     public PrincipalUI() {
         super("La Casa Amarilla · Matrícula 2027");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        // El diseño es de 1440×900, pero muchas laptops del equipo son de 1366×768:
-        // se abre maximizada y el panel central absorbe la diferencia.
         setMinimumSize(new Dimension(1280, 720));
         setLocationRelativeTo(null);
         setExtendedState(JFrame.MAXIMIZED_BOTH);
@@ -64,7 +60,12 @@ public class PrincipalUI extends JFrame {
         add(crearLateral(), BorderLayout.WEST);
         add(crearCentro(), BorderLayout.CENTER);
 
-        mostrar(INICIO);
+        try {
+            Vencimientos.barrer(Reloj.porDefecto(), aulas, solicitudes, matriculas, pagos, cuotas);
+        } catch (Exception e) {
+            throw new IllegalStateException("No se pudieron procesar los vencimientos al iniciar.", e);
+        }
+        mostrar(SOLICITUDES);
     }
 
     public void mostrar(String nombrePanel) {
@@ -80,7 +81,7 @@ public class PrincipalUI extends JFrame {
     public void revisarVencimientos() {
         String problema;
         try {
-            ArrayList<String> avisos = Vencimientos.revisar(LocalDateTime.now(), solicitudes,
+            ArrayList<String> avisos = Vencimientos.revisar(Reloj.porDefecto().now(), solicitudes,
                     matriculas);
             if (avisos.isEmpty()) {
                 return;
@@ -148,7 +149,6 @@ public class PrincipalUI extends JFrame {
         seccion.setBorder(BorderFactory.createEmptyBorder(30, 24, 16, 24));
         lateral.add(seccion);
 
-        agregarBotonMenu(lateral, "Inicio", INICIO);
         agregarBotonMenu(lateral, "Solicitudes", SOLICITUDES);
         agregarBotonMenu(lateral, "Colas y vacantes", COLAS);
         agregarBotonMenu(lateral, "Expediente", EXPEDIENTE);
@@ -168,7 +168,6 @@ public class PrincipalUI extends JFrame {
     }
 
     private JPanel crearCentro() {
-        agregarPanel(new PanelInicio(this), INICIO);
         agregarPanel(new PanelSolicitudes(), SOLICITUDES);
         agregarPanel(new PanelColas(), COLAS);
         agregarPanel(new PanelExpediente(solicitudes, entrevistas, matriculas), EXPEDIENTE);

@@ -36,6 +36,7 @@ import modelo.Solicitud;
 import negocio.Cobros;
 import negocio.Turnos;
 import negocio.Vencimientos;
+import util.Reloj;
 
 public class PanelPagos extends JPanel {
 
@@ -219,7 +220,7 @@ public class PanelPagos extends JPanel {
             return;
         }
 
-        LocalDateTime ahora = LocalDateTime.now();
+        LocalDateTime ahora = Reloj.porDefecto().now();
         LocalDateTime habilitacionVencida = actual.habilitacionVencida(ahora)
                 ? actual.getVencimientoHabilitacion()
                 : null;
@@ -363,10 +364,11 @@ public class PanelPagos extends JPanel {
     private void confirmar(double monto, MedioPago medio, String numeroOperacion,
             LocalDateTime fechaOperacion, String rutaComprobantePago)
             throws ReglaDominioException {
+        Vencimientos.barrer(Reloj.porDefecto(), null, solicitudes, matriculas, pagos, cuotas);
         Pago pago;
         try {
             pago = Cobros.confirmarInscripcion(actual, monto, medio, numeroOperacion,
-                    fechaOperacion, rutaComprobantePago, LocalDateTime.now(), solicitudes,
+                    fechaOperacion, rutaComprobantePago, Reloj.porDefecto().now(), solicitudes,
                     matriculas, pagos, cuotas);
         } catch (ReglaDominioException e) {
             if (!puedePagar()) {
@@ -384,7 +386,7 @@ public class PanelPagos extends JPanel {
         Matricula matricula = matriculaActual;
         try {
             Cobros.confirmarMatricula(matricula, monto, medio, numeroOperacion, fechaOperacion,
-                    rutaComprobantePago, LocalDateTime.now(), solicitudes,
+                    rutaComprobantePago, Reloj.porDefecto().now(), solicitudes,
                     matriculas, pagos, cuotas);
         } catch (ReglaDominioException e) {
             // Si el rechazo fue por vencimiento, la matrícula ya quedó CANCELADA:
