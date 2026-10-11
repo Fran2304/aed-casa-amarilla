@@ -30,6 +30,8 @@ import modelo.ReglaDominioException;
 import modelo.Solicitud;
 import negocio.Cobros;
 import negocio.Turnos;
+import negocio.Vencimientos;
+import util.Reloj;
 
 public class PanelPagos extends JPanel {
 
@@ -127,6 +129,13 @@ public class PanelPagos extends JPanel {
     }
 
     private void buscar() {
+        LocalDateTime ahora = Reloj.porDefecto().now();
+        try {
+            Vencimientos.barrer(Reloj.porDefecto(), null, solicitudes, matriculas, pagos, cuotas);
+        } catch (ReglaDominioException e) {
+            tarjetas.bloquear(e.getMessage());
+            return;
+        }
         String codigo = campoCodigo.getText().trim().toUpperCase();
         actual = solicitudes.buscar(codigo);
         if (actual == null) {
@@ -135,7 +144,6 @@ public class PanelPagos extends JPanel {
             return;
         }
 
-        LocalDateTime ahora = LocalDateTime.now();
         try {
             solicitudes.cancelarDocumentacionVencida(ahora.toLocalDate(), "Personal de caja");
         } catch (ReglaDominioException e) {
@@ -185,10 +193,11 @@ public class PanelPagos extends JPanel {
     private void confirmar(double monto, MedioPago medio, String numeroOperacion,
             LocalDateTime fechaOperacion, String rutaComprobantePago)
             throws ReglaDominioException {
+        Vencimientos.barrer(Reloj.porDefecto(), null, solicitudes, matriculas, pagos, cuotas);
         Pago pago;
         try {
             pago = Cobros.confirmarInscripcion(actual, monto, medio, numeroOperacion,
-                    fechaOperacion, rutaComprobantePago, LocalDateTime.now(), solicitudes,
+                    fechaOperacion, rutaComprobantePago, Reloj.porDefecto().now(), solicitudes,
                     matriculas, pagos, cuotas);
         } catch (ReglaDominioException e) {
             if (!puedePagar()) {
@@ -211,7 +220,7 @@ public class PanelPagos extends JPanel {
             return false;
         }
         try {
-            Turnos.exigirTurno(actual, solicitudes, matriculas, LocalDateTime.now());
+            Turnos.exigirTurno(actual, solicitudes, matriculas, Reloj.porDefecto().now());
             return true;
         } catch (ReglaDominioException e) {
             return false;

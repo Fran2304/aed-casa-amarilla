@@ -1,6 +1,7 @@
 package modelo;
 
 import java.time.LocalDate;
+import util.Reloj;
 import java.time.Period;
 import java.util.ArrayList;
 
@@ -141,7 +142,7 @@ public class Alumno {
         if (fecha == null) {
             throw new DatoInvalidoException("La fecha de nacimiento es obligatoria.");
         }
-        if (fecha.isAfter(LocalDate.now())) {
+        if (fecha.isAfter(Reloj.porDefecto().fechaActual())) {
             throw new DatoInvalidoException("La fecha de nacimiento no puede ser futura.");
         }
         return fecha;

@@ -3,8 +3,11 @@ package modelo;
 import java.time.LocalDateTime;
 
 import negocio.Transiciones;
+import util.Reloj;
 
 public class Matricula {
+
+    public static final int HORAS_PAGO_MATRICULA = 72;
 
     private final Solicitud solicitud;
     private final Aula aula;
@@ -12,9 +15,8 @@ public class Matricula {
     private final LocalDateTime fechaHoraCreacion;
     private final LocalDateTime vencimientoPagoOriginal;
 
-    /** Nace PENDIENTE_PAGO: su creación es lo único que reserva una vacante. */
     public Matricula(Solicitud solicitud) throws DatoInvalidoException {
-        this(solicitud, LocalDateTime.now());
+        this(solicitud, Reloj.porDefecto().now());
     }
 
     public Matricula(Solicitud solicitud, LocalDateTime fechaHoraCreacion)
@@ -29,7 +31,7 @@ public class Matricula {
             throw new DatoInvalidoException("La fecha de creación es obligatoria.");
         }
         this.fechaHoraCreacion = fechaHoraCreacion;
-        this.vencimientoPagoOriginal = fechaHoraCreacion.plusHours(72);
+        this.vencimientoPagoOriginal = fechaHoraCreacion.plusHours(HORAS_PAGO_MATRICULA);
     }
 
     public boolean estaVigente() {

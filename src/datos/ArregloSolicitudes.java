@@ -12,6 +12,7 @@ import modelo.ReglaDominioException;
 import modelo.Solicitud;
 import modelo.SolicitudDuplicadaException;
 import util.FechasAdmision;
+import util.Reloj;
 
 public class ArregloSolicitudes {
 
@@ -25,8 +26,6 @@ public class ArregloSolicitudes {
         siguienteNumero = PRIMER_NUMERO;
     }
 
-    // Las validaciones van en el orden del flujo (§4.1): si fallan varias,
-    // el personal ve primero la que corresponde corregir antes.
     public Solicitud registrar(Alumno alumno, Aula aula) throws ReglaDominioException {
         if (alumno == null) {
             throw new DatoInvalidoException("El alumno es obligatorio.");
@@ -37,8 +36,6 @@ public class ArregloSolicitudes {
 
         alumno.validarApoderados();
 
-        // Supuesto: edad exacta = edad del aula. Los rangos de edad por aula siguen
-        // pendientes de definición (§6.2); si el nido acepta rangos, se cambia aquí.
         int edad = alumno.edadAl(FechasAdmision.CORTE_2027);
         if (edad != aula.getEdadRequerida()) {
             throw new ReglaDominioException(alumno.getNombreCompleto() + " tendrá " + edad
@@ -52,7 +49,7 @@ public class ArregloSolicitudes {
         }
 
         Solicitud nueva = new Solicitud("SOL-" + siguienteNumero, alumno, aula,
-                LocalDateTime.now());
+                Reloj.porDefecto().now());
         solicitudes.add(nueva);
         siguienteNumero++;
         return nueva;

@@ -103,6 +103,17 @@ public final class Cobros {
         aplicarReversionAnulacion(pago, solicitud, matricula, matriculaVencida, fechaHora, fechaCola);
     }
 
+    static void cancelarMatriculaVencida(Solicitud solicitud, Matricula matricula,
+            LocalDateTime fechaHora, ArregloSolicitudes solicitudes) throws ReglaDominioException {
+        if (solicitud == null || matricula == null || fechaHora == null || solicitudes == null) {
+            throw new DatoInvalidoException("Los datos de la matrícula vencida son obligatorios.");
+        }
+        LocalDateTime fechaCola = prepararAnulacionMatricula(solicitud, matricula, true,
+                fechaHora, solicitudes);
+        exigirTransicionMatriculaAnulada(matricula, true);
+        aplicarReversionMatricula(matricula, solicitud, fechaCola);
+    }
+
     private static LocalDateTime prepararAnulacionInscripcion(Solicitud solicitud,
             LocalDateTime fechaHora, ArregloSolicitudes solicitudes) throws ReglaDominioException {
         if (solicitud.getEstado() != EstadoSolicitud.EN_DOCUMENTACION) {
@@ -111,8 +122,6 @@ public final class Cobros {
         if (fechaHora.isBefore(solicitud.getVencimientoHabilitacionOriginal())) {
             return null;
         }
-        // La habilitación original vencida vuelve al final de EN_ESPERA_SIN_PAGO;
-        // no se reinicia el plazo de 48 horas.
         return fechaAlFinal(solicitud, fechaHora, solicitudes, false);
     }
 
@@ -126,8 +135,6 @@ public final class Cobros {
         if (!matriculaVencida) {
             return null;
         }
-        // Al vencer el plazo original, la matrícula se cancela y la solicitud
-        // vuelve al final de EN_ESPERA_FAVORABLE; la inscripción se conserva.
         if (solicitud.getEstado() != EstadoSolicitud.EN_DOCUMENTACION
                 && solicitud.getEstado() != EstadoSolicitud.EN_ESPERA_FAVORABLE) {
             throw new ReglaDominioException("La solicitud no puede volver a la cola favorable.");
@@ -150,11 +157,16 @@ public final class Cobros {
         if (pago.getConcepto() == ConceptoPago.INSCRIPCION) {
             solicitud.revertirInscripcion(fechaHora, fechaCola == null ? fechaHora : fechaCola);
         } else if (matriculaVencida) {
-            matricula.cancelar();
-            solicitud.ingresarAColaFavorable(fechaCola);
+            aplicarReversionMatricula(matricula, solicitud, fechaCola);
         } else if (matricula.getEstado() == EstadoMatricula.ACTIVA) {
             matricula.revertirAPendiente();
         }
+    }
+
+    private static void aplicarReversionMatricula(Matricula matricula, Solicitud solicitud,
+            LocalDateTime fechaCola) throws ReglaDominioException {
+        matricula.cancelar();
+        solicitud.ingresarAColaFavorable(fechaCola);
     }
 
     private static void validarRelacion(Pago pago, Solicitud solicitud, Matricula matricula,

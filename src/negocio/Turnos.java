@@ -22,6 +22,7 @@ public final class Turnos {
             LocalDateTime ahora) throws ReglaDominioException {
         solicitudes.vencerHabilitaciones(ahora);
         solicitudes.cancelarDocumentacionVencida(ahora.toLocalDate(), "Personal de turnos");
+        Vencimientos.barrerMatriculas(ahora, solicitudes, matriculas);
         ArrayList<Solicitud> enCola = solicitudes.colaFavorable(aula);
         enCola.addAll(solicitudes.enDocumentacion(aula));
         enCola.addAll(solicitudes.habilitadas(aula));
@@ -38,8 +39,8 @@ public final class Turnos {
 
     public static Solicitud siguiente(Aula aula, ArregloSolicitudes solicitudes,
             ArrayList<Matricula> matriculas, LocalDateTime ahora) throws ReglaDominioException {
-        int vacantes = Vacantes.calcular(aula, matriculas);
         ArrayList<Solicitud> orden = ordenPorPrioridad(aula, solicitudes, matriculas, ahora);
+        int vacantes = Vacantes.calcular(aula, matriculas);
         for (int i = 0; i < vacantes && i < orden.size(); i++) {
             Solicitud solicitud = orden.get(i);
             if (solicitud.estaEnColaFavorable() || solicitud.estaEnColaSinPago()) {
@@ -55,13 +56,12 @@ public final class Turnos {
             throw new ReglaDominioException(solicitud.getCodigo() + " ya tiene matrícula vigente.");
         }
         Aula aula = solicitud.getAula();
+        ArrayList<Solicitud> orden = ordenPorPrioridad(aula, solicitudes, matriculas, ahora);
         int vacantes = Vacantes.calcular(aula, matriculas);
         if (vacantes <= 0) {
             throw new ReglaDominioException("No hay vacante disponible en " + aula.getNombre()
                     + ".");
         }
-
-        ArrayList<Solicitud> orden = ordenPorPrioridad(aula, solicitudes, matriculas, ahora);
         if (hayTurno(solicitud, orden, vacantes)) {
             return;
         }
@@ -94,8 +94,8 @@ public final class Turnos {
             ArregloSolicitudes solicitudes, ArrayList<Matricula> matriculas, LocalDateTime ahora)
             throws ReglaDominioException {
         ArrayList<Solicitud> habilitadas = new ArrayList<Solicitud>();
-        int vacantes = Vacantes.calcular(aula, matriculas);
         ArrayList<Solicitud> orden = ordenPorPrioridad(aula, solicitudes, matriculas, ahora);
+        int vacantes = Vacantes.calcular(aula, matriculas);
         for (int i = 0; i < vacantes && i < orden.size(); i++) {
             Solicitud solicitud = orden.get(i);
             if (solicitud.estaEnColaSinPago()) {
@@ -111,9 +111,9 @@ public final class Turnos {
             throws ReglaDominioException {
         ArrayList<Solicitud> promovidas = habilitarConTurno(nueva.getAula(), solicitudes,
                 matriculas, fecha);
-        int vacantes = Vacantes.calcular(nueva.getAula(), matriculas);
         ArrayList<Solicitud> orden = ordenPorPrioridad(nueva.getAula(), solicitudes, matriculas,
                 fecha);
+        int vacantes = Vacantes.calcular(nueva.getAula(), matriculas);
         if (vacantes > 0 && !tieneMatriculaVigente(nueva, matriculas)
                 && hayTurno(nueva, orden, vacantes)) {
             nueva.habilitarParaPago(fecha);
