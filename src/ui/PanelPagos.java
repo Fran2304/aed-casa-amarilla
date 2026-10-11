@@ -2,8 +2,9 @@ package ui;
 
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
-import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -11,15 +12,11 @@ import java.util.ArrayList;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
-import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
-import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
 
 import datos.ArregloMatriculas;
 import datos.ArregloPagos;
@@ -51,9 +48,8 @@ public class PanelPagos extends JPanel {
 
     private Solicitud actual;
     private Matricula matriculaActual;
-    private String codigoBuscado;
 
-    private final JTextField campoCodigo = Estilos.campo(new JTextField(12));
+    private final SelectorSolicitud selector = new SelectorSolicitud(false, this::elegir);
     private final JPanel resumen = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
     private final CardLayout cambioVista = new CardLayout();
     private final JPanel vistas = new JPanel(cambioVista);
@@ -101,6 +97,14 @@ public class PanelPagos extends JPanel {
         desplazable.getViewport().setOpaque(false);
         desplazable.getVerticalScrollBar().setUnitIncrement(16);
         add(desplazable, BorderLayout.CENTER);
+
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentShown(ComponentEvent e) {
+                recargarLista();
+            }
+        });
+        recargarLista();
     }
 
     private JPanel crearEncabezado() {
@@ -108,42 +112,14 @@ public class PanelPagos extends JPanel {
         encabezado.setLayout(new BoxLayout(encabezado, BoxLayout.Y_AXIS));
         encabezado.setOpaque(false);
 
+        JPanel filaTitulo = new JPanel(new BorderLayout(20, 0));
+        filaTitulo.setOpaque(false);
         JLabel titulo = new JLabel("Pagos y matrículas");
         titulo.setFont(Estilos.titulo());
         titulo.setForeground(Estilos.TEXTO_PRINCIPAL);
-        titulo.setAlignmentX(LEFT_ALIGNMENT);
-        titulo.setMaximumSize(new Dimension(Integer.MAX_VALUE, titulo.getPreferredSize().height));
-        encabezado.add(titulo);
-        encabezado.add(Box.createVerticalStrut(14));
-
-        JPanel buscador = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        buscador.setOpaque(false);
-        buscador.setAlignmentX(LEFT_ALIGNMENT);
-        buscador.add(Estilos.etiquetaCampo("Código de solicitud o matrícula"));
-        buscador.add(Box.createHorizontalStrut(12));
-        buscador.add(campoCodigo);
-        buscador.add(Box.createHorizontalStrut(10));
-        JButton buscar = Estilos.botonSecundario("Buscar");
-        buscar.addActionListener(evento -> buscar());
-        campoCodigo.addActionListener(evento -> buscar());
-        campoCodigo.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                descartarSiCambioCodigo();
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                descartarSiCambioCodigo();
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                descartarSiCambioCodigo();
-            }
-        });
-        buscador.add(buscar);
-        encabezado.add(buscador);
+        filaTitulo.add(titulo, BorderLayout.WEST);
+        filaTitulo.add(selector, BorderLayout.EAST);
+        encabezado.add(Estilos.alineado(filaTitulo));
         encabezado.add(Box.createVerticalStrut(12));
 
         resumen.setOpaque(false);
@@ -195,28 +171,22 @@ public class PanelPagos extends JPanel {
         return contenedor;
     }
 
-    private void descartarSiCambioCodigo() {
-        if (actual == null || campoCodigo.getText().trim().equalsIgnoreCase(codigoBuscado)) {
-            return;
-        }
-        actual = null;
-        matriculaActual = null;
-        mostrarResumen(null, null);
-        cambioVista.show(vistas, VISTA_INSCRIPCION);
-        tarjetas.reiniciar();
+    private void recargarLista() {
+        selector.recargar(solicitudes.listar(), solicitud -> true);
     }
 
-    private void buscar() {
+    private void elegir(Solicitud solicitud) {
+        actual = solicitud;
+        refrescar();
+    }
+
+    private void refrescar() {
         SwingUtilities.invokeLater(() -> desplazable.getVerticalScrollBar().setValue(0));
-        String codigo = campoCodigo.getText().trim().toUpperCase();
-        codigoBuscado = codigo;
         matriculaActual = null;
-        Matricula buscada = buscarMatricula(codigo);
-        actual = buscada != null ? buscada.getSolicitud() : solicitudes.buscar(codigo);
         cambioVista.show(vistas, VISTA_INSCRIPCION);
         if (actual == null) {
             mostrarResumen(null, null);
-            tarjetas.bloquear("No existe la solicitud o matrícula " + codigo + ".");
+            tarjetas.bloquear("Elige una solicitud para ver o registrar sus pagos.");
             return;
         }
 
@@ -232,16 +202,15 @@ public class PanelPagos extends JPanel {
             tarjetas.bloquear(e.getMessage());
             return;
         }
-        mostrarBusqueda(buscada, habilitacionVencida, ahora);
+        mostrarSeleccion(habilitacionVencida);
         if (!avisos.isEmpty()) {
             TarjetasPago visible = matriculaActual != null ? tarjetasMatricula : tarjetas;
             visible.avisar("Revisión de vencimientos incompleta: " + Vencimientos.unir(avisos));
         }
     }
 
-    private void mostrarBusqueda(Matricula buscada, LocalDateTime habilitacionVencida,
-            LocalDateTime ahora) {
-        Matricula matricula = buscada != null ? buscada : matriculas.ultimaDe(actual);
+    private void mostrarSeleccion(LocalDateTime habilitacionVencida) {
+        Matricula matricula = matriculas.ultimaDe(actual);
         if (matricula != null) {
             mostrarMatricula(matricula);
             return;
@@ -279,17 +248,6 @@ public class PanelPagos extends JPanel {
                 actual.getVencimientoHabilitacion());
     }
 
-    private Matricula buscarMatricula(String codigo) {
-        if (!codigo.startsWith("MAT-")) {
-            return null;
-        }
-        try {
-            return matriculas.buscar(Integer.parseInt(codigo.substring(4)));
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
     private void mostrarMatricula(Matricula matricula) {
         matriculaActual = matricula;
         mostrarResumen(matricula.getSolicitud(), matricula);
@@ -303,16 +261,8 @@ public class PanelPagos extends JPanel {
             tarjetasMatricula.prepararPago(cuotas.getCuotaMatricula(),
                     matricula.getFechaHoraCreacion(), matricula.getVencimientoPagoOriginal());
         } else {
-            String motivo = "La matrícula " + matricula.getCodigo() + " está "
-                    + matricula.getEstado() + " y no espera pago.";
-            Matricula vigente = matriculas.vigenteDe(matricula.getSolicitud());
-            if (vigente != null) {
-                motivo += " La solicitud tiene ahora " + vigente.getCodigo() + " ("
-                        + vigente.getEstado() + "); búscala para "
-                        + (vigente.getEstado() == EstadoMatricula.PENDIENTE_PAGO
-                                ? "registrar el pago." : "ver su pago.");
-            }
-            tarjetasMatricula.bloquear(motivo);
+            tarjetasMatricula.bloquear("La matrícula " + matricula.getCodigo() + " está "
+                    + matricula.getEstado() + " y no espera pago.");
         }
         cambioVista.show(vistas, VISTA_MATRICULA);
     }
@@ -372,7 +322,7 @@ public class PanelPagos extends JPanel {
                     matriculas, pagos, cuotas);
         } catch (ReglaDominioException e) {
             if (!puedePagar()) {
-                buscar();
+                refrescar();
             }
             throw e;
         }
@@ -402,7 +352,7 @@ public class PanelPagos extends JPanel {
     private void anular(Pago pago, String motivo, String responsable, LocalDateTime fechaHora)
             throws ReglaDominioException {
         Cobros.anularPago(pago, motivo, responsable, fechaHora, solicitudes, matriculas, pagos);
-        buscar();
+        refrescar();
     }
 
     private boolean puedePagar() {
