@@ -39,8 +39,9 @@ import json, os, sys
 args = sys.argv[1:]
 endpoint = next((arg for arg in args if '/comments' in arg or '/compare/' in arg or '/pulls/' in arg), '')
 if '--method' in args and 'POST' in args:
+    body = next((arg[len('body='):] for arg in args if arg.startswith('body=')), '')
     with open(os.environ['MOCK_POST'], 'w') as stream:
-        stream.write('posted')
+        stream.write(body)
 elif endpoint.endswith('/comments'):
     print(os.environ['MOCK_COMMENTS'])
 elif '/compare/' in endpoint:
@@ -181,6 +182,10 @@ elif '/pulls/' in endpoint:
             recorded = self.execute(self.record, tmp)
             self.assertEqual(recorded.returncode, 0, recorded.stderr)
             self.assertTrue(Path(tmp, "posted").exists())
+            self.assertEqual(
+                Path(tmp, "posted").read_text(),
+                "LQTM <!-- opencode-review-checkpoint:v1 workflow=opencode-review head_sha=head base_sha=base -->",
+            )
 
     def test_move_block_removes_trusted_checkout_before_pr_workspace_is_used(self):
         with tempfile.TemporaryDirectory() as tmp:

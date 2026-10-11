@@ -41,7 +41,7 @@
 | `EN_ESPERA_SIN_PAGO` | Aún no puede comenzar la inscripción; tiene fecha de ingreso a la cola. |
 | `HABILITADA_PARA_PAGO` | **Decisión del grupo, no está en el PDF.** Solicitud nueva con vacante y sin nadie delante, o a la que le llegó el turno en la cola sin pago al liberarse una vacante; tiene 48 h desde la habilitación para pagar la inscripción. No reserva vacante. |
 | `EN_DOCUMENTACION` | Inscripción pagada y confirmada; corre el plazo inicial de documentos. |
-| `EN_ESPERA_FAVORABLE` | Documentos validados y entrevista favorable, pero sin vacante para crear matrícula. Conserva la inscripción pagada. |
+| `EN_ESPERA_FAVORABLE` | Documentos validados y entrevista favorable, pero sin vacante para crear matrícula. Conserva la inscripción pagada. **Decisión del grupo, no está en el PDF:** con matrícula `PENDIENTE_PAGO` o `ACTIVA` vigente, la solicitud permanece en este estado; no se le ofrece otra vacante y las consultas de candidatos la excluyen (§6, ítem 8). |
 | `CANCELADA` | Incumplimiento de entrega o corrección de documentos, segunda inasistencia u otra cancelación indicada por el flujo. Se conserva en el historial. |
 | `RECHAZADA` | Entrevista realizada con resultado `NO_FAVORABLE`. Se conserva en el historial. |
 
@@ -178,12 +178,13 @@ Un alumno solo puede tener una matrícula `PENDIENTE_PAGO` o `ACTIVA` a la vez. 
 Estos puntos **no están resueltos en el PDF**. Una IA debe señalarlos antes de implementar comportamientos que dependan de ellos:
 
 1. ~~Plazo de pago de inscripción para la **vía directa**.~~ **Resuelto (decisión del grupo):** la solicitud nueva se habilita de frente y tiene las mismas 48 h.
-2. Lista completa de datos obligatorios, rangos de edad por aula y reglas de elegibilidad.
-3. Cómo proceder cuando una oferta de la cola favorable **no es aceptada**: el PDF solo indica que no se crea matrícula.
+2. Lista completa de datos obligatorios, rangos de edad por aula y reglas de elegibilidad. **Decisión (2026-10-10):** se mantiene provisorio (igualdad exacta de edad al corte, aulas de ejemplo, celular del apoderado obligatorio «a confirmar») hasta que el nido entregue la lista real; los placeholders no se bendicen como definitivos.
+3. ~~Cómo proceder cuando una oferta de la cola favorable **no es aceptada**: el PDF solo indica que no se crea matrícula.~~ **Resuelto (decisión del grupo, 2026-10-10):** no se crea matrícula; la solicitud reingresa al final de `EN_ESPERA_FAVORABLE` con nueva fecha de ingreso y la vacante queda libre para ofrecerse al siguiente candidato.
 4. ~~Tratamiento de un pago de matrícula registrado pero observado al vencer el plazo.~~ **Resuelto (decisión del grupo):** los pagos no tienen estado de observación; un pago que no cumple las validaciones se rechaza y cuenta como ausencia de pago registrado. Al vencer las 72 h, la matrícula pasa a `CANCELADA`.
-5. Resultado de anular un pago confirmado cuando, al reevaluar el plazo original, ya no corresponde mantener la reserva.
+5. ~~Resultado de anular un pago confirmado cuando, al reevaluar el plazo original, ya no corresponde mantener la reserva.~~ **Resuelto (decisión del grupo, 2026-10-10):** al anular se reevalúa el plazo original, sin reiniciarlo. Inscripción: con remanente de las 48 h originales la solicitud vuelve a `HABILITADA_PARA_PAGO`; si ya venció, pasa al final de `EN_ESPERA_SIN_PAGO`. Matrícula: con las 72 h originales vencidas pasa a `CANCELADA`, libera la vacante y la solicitud va al final de `EN_ESPERA_FAVORABLE` conservando la inscripción pagada; vigente y `ACTIVA`, vuelve a `PENDIENTE_PAGO` manteniendo la reserva y el vencimiento original.
 6. Nombres de estados intermedios que el PDF no enumera. **Resuelto en parte (decisión del grupo):** se agrega `HABILITADA_PARA_PAGO` para la solicitud de la cola sin pago a la que le llegó el turno. Los demás estados intermedios siguen sin nombre.
-7. Si el **número de operación** debe ser único (por medio de pago o en general). Hoy nada impide registrar dos pagos con el mismo número, incluso en solicitudes distintas.
+7. ~~Si el **número de operación** debe ser único (por medio de pago o en general). Hoy nada impide registrar dos pagos con el mismo número, incluso en solicitudes distintas.~~ **Resuelto (decisión del grupo, 2026-10-10):** el número de operación es único global entre todos los pagos registrados; el valor vacío (efectivo) queda fuera del chequeo y los pagos anulados cuentan como usados.
+8. ~~Cómo se representa una solicitud con matrícula vigente (`PENDIENTE_PAGO` o `ACTIVA`): la spec no decía qué pasaba con ella en la cola favorable al crearse su matrícula.~~ **Resuelto (decisión del grupo, 2026-10-10):** la solicitud permanece en `EN_ESPERA_FAVORABLE`; no se le ofrece otra vacante y toda consulta de candidatos o cálculo de turnos la excluye por matrícula vigente. No se agrega ningún estado nuevo (ítem 6). Si la matrícula pasa a `CANCELADA` (72 h sin pago o anulación, ítem 5), la solicitud reingresa al final de la cola favorable con nueva fecha de ingreso, conservando la inscripción pagada.
 
 ## 7. Referencia de páginas
 

@@ -7,6 +7,7 @@ Aplicación de escritorio en Java 21 para la admisión y matrícula del Nido La 
 ## Spec del proyecto y fuentes de consulta
 
 - **`docs/flujo_matricula_casa_amarilla_2027_ia.md` es la spec del proyecto.** Antes de implementar y al revisar cualquier cambio, comprueba que el comportamiento respete ese documento. Las pruebas deben cubrir las reglas aplicables de la spec.
+- **La spec vive únicamente en ese documento:** las decisiones nuevas se pliegan ahí (patrón tachado + **Resuelto**); no se crean archivos spec duplicados.
 - **Si una regla es ambigua, está pendiente de definición o entra en conflicto con otra fuente, pregunta antes de implementar.** No inventes criterios ni resuelvas contradicciones por tu cuenta.
 - Lee `CONTEXT.md` para usar la terminología del dominio: Alumno, Apoderado principal/adicional y Personal. Sigue su glosario en lugar de la terminología genérica del curso.
 - Consulta el issue y sus comentarios para conocer el alcance y los acuerdos. Una especificación de tarea o un comentario no autoriza a contradecir la spec del proyecto; ante diferencias, consulta y deja explícito el acuerdo.
@@ -31,6 +32,7 @@ Ejecuta los comandos desde la raíz del proyecto. Configura `JAVA_HOME` con un *
 - Ejecuta `PruebaPagos` con `-Djava.awt.headless=true` para las pruebas funcionales. Los casos de interfaz necesitan `-Dopencode.test.logs=<directorio absoluto existente>` para guardar el comprobante de prueba; puede ser cualquier directorio local destinado a esos archivos, sin un harness.
 - Conserva la salida completa y el resultado de las comprobaciones. No confundas ausencia de un framework de pruebas con pruebas ejecutadas o aprobadas.
 - Ejecuta `Main` para abrir la aplicación o `PruebaPagos` sin el modo headless para abrir la demo con datos de ejemplo. Las comprobaciones headless no verifican la apariencia ni toda la interacción manual; informa las pruebas gráficas por separado.
+- Los scripts de CI tienen su propia suite con `unittest` puro (`test_review*.py` en `.github/scripts/`), invisible para los detectores automáticos de framework: al cambiar `.github/workflows/` o `review_checkpoint.py`, ejecútala explícitamente con `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .github/scripts -p 'test_review*.py' -v`.
 
 `PruebaPagos` está marcado para eliminarse más adelante. Mientras sea la entrada de las pruebas de regresión, no lo elimines sin acordar una alternativa que conserve esa cobertura.
 

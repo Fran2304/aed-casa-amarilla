@@ -11,6 +11,7 @@ MARKER = "opencode-review-checkpoint:v1"
 MARKER_RE = re.compile(
     rf"<!--\s*{re.escape(MARKER)}\s+workflow=opencode-review\s+head_sha=(\S+)\s+base_sha=(\S+)\s*-->"
 )
+CHECKPOINT_BODY_RE = re.compile(rf"(?:LQTM\s+)?{MARKER_RE.pattern}")
 
 
 def comments_from_payload(payload: object) -> list[dict[str, object]]:
@@ -30,7 +31,7 @@ def checkpoints(payload: object) -> list[tuple[str, str]]:
             continue
         if author.get("type") not in (None, "Bot"):
             continue
-        match = MARKER_RE.fullmatch(str(comment.get("body", "")).strip())
+        match = CHECKPOINT_BODY_RE.fullmatch(str(comment.get("body", "")).strip())
         if match:
             found.append((match.group(1), match.group(2)))
     return found
