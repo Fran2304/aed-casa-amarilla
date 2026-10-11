@@ -2189,6 +2189,7 @@ public class PruebaPagos {
 
         probarEntrevistaDeInscripcionAnulada(aula, base, entrevistas);
         probarIntegracionUiExpedienteVencido();
+        probarIntegracionUiSolicitudesConReloj();
         probarIntegracionUiExpediente();
     }
 
@@ -2325,6 +2326,87 @@ public class PruebaPagos {
         java.lang.reflect.Method accion = objeto.getClass().getDeclaredMethod(metodo);
         accion.setAccessible(true);
         accion.invoke(objeto);
+    }
+
+    // Nueva solicitud con el reloj global fijado (§4.8) y plazos que vencen con la pantalla
+    // abierta (§4.2): el guardado y las vacantes tienen que ver la misma hora.
+    private static void probarIntegracionUiSolicitudesConReloj() throws Exception {
+        LocalDateTime ahora = LocalDateTime.of(2026, 10, 8, 10, 0);
+        Reloj.porDefecto().fijar(ahora);
+        final RuntimeException[] failure = new RuntimeException[1];
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                datos.ArregloAulas aulas = new datos.ArregloAulas();
+                Aula girasoles = aulas.buscar("AUL-01");
+                ArregloAlumnos alumnos = new ArregloAlumnos();
+                ArregloApoderados apoderados = new ArregloApoderados();
+                ArregloSolicitudes solicitudes = new ArregloSolicitudes();
+                ArregloMatriculas matriculas = new ArregloMatriculas();
+                Alumno luz = alumnos.registrar("70123456", "Luz", "Prueba",
+                        LocalDate.of(2022, 6, 18), null);
+                luz.agregarApoderado(apoderados.registrar("80123456", "Ana", "Prueba",
+                        "999111222"), true);
+                Solicitud anterior = solicitudes.registrar(luz, girasoles);
+                anterior.habilitarParaPago(ahora.minusHours(1));
+                anterior.confirmarInscripcion(ahora);
+
+                ui.PanelSolicitudes panel = new ui.PanelSolicitudes(aulas, solicitudes, alumnos,
+                        apoderados, matriculas);
+                ((javax.swing.JTextField) campoPrivado(panel, "campoDni")).setText("70123456");
+                ((javax.swing.JComboBox<?>) campoPrivado(panel, "comboAula"))
+                        .setSelectedItem(girasoles);
+                javax.swing.JButton guardar = (javax.swing.JButton) campoPrivado(panel,
+                        "botonGuardar");
+                comprobar(!guardar.isEnabled(),
+                        "la solicitud en documentación bloquea un duplicado");
+
+                LocalDateTime despues = ahora.plusDays(8);
+                Reloj.porDefecto().fijar(despues);
+                invocarPrivado(panel, "guardar");
+                Solicitud nueva = solicitudes.buscarActivaDe(luz);
+                comprobar(anterior.getEstado() == EstadoSolicitud.CANCELADA,
+                        "guardar cancela antes la documentación vencida");
+                comprobar(nueva != null && nueva != anterior
+                        && nueva.getFechaRegistro().equals(despues)
+                        && nueva.getEstado() == EstadoSolicitud.HABILITADA_PARA_PAGO
+                        && nueva.getVencimientoHabilitacion().equals(despues.plusHours(48)),
+                        "guardar registra y habilita con la hora del reloj global");
+
+                Aula chica = new Aula("AUL-UI-SOL", "UI solicitudes", 4, 1);
+                @SuppressWarnings("unchecked")
+                java.util.ArrayList<Aula> almacen =
+                        (java.util.ArrayList<Aula>) campoPrivado(aulas, "aulas");
+                almacen.add(chica);
+                ArregloSolicitudes conMatricula = new ArregloSolicitudes();
+                ArregloMatriculas pendientes = new ArregloMatriculas();
+                Solicitud ocupa = registrarSolicitud(conMatricula, chica, "NAMED-UI-SOL",
+                        despues.minusDays(5));
+                ocupa.habilitarParaPago(despues.minusDays(4).minusHours(1));
+                ocupa.confirmarInscripcion(despues.minusDays(4));
+                registrarYValidarDocumentos(ocupa, despues.minusDays(3), despues.minusDays(2));
+                ocupa.ingresarAColaFavorable(despues.minusDays(2));
+                Turnos.confirmarOferta(ocupa, true, "Personal de admisión",
+                        despues.minusHours(1), conMatricula, pendientes);
+
+                ui.PanelSolicitudes conCupo = new ui.PanelSolicitudes(aulas, conMatricula,
+                        new ArregloAlumnos(), new ArregloApoderados(), pendientes);
+                ((javax.swing.JComboBox<?>) campoPrivado(conCupo, "comboAula"))
+                        .setSelectedItem(chica);
+                javax.swing.JLabel vacantes = (javax.swing.JLabel) campoPrivado(conCupo,
+                        "textoVacantes");
+                comprobar(vacantes.getText().startsWith("Sin vacantes"),
+                        "la matrícula pendiente ocupa la única vacante");
+                Reloj.porDefecto().fijar(despues.plusHours(72));
+                invocarPrivado(conCupo, "recalcular");
+                comprobar(vacantes.getText().startsWith("1 disponible"),
+                        "la matrícula vencida con la pantalla abierta libera la vacante");
+            } catch (Exception e) {
+                failure[0] = new RuntimeException(e);
+            }
+        });
+        if (failure[0] != null) {
+            throw failure[0];
+        }
     }
 
     private static void probarIntegracionUiExpedienteVencido() throws Exception {

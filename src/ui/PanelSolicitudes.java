@@ -53,8 +53,10 @@ import modelo.Solicitud;
 import modelo.Validaciones;
 import negocio.Turnos;
 import negocio.Vacantes;
+import negocio.Vencimientos;
 import util.FechasAdmision;
 import util.FormatoFecha;
+import util.Reloj;
 
 public class PanelSolicitudes extends JPanel {
 
@@ -343,10 +345,28 @@ public class PanelSolicitudes extends JPanel {
         if (actualizando) {
             return;
         }
+        // Las vacantes y el duplicado dependen de plazos que pudieron vencer con la
+        // aplicación abierta (§4.2): una matrícula vencida aún restaría su cupo y una
+        // solicitud con documentación vencida aún bloquearía el guardado.
+        String avisoVencimientos = revisarVencimientos();
         revisarAlumnoExistente();
         actualizarVacantes();
         actualizarFranja();
         actualizarBotonGuardar();
+        if (avisoVencimientos != null) {
+            mensajeGuardar.setForeground(Estilos.TEXTO_ALERTA);
+            mensajeGuardar.setText("Revisión de vencimientos incompleta: " + avisoVencimientos);
+        }
+    }
+
+    private String revisarVencimientos() {
+        try {
+            ArrayList<String> avisos = Vencimientos.revisar(Reloj.porDefecto().now(),
+                    solicitudes, matriculas);
+            return avisos.isEmpty() ? null : Vencimientos.unir(avisos);
+        } catch (DatoInvalidoException e) {
+            return e.getMessage();
+        }
     }
 
     private void revisarAlumnoExistente() {
@@ -447,7 +467,7 @@ public class PanelSolicitudes extends JPanel {
                     "Completa el DNI (8 dígitos) y el nacimiento (dd/mm/aaaa) para validar.");
             return;
         }
-        if (nacimiento.isAfter(LocalDate.now())) {
+        if (nacimiento.isAfter(Reloj.porDefecto().fechaActual())) {
             pintarFranja(Estilos.ALERTA, Estilos.TEXTO_ALERTA,
                     "La fecha de nacimiento no puede ser futura.");
             return;
@@ -636,6 +656,12 @@ public class PanelSolicitudes extends JPanel {
     }
 
     private void guardar() {
+        // Entre la última tecla y el clic pudo vencer un plazo: se revisa otra vez para
+        // no guardar con vacantes o un duplicado que ya no corresponden.
+        recalcular();
+        if (!botonGuardar.isEnabled()) {
+            return;
+        }
         Aula aula = (Aula) comboAula.getSelectedItem();
         Solicitud nueva = null;
         try {
@@ -668,7 +694,7 @@ public class PanelSolicitudes extends JPanel {
             alumno.designarPrincipal(dniPrincipal);
             nueva = solicitudes.registrar(alumno, aula);
             ArrayList<Solicitud> promovidas = Turnos.ubicarNueva(nueva, solicitudes, matriculas,
-                    LocalDateTime.now());
+                    Reloj.porDefecto().now());
             mostrarFicha(nueva, true, null, promovidas);
         } catch (ReglaDominioException e) {
             if (nueva != null) {
@@ -813,7 +839,7 @@ public class PanelSolicitudes extends JPanel {
     }
 
     private static ArrayList<Solicitud> siguenHabilitadas(ArrayList<Solicitud> promovidas) {
-        LocalDateTime ahora = LocalDateTime.now();
+        LocalDateTime ahora = Reloj.porDefecto().now();
         ArrayList<Solicitud> vigentes = new ArrayList<Solicitud>();
         for (Solicitud promovida : promovidas) {
             if (promovida.getEstado() == EstadoSolicitud.HABILITADA_PARA_PAGO
