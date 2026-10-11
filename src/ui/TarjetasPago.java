@@ -2,10 +2,10 @@ package ui;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Desktop;
 import java.awt.Dimension;
-import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
@@ -15,6 +15,7 @@ import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
+import util.Reloj;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Locale;
@@ -30,11 +31,13 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.text.DefaultCaret;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
 import modelo.MedioPago;
 import modelo.Pago;
 import modelo.ReglaDominioException;
+import util.FormatoFecha;
 
 public class TarjetasPago extends JPanel {
 
@@ -49,8 +52,7 @@ public class TarjetasPago extends JPanel {
                 throws ReglaDominioException;
     }
 
-    public static final DateTimeFormatter FORMATO_FECHA =
-            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+    public static final DateTimeFormatter FORMATO_FECHA = FormatoFecha.FECHA_HORA;
 
     private final AccionConfirmar accion;
     private AccionAnular accionAnular;
@@ -89,6 +91,20 @@ public class TarjetasPago extends JPanel {
     private final JTextField campoBoleta = Estilos.campo(new JTextField());
     private final JButton botonBoleta = Estilos.botonSecundario("Registrar");
     private final JLabel mensajeBoleta = new JLabel(" ");
+    private final JPanel cierre = new JPanel(new BorderLayout()) {
+        @Override
+        public boolean isVisible() {
+            if (!super.isVisible()) {
+                return false;
+            }
+            for (Component hijo : getComponents()) {
+                if (hijo.isVisible()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    };
 
     public TarjetasPago(String tituloPago, String concepto, String textoConfirmar,
             String textoPlazo, AccionConfirmar accion) {
@@ -116,6 +132,12 @@ public class TarjetasPago extends JPanel {
         this.accionAnular = accionAnular;
     }
 
+    /** Aviso propio de cada pantalla al pie de «Validación y cierre», como en el diseño 05. */
+    public void agregarAlCierre(JComponent aviso) {
+        cierre.removeAll();
+        cierre.add(aviso, BorderLayout.CENTER);
+    }
+
     public void reiniciar() {
         esperar(Estilos.ESPERA, Estilos.TEXTO_ESPERA, "BUSQUE UNA SOLICITUD",
                 "Ingrese su código para registrar el pago.");
@@ -123,13 +145,13 @@ public class TarjetasPago extends JPanel {
 
     public void prepararPago(double cuota, LocalDateTime inicioPlazo, LocalDateTime finPlazo) {
         this.cuota = cuota;
-        this.inicioPlazo = inicioPlazo;
+        this.inicioPlazo = FormatoFecha.alMinuto(inicioPlazo);
         this.finPlazo = finPlazo;
         this.pagoConfirmado = null;
         campoMonto.setText(soles(cuota));
         comboMedio.setSelectedItem(MedioPago.EFECTIVO);
         campoOperacion.setText("");
-        campoFecha.setText(LocalDateTime.now().format(FORMATO_FECHA));
+        campoFecha.setText(Reloj.porDefecto().now().format(FORMATO_FECHA));
         mostrarComprobante(null);
         revisado.setSelected(false);
         campoMotivoAnulacion.setText("");
@@ -160,6 +182,10 @@ public class TarjetasPago extends JPanel {
             marcar(i, null);
         }
         panelAnulacion.setVisible(true);
+    }
+
+    public void avisar(String texto) {
+        mostrarMensaje(texto, true);
     }
 
     public void bloquear(String motivo) {
@@ -213,7 +239,7 @@ public class TarjetasPago extends JPanel {
 
         JLabel nota = new JLabel("Número de operación obligatorio salvo efectivo."
                 + " Cada pago conserva su monto aplicado.");
-        nota.setFont(Estilos.fuente(Font.PLAIN, 12));
+        nota.setFont(Estilos.nota());
         nota.setForeground(Estilos.SECUNDARIO);
         c.gridy = 5;
         c.weighty = 1;
@@ -300,8 +326,8 @@ public class TarjetasPago extends JPanel {
     private JPanel crearAviso() {
         Estilos.aviso(aviso, Estilos.ALERTA);
         aviso.setLayout(new BorderLayout(0, 2));
-        tituloAviso.setFont(Estilos.fuente(Font.BOLD, 14));
-        detalleAviso.setFont(Estilos.fuente(Font.PLAIN, 12));
+        tituloAviso.setFont(Estilos.contenidoDestacado());
+        detalleAviso.setFont(Estilos.nota());
         detalleAviso.setForeground(Estilos.SECUNDARIO);
         aviso.add(tituloAviso, BorderLayout.NORTH);
         aviso.add(detalleAviso, BorderLayout.CENTER);
@@ -326,7 +352,7 @@ public class TarjetasPago extends JPanel {
             items[i].setName(textos[i]);
             items[i].setFont(Estilos.contenido());
             motivos[i] = new JLabel(" ");
-            motivos[i].setFont(Estilos.fuente(Font.PLAIN, 12));
+            motivos[i].setFont(Estilos.nota());
             motivos[i].setForeground(Estilos.TEXTO_ALERTA);
             c.gridy++;
             c.insets = new Insets(0, 0, 0, 0);
@@ -350,13 +376,18 @@ public class TarjetasPago extends JPanel {
         c.gridy++;
         tarjeta.add(crearAnulacion(), c);
 
-        mensaje.setFont(Estilos.fuente(Font.PLAIN, 13));
+        mensaje.setFont(Estilos.detalle());
         c.gridy++;
         tarjeta.add(mensaje, c);
 
         c.gridy++;
         c.insets = new Insets(10, 0, 0, 0);
         tarjeta.add(crearBoleta(), c);
+
+        cierre.setOpaque(false);
+        c.gridy++;
+        c.insets = new Insets(14, 0, 0, 0);
+        tarjeta.add(cierre, c);
 
         c.gridy++;
         c.weighty = 1;
@@ -395,7 +426,7 @@ public class TarjetasPago extends JPanel {
         c.weightx = 0;
         c.insets = new Insets(0, 0, 0, 0);
         boleta.add(botonBoleta, c);
-        mensajeBoleta.setFont(Estilos.fuente(Font.PLAIN, 13));
+        mensajeBoleta.setFont(Estilos.detalle());
         c.gridx = 0;
         c.gridy = 2;
         c.gridwidth = 2;
@@ -483,7 +514,7 @@ public class TarjetasPago extends JPanel {
         } catch (DateTimeParseException e) {
             return "Use el formato dd/mm/aaaa hh:mm.";
         }
-        if (fecha.isAfter(LocalDateTime.now())) {
+        if (fecha.isAfter(Reloj.porDefecto().now())) {
             return "La operación no puede ser futura.";
         }
         if (fecha.isBefore(inicioPlazo)) {
@@ -535,7 +566,7 @@ public class TarjetasPago extends JPanel {
         }
         try {
             accionAnular.anular(pagoConfirmado, campoMotivoAnulacion.getText(),
-                    campoResponsableAnulacion.getText(), LocalDateTime.now());
+                    campoResponsableAnulacion.getText(), Reloj.porDefecto().now());
             mostrarMensaje("Pago anulado; se conservó su auditoría y el formulario fue actualizado.",
                     false);
         } catch (ReglaDominioException e) {
@@ -590,7 +621,9 @@ public class TarjetasPago extends JPanel {
         return tarjeta;
     }
 
-    private static JTextArea textoAjustable() {
+    // Dentro de un JScrollPane, setText mueve el cursor de texto y desplaza la pantalla
+    // hasta él: estos textos son solo de lectura y no deben arrastrar la vista.
+    static JTextArea textoAjustable() {
         JTextArea texto = new JTextArea(" ");
         texto.setEditable(false);
         texto.setFocusable(false);
@@ -598,6 +631,7 @@ public class TarjetasPago extends JPanel {
         texto.setLineWrap(true);
         texto.setWrapStyleWord(true);
         texto.setBorder(null);
+        ((DefaultCaret) texto.getCaret()).setUpdatePolicy(DefaultCaret.NEVER_UPDATE);
         return texto;
     }
 

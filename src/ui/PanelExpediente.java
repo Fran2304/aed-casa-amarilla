@@ -14,6 +14,7 @@ import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import util.Reloj;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -39,6 +40,7 @@ import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 
 import datos.ArregloEntrevistas;
+import datos.ArregloMatriculas;
 import datos.ArregloSolicitudes;
 import modelo.Apoderado;
 import modelo.DatoInvalidoException;
@@ -51,12 +53,12 @@ import modelo.ResultadoEntrevista;
 import modelo.Solicitud;
 import negocio.ExpedienteDocumentos;
 import negocio.Turnos;
+import negocio.Vencimientos;
 import util.FormatoFecha;
 
 public class PanelExpediente extends JPanel {
 
     private static final DateTimeFormatter FORMATO_FECHA = TarjetasPago.FORMATO_FECHA;
-    private static final String RESPONSABLE_VENCIMIENTOS = "Sistema";
 
     private static final String SIN_DATO = "—";
 
@@ -66,6 +68,7 @@ public class PanelExpediente extends JPanel {
 
     private final ArregloSolicitudes solicitudes;
     private final ArregloEntrevistas entrevistas;
+    private final ArregloMatriculas matriculas;
 
     private Solicitud actual;
     private boolean llenandoLista;
@@ -114,10 +117,12 @@ public class PanelExpediente extends JPanel {
             Estilos.campo(new JComboBox<ResultadoEntrevista>(ResultadoEntrevista.values()));
     private final JButton botonResultado = Estilos.botonPrimario("Registrar resultado");
 
-    public PanelExpediente(ArregloSolicitudes solicitudes, ArregloEntrevistas entrevistas) {
+    public PanelExpediente(ArregloSolicitudes solicitudes, ArregloEntrevistas entrevistas,
+            ArregloMatriculas matriculas) {
         super(new BorderLayout(0, 20));
         this.solicitudes = solicitudes;
         this.entrevistas = entrevistas;
+        this.matriculas = matriculas;
         setBorder(Estilos.MARGEN_PANTALLA);
 
         add(crearEncabezado(), BorderLayout.NORTH);
@@ -153,7 +158,7 @@ public class PanelExpediente extends JPanel {
         addComponentListener(new ComponentAdapter() {
             @Override
             public void componentShown(ComponentEvent e) {
-                campoFechaDocumento.setText(LocalDateTime.now().format(FORMATO_FECHA));
+                campoFechaDocumento.setText(Reloj.porDefecto().now().format(FORMATO_FECHA));
                 recargarLista();
             }
         });
@@ -417,7 +422,7 @@ public class PanelExpediente extends JPanel {
     private void abrir(Solicitud solicitud) {
         if (solicitud != actual) {
             mostrarMensaje(" ", false);
-            campoFechaDocumento.setText(LocalDateTime.now().format(FORMATO_FECHA));
+            campoFechaDocumento.setText(Reloj.porDefecto().now().format(FORMATO_FECHA));
             campoFechaEntrevista.setText("");
             campoPersonal.setText("");
             tablaDocumentos.clearSelection();
@@ -434,7 +439,12 @@ public class PanelExpediente extends JPanel {
 
     private void revisarVencimientos() {
         try {
-            solicitudes.cancelarDocumentacionVencida(LocalDate.now(), RESPONSABLE_VENCIMIENTOS);
+            ArrayList<String> avisos = Vencimientos.revisar(Reloj.porDefecto().now(), solicitudes,
+                    matriculas);
+            if (!avisos.isEmpty()) {
+                mostrarMensaje("Revisión de vencimientos incompleta: "
+                        + Vencimientos.unir(avisos), true);
+            }
         } catch (ReglaDominioException e) {
             mostrarMensaje(e.getMessage(), true);
         }
@@ -805,7 +815,7 @@ public class PanelExpediente extends JPanel {
         Entrevista entrevista = entrevistas.buscarDe(actual);
         ResultadoEntrevista resultado = (ResultadoEntrevista) comboResultado.getSelectedItem();
         ejecutar(() -> entrevista.registrarResultado(resultado,
-                Turnos.fechaAlFinalFavorable(actual, LocalDateTime.now(), solicitudes)),
+                Turnos.fechaAlFinalFavorable(actual, Reloj.porDefecto().now(), solicitudes)),
                 "Resultado " + resultado + " registrado.");
     }
 
@@ -820,7 +830,7 @@ public class PanelExpediente extends JPanel {
         try {
             accion.ejecutar();
             mostrarMensaje(exito, false);
-            campoFechaDocumento.setText(LocalDateTime.now().format(FORMATO_FECHA));
+            campoFechaDocumento.setText(Reloj.porDefecto().now().format(FORMATO_FECHA));
         } catch (ReglaDominioException e) {
             mostrarMensaje(e.getMessage(), true);
         }
@@ -835,7 +845,7 @@ public class PanelExpediente extends JPanel {
         } catch (DateTimeParseException e) {
             throw new DatoInvalidoException("Use el formato dd/mm/aaaa hh:mm.");
         }
-        LocalDateTime ahora = LocalDateTime.now();
+        LocalDateTime ahora = Reloj.porDefecto().now();
         if (futura && !fecha.isAfter(ahora)) {
             throw new DatoInvalidoException("La cita debe ser en una fecha futura.");
         }

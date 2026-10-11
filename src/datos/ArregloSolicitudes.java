@@ -12,6 +12,7 @@ import modelo.ReglaDominioException;
 import modelo.Solicitud;
 import modelo.SolicitudDuplicadaException;
 import util.FechasAdmision;
+import util.Reloj;
 
 public class ArregloSolicitudes {
 
@@ -25,15 +26,13 @@ public class ArregloSolicitudes {
         siguienteNumero = PRIMER_NUMERO;
     }
 
-    // Las validaciones van en el orden del flujo (§4.1): si fallan varias,
-    // el personal ve primero la que corresponde corregir antes.
     public Solicitud registrar(Alumno alumno, Aula aula) throws ReglaDominioException {
         exigirAlumnoYAula(alumno, aula);
         alumno.validarApoderados();
         exigirAdmisible(alumno, aula);
 
         Solicitud nueva = new Solicitud("SOL-" + siguienteNumero, alumno, aula,
-                LocalDateTime.now());
+                Reloj.porDefecto().now());
         solicitudes.add(nueva);
         siguienteNumero++;
         return nueva;

@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.Locale;
 
 import negocio.Transiciones;
+import util.FormatoFecha;
 
 public class Pago {
 
@@ -115,19 +116,22 @@ public class Pago {
                 throw new ReglaDominioException(solicitud.getCodigo() + " está en " + estado
                         + " y no está habilitada para pagar la inscripción.");
             }
-            if (fechaHoraOperacion.isBefore(solicitud.getFechaHabilitacion())) {
+            if (fechaHoraOperacion.isBefore(FormatoFecha.alMinuto(
+                    solicitud.getFechaHabilitacion()))) {
                 throw new ReglaDominioException("La operación es anterior a la habilitación"
                         + " de " + solicitud.getCodigo() + " ("
-                        + solicitud.getFechaHabilitacion() + ").");
+                        + FormatoFecha.fechaHora(solicitud.getFechaHabilitacion()) + ").");
             }
             if (solicitud.habilitacionVencida(fechaHoraOperacion)) {
                 throw new ReglaDominioException("La habilitación de " + solicitud.getCodigo()
-                        + " venció el " + solicitud.getVencimientoHabilitacion() + ".");
+                        + " venció el "
+                        + FormatoFecha.fechaHora(solicitud.getVencimientoHabilitacion()) + ".");
             }
             if (solicitud.habilitacionVencida(fechaHoraRegistro)) {
                 throw new ReglaDominioException("El pago se presentó después del vencimiento"
                         + " de la habilitación de " + solicitud.getCodigo() + " ("
-                        + solicitud.getVencimientoHabilitacion() + ").");
+                        + FormatoFecha.fechaHora(solicitud.getVencimientoHabilitacion())
+                        + ").");
             }
             return;
         }
@@ -140,13 +144,21 @@ public class Pago {
             throw new ReglaDominioException(solicitud.getCodigo() + " está en " + estado
                 + " y no puede pagar la matrícula.");
         }
+        if (fechaHoraOperacion.isBefore(FormatoFecha.alMinuto(
+                matricula.getFechaHoraCreacion()))) {
+            throw new ReglaDominioException("La operación es anterior a la creación de la"
+                    + " matrícula " + matricula.getCodigo() + " ("
+                    + FormatoFecha.fechaHora(matricula.getFechaHoraCreacion()) + ").");
+        }
         if (matricula.pagoOriginalVencido(fechaHoraOperacion)) {
             throw new ReglaDominioException("La operación del pago de matrícula ocurre en o después"
-                    + " del vencimiento original " + matricula.getVencimientoPagoOriginal() + ".");
+                    + " del vencimiento original "
+                    + FormatoFecha.fechaHora(matricula.getVencimientoPagoOriginal()) + ".");
         }
         if (matricula.pagoOriginalVencido(fechaHoraRegistro)) {
             throw new ReglaDominioException("El registro del pago de matrícula ocurre en o después"
-                    + " del vencimiento original " + matricula.getVencimientoPagoOriginal() + ".");
+                    + " del vencimiento original "
+                    + FormatoFecha.fechaHora(matricula.getVencimientoPagoOriginal()) + ".");
         }
     }
 

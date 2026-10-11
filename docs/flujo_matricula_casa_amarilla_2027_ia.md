@@ -73,6 +73,10 @@ El PDF no nombra todos los estados intermedios de la solicitud. No asignarles no
 
 ### 4.2. Vacantes, prioridad y espera sin pago
 
+~~Las vacantes y prioridades solo se revisan durante la operación que las solicita.~~
+**Resuelto (issue #27):** el motor global `Vencimientos` barre habilitaciones,
+documentación y matrículas vencidas al arrancar y antes de calcular turnos o vacantes.
+
 ```text
 vacantes = capacidad_del_aula
          - cantidad_de_matriculas_del_aula_en(PENDIENTE_PAGO, ACTIVA)
@@ -111,6 +115,9 @@ vacantes = capacidad_del_aula
 
 ### 4.4. Documentos
 
+~~El vencimiento documental depende de la sesión abierta.~~ **Resuelto (issue #27):**
+se usa el `Reloj` global inyectable y la fecha exacta de entrega o corrección es el límite.
+
 **Requeridos:** DNI del alumno, DNI del apoderado principal, partida de nacimiento y carné de vacunas.
 
 - Desde la confirmación de la inscripción, el apoderado tiene **7 días calendario** para entregar los cuatro documentos.
@@ -141,6 +148,10 @@ Un alumno solo puede tener una matrícula `PENDIENTE_PAGO` o `ACTIVA` a la vez. 
 
 ### 4.7. Pago de matrícula y cierre
 
+~~Una matrícula sin pago se revisa únicamente al intentar pagar.~~ **Resuelto (issue #27):**
+`Vencimientos` cancela las matrículas `PENDIENTE_PAGO` vencidas al arrancar y en los
+bordes pre-vacantes, con responsable de auditoría `Motor de vencimientos`.
+
 - El apoderado debe realizar el pago dentro de las primeras **72 horas corridas desde la creación** de la matrícula.
 - Verificar concepto, monto, medio de pago, fecha real de la operación y número de operación cuando corresponda.
 - Si el pago es válido y la operación ocurrió dentro de las primeras 72 horas, pasar la matrícula a `ACTIVA`. No descontar otra vacante: ya estaba reservada.
@@ -148,6 +159,10 @@ Un alumno solo puede tener una matrícula `PENDIENTE_PAGO` o `ACTIVA` a la vez. 
 - Un pago `CONFIRMADO` no se edita. Si se anula por error de registro, devolver la matrícula a `PENDIENTE_PAGO` y reevaluar los plazos originales antes de mantener la reserva.
 
 ### 4.8. Reglas comunes de pagos y vencimientos
+
+~~Cada pantalla obtiene la hora del sistema por separado.~~ **Resuelto (issue #27):**
+`Reloj` es la única fuente global de hora; `Vencimientos.proximos` ofrece una consulta
+de negocio de los vencimientos dentro de las próximas 24 horas, sin panel de inicio.
 
 - Medios admitidos para ambos pagos: **efectivo, transferencia, tarjeta, Yape y Plin**.
 - El número de operación es obligatorio excepto para efectivo.
@@ -172,6 +187,10 @@ Un alumno solo puede tener una matrícula `PENDIENTE_PAGO` o `ACTIVA` a la vez. 
 | Documentos validados, entrevista favorable y vacante | Crear matrícula `PENDIENTE_PAGO`; reservar una vacante. |
 | Pago de matrícula válido dentro de 72 h | Matrícula `ACTIVA`; sin descuento adicional de vacante. |
 | Más de 72 h sin pago de matrícula registrado | Matrícula `CANCELADA`; liberar vacante; solicitud al final de espera favorable. |
+
+**Resuelto (issue #27):** la consulta de próximos vencimientos devuelve código de solicitud,
+alumno, tipo y fecha para habilitaciones, entrega/corrección documental y matrícula; no se
+añade una pantalla de operaciones.
 
 ## 6. Pendiente de definición o aclaración
 

@@ -4,6 +4,7 @@ import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,32 +13,33 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 
 import datos.ArregloAlumnos;
 import datos.ArregloApoderados;
 import datos.ArregloAulas;
 import datos.ArregloEntrevistas;
+import datos.ArregloMatriculas;
 import datos.ArregloPagos;
 import datos.ArregloSolicitudes;
 import modelo.ConfiguracionCuotas;
-import modelo.Matricula;
+import modelo.ReglaDominioException;
+import negocio.Vencimientos;
+import util.Reloj;
 
 public class PrincipalUI extends JFrame {
 
-    public static final String INICIO = "INICIO";
     public static final String SOLICITUDES = "SOLICITUDES";
     public static final String COLAS = "COLAS";
     public static final String EXPEDIENTE = "EXPEDIENTE";
     public static final String PAGOS = "PAGOS";
-    public static final String HISTORIAL = "HISTORIAL";
     public static final String CUOTAS = "CUOTAS";
 
     private final CardLayout tarjetas = new CardLayout();
     private final JPanel panelCentral = new JPanel(tarjetas);
     private final List<BotonMenu> botonesMenu = new ArrayList<>();
-    // Una sola lista de aulas para toda la app: los paneles la piden con getAulas()
-    // en vez de crear la suya y quedar desincronizados.
     private final ArregloAulas aulas = new ArregloAulas();
     private final ArregloSolicitudes solicitudes = new ArregloSolicitudes();
     private final ArregloAlumnos alumnos = new ArregloAlumnos();
@@ -45,23 +47,28 @@ public class PrincipalUI extends JFrame {
     private final ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
     private final ArregloPagos pagos = new ArregloPagos();
     private final ArregloEntrevistas entrevistas = new ArregloEntrevistas();
-    private final ArrayList<Matricula> matriculas = new ArrayList<Matricula>();
+    private final ArregloMatriculas matriculas = new ArregloMatriculas();
 
     public PrincipalUI() {
         super("La Casa Amarilla · Matrícula 2027");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        // El diseño es de 1440×900, pero muchas laptops del equipo son de 1366×768:
-        // se abre maximizada y el panel central absorbe la diferencia.
         setMinimumSize(new Dimension(1280, 720));
         setLocationRelativeTo(null);
         setExtendedState(JFrame.MAXIMIZED_BOTH);
+
+        revisarVencimientos();
 
         setLayout(new BorderLayout());
         add(crearCabecera(), BorderLayout.NORTH);
         add(crearLateral(), BorderLayout.WEST);
         add(crearCentro(), BorderLayout.CENTER);
 
-        mostrar(INICIO);
+        try {
+            Vencimientos.barrer(Reloj.porDefecto(), aulas, solicitudes, matriculas, pagos, cuotas);
+        } catch (Exception e) {
+            throw new IllegalStateException("No se pudieron procesar los vencimientos al iniciar.", e);
+        }
+        mostrar(SOLICITUDES);
     }
 
     public void mostrar(String nombrePanel) {
@@ -70,6 +77,25 @@ public class PrincipalUI extends JFrame {
             boolean esElActual = boton.getNombrePanel().equals(nombrePanel);
             boton.setSeleccionado(esElActual);
         }
+    }
+
+    // El cierre de la aplicación no suspende los plazos (§4.8): al abrir se revisan las
+    // fechas guardadas, porque no hay un temporizador corriendo.
+    public void revisarVencimientos() {
+        String problema;
+        try {
+            ArrayList<String> avisos = Vencimientos.revisar(Reloj.porDefecto().now(), solicitudes,
+                    matriculas);
+            if (avisos.isEmpty()) {
+                return;
+            }
+            problema = Vencimientos.unir(avisos);
+        } catch (ReglaDominioException e) {
+            problema = e.getMessage();
+        }
+        String mensaje = problema;
+        SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, mensaje,
+                "Revisión de vencimientos", JOptionPane.WARNING_MESSAGE));
     }
 
     public ArregloAulas getAulas() {
@@ -100,7 +126,7 @@ public class PrincipalUI extends JFrame {
         return entrevistas;
     }
 
-    public ArrayList<Matricula> getMatriculas() {
+    public ArregloMatriculas getMatriculas() {
         return matriculas;
     }
 
@@ -134,12 +160,10 @@ public class PrincipalUI extends JFrame {
         seccion.setBorder(BorderFactory.createEmptyBorder(30, 24, 16, 24));
         lateral.add(seccion);
 
-        agregarBotonMenu(lateral, "Inicio", INICIO);
         agregarBotonMenu(lateral, "Solicitudes", SOLICITUDES);
         agregarBotonMenu(lateral, "Colas y vacantes", COLAS);
         agregarBotonMenu(lateral, "Expediente", EXPEDIENTE);
         agregarBotonMenu(lateral, "Pagos y matrículas", PAGOS);
-        agregarBotonMenu(lateral, "Historial", HISTORIAL);
         agregarBotonMenu(lateral, "Cuotas 2027", CUOTAS);
 
         lateral.add(Box.createVerticalGlue());
@@ -154,13 +178,11 @@ public class PrincipalUI extends JFrame {
     }
 
     private JPanel crearCentro() {
-        agregarPanel(new PanelInicio(this), INICIO);
         agregarPanel(new PanelSolicitudes(aulas, solicitudes, alumnos, apoderados, matriculas),
                 SOLICITUDES);
         agregarPanel(new PanelColas(), COLAS);
-        agregarPanel(new PanelExpediente(solicitudes, entrevistas), EXPEDIENTE);
+        agregarPanel(new PanelExpediente(solicitudes, entrevistas, matriculas), EXPEDIENTE);
         agregarPanel(new PanelPagos(solicitudes, pagos, matriculas, cuotas), PAGOS);
-        agregarPanel(new PanelHistorial(), HISTORIAL);
         agregarPanel(new PanelCuotas(cuotas), CUOTAS);
         return panelCentral;
     }

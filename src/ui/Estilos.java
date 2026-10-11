@@ -17,6 +17,7 @@ import javax.swing.border.AbstractBorder;
 import javax.swing.border.Border;
 
 import modelo.EstadoDocumento;
+import modelo.EstadoMatricula;
 import modelo.EstadoSolicitud;
 
 public final class Estilos {
@@ -48,6 +49,10 @@ public final class Estilos {
     public static final Border MARGEN_CABECERA_TABLA =
             BorderFactory.createEmptyBorder(16, 14, 16, 14);
     private static final Border RELLENO_TARJETA = BorderFactory.createEmptyBorder(8, 8, 8, 8);
+    public static final Border MARGEN_FRANJA = BorderFactory.createEmptyBorder(14, 18, 14, 18);
+    // El ajuste de línea mide un poco menos de lo que pinta la fuente con escalado:
+    // este margen derecho evita que se corte la última letra de cada renglón.
+    public static final Border MARGEN_TEXTO_AJUSTADO = BorderFactory.createEmptyBorder(0, 0, 0, 8);
 
     private Estilos() {
     }
@@ -94,6 +99,10 @@ public final class Estilos {
 
     public static Font etiqueta() {
         return fuente(Font.BOLD, 13);
+    }
+
+    public static Font nota() {
+        return fuente(Font.PLAIN, 12);
     }
 
     public static Font fuente(int estilo, int tamano) {
@@ -190,31 +199,52 @@ public final class Estilos {
     }
 
     public static JLabel chip(EstadoSolicitud estado) {
-        JLabel chip = new JLabel(textoEstado(estado));
-        chip.setFont(fuente(Font.BOLD, 13));
-        chip.setOpaque(true);
-        chip.setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
+        String texto = textoEstado(estado);
         if (estado == EstadoSolicitud.EN_ESPERA_FAVORABLE) {
-            chip.setBackground(FAVORABLE);
-            chip.setForeground(TEXTO_PRINCIPAL);
-        } else if (estado == EstadoSolicitud.CANCELADA || estado == EstadoSolicitud.RECHAZADA) {
-            chip.setBackground(ALERTA);
-            chip.setForeground(TEXTO_ALERTA);
-        } else {
-            chip.setBackground(ESPERA);
-            chip.setForeground(TEXTO_ESPERA);
+            return chip(texto, FAVORABLE, TEXTO_PRINCIPAL);
         }
-        return chip;
+        if (estado == EstadoSolicitud.CANCELADA || estado == EstadoSolicitud.RECHAZADA) {
+            return chip(texto, ALERTA, TEXTO_ALERTA);
+        }
+        return chip(texto, ESPERA, TEXTO_ESPERA);
     }
 
     public static JLabel chip(String texto) {
+        return chip(texto, ESPERA, TEXTO_ESPERA);
+    }
+
+    public static JLabel chip(EstadoMatricula estado) {
+        return chip(textoEstado(estado), colorFondo(estado), colorTexto(estado));
+    }
+
+    private static JLabel chip(String texto, Color fondo, Color frente) {
         JLabel chip = new JLabel(texto);
         chip.setFont(fuente(Font.BOLD, 13));
         chip.setOpaque(true);
-        chip.setBackground(ESPERA);
-        chip.setForeground(TEXTO_ESPERA);
+        chip.setBackground(fondo);
+        chip.setForeground(frente);
         chip.setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
         return chip;
+    }
+
+    public static Color colorFondo(EstadoMatricula estado) {
+        if (estado == EstadoMatricula.ACTIVA) {
+            return FAVORABLE;
+        }
+        if (estado == EstadoMatricula.CANCELADA) {
+            return ALERTA;
+        }
+        return ESPERA;
+    }
+
+    public static Color colorTexto(EstadoMatricula estado) {
+        if (estado == EstadoMatricula.ACTIVA) {
+            return BOTON_PRINCIPAL;
+        }
+        if (estado == EstadoMatricula.CANCELADA) {
+            return TEXTO_ALERTA;
+        }
+        return TEXTO_ESPERA;
     }
 
     public static Color colorTexto(EstadoDocumento estado) {
@@ -230,7 +260,7 @@ public final class Estilos {
         return SECUNDARIO;
     }
 
-    private static String textoEstado(EstadoSolicitud estado) {
+    private static String textoEstado(Enum<?> estado) {
         return estado.name().replace('_', ' ');
     }
 

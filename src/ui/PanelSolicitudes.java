@@ -40,6 +40,7 @@ import javax.swing.event.DocumentListener;
 import datos.ArregloAlumnos;
 import datos.ArregloApoderados;
 import datos.ArregloAulas;
+import datos.ArregloMatriculas;
 import datos.ArregloSolicitudes;
 import modelo.Alumno;
 import modelo.Apoderado;
@@ -47,7 +48,6 @@ import modelo.ApoderadoDuplicadoException;
 import modelo.Aula;
 import modelo.DatoInvalidoException;
 import modelo.EstadoSolicitud;
-import modelo.Matricula;
 import modelo.ReglaDominioException;
 import modelo.Solicitud;
 import modelo.Validaciones;
@@ -70,7 +70,7 @@ public class PanelSolicitudes extends JPanel {
     private final ArregloSolicitudes solicitudes;
     private final ArregloAlumnos alumnos;
     private final ArregloApoderados apoderados;
-    private final ArrayList<Matricula> matriculas;
+    private final ArregloMatriculas matriculas;
 
     private final CardLayout vistas = new CardLayout();
     private final JPanel tarjetaIzquierda = Estilos.tarjeta(new JPanel(vistas));
@@ -119,7 +119,7 @@ public class PanelSolicitudes extends JPanel {
 
     public PanelSolicitudes(ArregloAulas aulas, ArregloSolicitudes solicitudes,
             ArregloAlumnos alumnos, ArregloApoderados apoderados,
-            ArrayList<Matricula> matriculas) {
+            ArregloMatriculas matriculas) {
         super(new BorderLayout(0, 20));
         this.aulas = aulas;
         this.solicitudes = solicitudes;
