@@ -1,9 +1,9 @@
 package ui;
 
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.awt.Font;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -14,14 +14,19 @@ import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
+import datos.ArregloMatriculas;
 import datos.ArregloPagos;
 import datos.ArregloSolicitudes;
-import modelo.ConceptoPago;
+import modelo.Apoderado;
 import modelo.ConfiguracionCuotas;
+import modelo.EstadoMatricula;
 import modelo.EstadoSolicitud;
 import modelo.Matricula;
 import modelo.MedioPago;
@@ -36,37 +41,66 @@ import util.Reloj;
 public class PanelPagos extends JPanel {
 
     private static final DateTimeFormatter FORMATO_DIA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final String VISTA_INSCRIPCION = "INSCRIPCION";
+    private static final String VISTA_MATRICULA = "MATRICULA";
 
     private final ArregloSolicitudes solicitudes;
     private final ArregloPagos pagos;
-    private final ArrayList<Matricula> matriculas;
+    private final ArregloMatriculas matriculas;
     private final ConfiguracionCuotas cuotas;
 
     private Solicitud actual;
+    private Matricula matriculaActual;
+    private String codigoBuscado;
 
     private final JTextField campoCodigo = Estilos.campo(new JTextField(12));
     private final JPanel resumen = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+    private final CardLayout cambioVista = new CardLayout();
+    private final JPanel vistas = new JPanel(cambioVista);
     private final TarjetasPago tarjetas;
+    private final TarjetasPago tarjetasMatricula;
+
+    private final JPanel franja = new JPanel(new BorderLayout(24, 4));
+    private final JLabel tituloFranja = new JLabel(" ");
+    private final JLabel detalleFranja = new JLabel(" ");
+    private final JLabel reservaFranja = new JLabel(" ");
+    private final JPanel vencimiento = new JPanel(new BorderLayout(0, 4));
+    private final JLabel tituloVencimiento = new JLabel(" ");
+    private final JTextArea detalleVencimiento = TarjetasPago.textoAjustable();
+    private final JScrollPane desplazable;
 
     public PanelPagos(ArregloSolicitudes solicitudes, ArregloPagos pagos,
-            ArrayList<Matricula> matriculas, ConfiguracionCuotas cuotas) {
+            ArregloMatriculas matriculas, ConfiguracionCuotas cuotas) {
         super(new BorderLayout(0, 20));
         this.solicitudes = solicitudes;
         this.pagos = pagos;
         this.matriculas = matriculas;
         this.cuotas = cuotas;
-        setBorder(BorderFactory.createEmptyBorder(32, 32, 32, 34));
+        setBorder(Estilos.MARGEN_PANTALLA);
 
         tarjetas = new TarjetasPago("Pago de inscripción · comprobante recibido",
                 "Inscripción 2027", "Confirmar pago → EN_DOCUMENTACION",
                 "Fecha real dentro de la habilitación (48 h)", this::confirmar);
         tarjetas.configurarAnulacion(this::anular);
+        tarjetasMatricula = new TarjetasPago("Pago de matrícula · comprobante recibido",
+                "Matrícula 2027", "Confirmar pago → ACTIVA", "Fecha real dentro de 72 h",
+                this::confirmarMatricula);
+        tarjetasMatricula.configurarAnulacion(this::anular);
 
         add(crearEncabezado(), BorderLayout.NORTH);
-        JPanel centro = new JPanel(new BorderLayout());
-        centro.setOpaque(false);
-        centro.add(tarjetas, BorderLayout.NORTH);
-        add(centro, BorderLayout.CENTER);
+        vistas.setOpaque(false);
+        vistas.add(arriba(tarjetas), VISTA_INSCRIPCION);
+        vistas.add(crearVistaMatricula(), VISTA_MATRICULA);
+        // La franja de la matrícula suma alto a las tarjetas de pago: sin desplazamiento,
+        // la tarjeta de vencimiento se corta en pantallas de 768 px.
+        PanelAncho envoltura = new PanelAncho();
+        envoltura.add(vistas, BorderLayout.NORTH);
+        desplazable = new JScrollPane(envoltura);
+        desplazable.setBorder(null);
+        desplazable.setOpaque(false);
+        desplazable.getViewport().setOpaque(false);
+        desplazable.getVerticalScrollBar().setUnitIncrement(16);
+        add(desplazable, BorderLayout.CENTER);
     }
 
     private JPanel crearEncabezado() {
@@ -85,7 +119,7 @@ public class PanelPagos extends JPanel {
         JPanel buscador = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         buscador.setOpaque(false);
         buscador.setAlignmentX(LEFT_ALIGNMENT);
-        buscador.add(Estilos.etiquetaCampo("Código de solicitud"));
+        buscador.add(Estilos.etiquetaCampo("Código de solicitud o matrícula"));
         buscador.add(Box.createHorizontalStrut(12));
         buscador.add(campoCodigo);
         buscador.add(Box.createHorizontalStrut(10));
@@ -118,55 +152,110 @@ public class PanelPagos extends JPanel {
         return encabezado;
     }
 
+    private JPanel crearVistaMatricula() {
+        tituloFranja.setFont(Estilos.datoDestacado());
+        detalleFranja.setFont(Estilos.contenido());
+        detalleFranja.setForeground(Estilos.TEXTO_PRINCIPAL);
+        reservaFranja.setFont(Estilos.datoDestacado());
+        JPanel textos = new JPanel(new BorderLayout(0, 6));
+        textos.setOpaque(false);
+        textos.add(tituloFranja, BorderLayout.NORTH);
+        textos.add(detalleFranja, BorderLayout.CENTER);
+        franja.add(textos, BorderLayout.CENTER);
+        franja.add(reservaFranja, BorderLayout.EAST);
+
+        tituloVencimiento.setFont(Estilos.etiqueta());
+        tituloVencimiento.setForeground(Estilos.TEXTO_ALERTA);
+        detalleVencimiento.setFont(Estilos.detalle());
+        detalleVencimiento.setForeground(Estilos.TEXTO_PRINCIPAL);
+        detalleVencimiento.setBorder(Estilos.MARGEN_TEXTO_AJUSTADO);
+        Estilos.aviso(vencimiento, Estilos.ALERTA);
+        vencimiento.add(tituloVencimiento, BorderLayout.NORTH);
+        vencimiento.add(detalleVencimiento, BorderLayout.CENTER);
+
+        JLabel nota = new JLabel("Un pago confirmado no se edita: su anulación retorna a"
+                + " PENDIENTE_PAGO y reevalúa el plazo original, sin reiniciarlo.");
+        nota.setFont(Estilos.nota());
+        nota.setForeground(Estilos.SECUNDARIO);
+
+        tarjetasMatricula.agregarAlCierre(vencimiento);
+
+        JPanel vista = new JPanel(new BorderLayout(0, 18));
+        vista.setOpaque(false);
+        vista.add(franja, BorderLayout.NORTH);
+        vista.add(tarjetasMatricula, BorderLayout.CENTER);
+        vista.add(nota, BorderLayout.SOUTH);
+        return arriba(vista);
+    }
+
+    private static JPanel arriba(JPanel contenido) {
+        JPanel contenedor = new JPanel(new BorderLayout());
+        contenedor.setOpaque(false);
+        contenedor.add(contenido, BorderLayout.NORTH);
+        return contenedor;
+    }
+
     private void descartarSiCambioCodigo() {
-        if (actual == null
-                || campoCodigo.getText().trim().equalsIgnoreCase(actual.getCodigo())) {
+        if (actual == null || campoCodigo.getText().trim().equalsIgnoreCase(codigoBuscado)) {
             return;
         }
         actual = null;
-        mostrarResumen(null);
+        matriculaActual = null;
+        mostrarResumen(null, null);
+        cambioVista.show(vistas, VISTA_INSCRIPCION);
         tarjetas.reiniciar();
     }
 
     private void buscar() {
-        LocalDateTime ahora = Reloj.porDefecto().now();
-        try {
-            Vencimientos.barrer(Reloj.porDefecto(), null, solicitudes, matriculas, pagos, cuotas);
-        } catch (ReglaDominioException e) {
-            tarjetas.bloquear(e.getMessage());
-            return;
-        }
+        SwingUtilities.invokeLater(() -> desplazable.getVerticalScrollBar().setValue(0));
         String codigo = campoCodigo.getText().trim().toUpperCase();
-        actual = solicitudes.buscar(codigo);
+        codigoBuscado = codigo;
+        matriculaActual = null;
+        Matricula buscada = buscarMatricula(codigo);
+        actual = buscada != null ? buscada.getSolicitud() : solicitudes.buscar(codigo);
+        cambioVista.show(vistas, VISTA_INSCRIPCION);
         if (actual == null) {
-            mostrarResumen(null);
-            tarjetas.bloquear("No existe la solicitud " + codigo + ".");
+            mostrarResumen(null, null);
+            tarjetas.bloquear("No existe la solicitud o matrícula " + codigo + ".");
             return;
         }
 
+        LocalDateTime ahora = Reloj.porDefecto().now();
+        LocalDateTime habilitacionVencida = actual.habilitacionVencida(ahora)
+                ? actual.getVencimientoHabilitacion()
+                : null;
+        ArrayList<String> avisos;
         try {
-            solicitudes.cancelarDocumentacionVencida(ahora.toLocalDate(), "Personal de caja");
+            avisos = Vencimientos.revisar(ahora, solicitudes, matriculas);
         } catch (ReglaDominioException e) {
-            mostrarResumen(actual);
+            mostrarResumen(actual, null);
             tarjetas.bloquear(e.getMessage());
             return;
         }
-        if (actual.habilitacionVencida(ahora)) {
-            LocalDateTime vencio = actual.getVencimientoHabilitacion();
-            String motivo = "La habilitación venció el " + vencio.format(TarjetasPago.FORMATO_FECHA)
-                    + "; la solicitud volvió al final de la cola sin pago.";
-            try {
-                solicitudes.vencerHabilitaciones(ahora);
-            } catch (ReglaDominioException e) {
-                motivo = e.getMessage();
-            }
-            mostrarResumen(actual);
-            tarjetas.bloquear(motivo);
+        mostrarBusqueda(buscada, habilitacionVencida, ahora);
+        if (!avisos.isEmpty()) {
+            TarjetasPago visible = matriculaActual != null ? tarjetasMatricula : tarjetas;
+            visible.avisar("Revisión de vencimientos incompleta: " + Vencimientos.unir(avisos));
+        }
+    }
+
+    private void mostrarBusqueda(Matricula buscada, LocalDateTime habilitacionVencida,
+            LocalDateTime ahora) {
+        Matricula matricula = buscada != null ? buscada : matriculas.ultimaDe(actual);
+        if (matricula != null) {
+            mostrarMatricula(matricula);
+            return;
+        }
+        if (habilitacionVencida != null) {
+            mostrarResumen(actual, null);
+            tarjetas.bloquear("La habilitación venció el "
+                    + habilitacionVencida.format(TarjetasPago.FORMATO_FECHA)
+                    + "; la solicitud volvió al final de la cola sin pago.");
             return;
         }
 
-        mostrarResumen(actual);
-        Pago confirmado = inscripcionConfirmada(actual);
+        mostrarResumen(actual, null);
+        Pago confirmado = pagos.inscripcionConfirmadaDe(actual);
         if (confirmado != null) {
             tarjetas.mostrarConfirmado(confirmado, detalleConfirmado(actual));
             return;
@@ -177,7 +266,7 @@ public class PanelPagos extends JPanel {
             return;
         }
         try {
-            Turnos.exigirTurno(actual, solicitudes, matriculas, ahora);
+            Turnos.exigirTurno(actual, solicitudes, matriculas);
         } catch (ReglaDominioException e) {
             tarjetas.bloquear(e.getMessage());
             return;
@@ -188,6 +277,88 @@ public class PanelPagos extends JPanel {
         }
         tarjetas.prepararPago(cuotas.getCuotaInscripcion(), inicio,
                 actual.getVencimientoHabilitacion());
+    }
+
+    private Matricula buscarMatricula(String codigo) {
+        if (!codigo.startsWith("MAT-")) {
+            return null;
+        }
+        try {
+            return matriculas.buscar(Integer.parseInt(codigo.substring(4)));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private void mostrarMatricula(Matricula matricula) {
+        matriculaActual = matricula;
+        mostrarResumen(matricula.getSolicitud(), matricula);
+        pintarFranja(matricula);
+        pintarVencimiento(matricula);
+        Pago confirmado = pagos.matriculaConfirmadaDe(matricula);
+        if (confirmado != null) {
+            tarjetasMatricula.mostrarConfirmado(confirmado, "Matrícula ACTIVA · mantiene la"
+                    + " vacante reservada en Aula " + matricula.getAula().getNombre() + ".");
+        } else if (matricula.getEstado() == EstadoMatricula.PENDIENTE_PAGO) {
+            tarjetasMatricula.prepararPago(cuotas.getCuotaMatricula(),
+                    matricula.getFechaHoraCreacion(), matricula.getVencimientoPagoOriginal());
+        } else {
+            String motivo = "La matrícula " + matricula.getCodigo() + " está "
+                    + matricula.getEstado() + " y no espera pago.";
+            Matricula vigente = matriculas.vigenteDe(matricula.getSolicitud());
+            if (vigente != null) {
+                motivo += " La solicitud tiene ahora " + vigente.getCodigo() + " ("
+                        + vigente.getEstado() + "); búscala para "
+                        + (vigente.getEstado() == EstadoMatricula.PENDIENTE_PAGO
+                                ? "registrar el pago." : "ver su pago.");
+            }
+            tarjetasMatricula.bloquear(motivo);
+        }
+        cambioVista.show(vistas, VISTA_MATRICULA);
+    }
+
+    private void pintarFranja(Matricula matricula) {
+        EstadoMatricula estado = matricula.getEstado();
+        Estilos.aviso(franja, Estilos.colorFondo(estado));
+        franja.setBorder(BorderFactory.createCompoundBorder(franja.getBorder(),
+                Estilos.MARGEN_FRANJA));
+        tituloFranja.setForeground(Estilos.colorTexto(estado));
+        tituloFranja.setText("MATRÍCULA: " + estado);
+        detalleFranja.setText("Creada "
+                + matricula.getFechaHoraCreacion().format(TarjetasPago.FORMATO_FECHA)
+                + "  →  pago hasta "
+                + matricula.getVencimientoPagoOriginal().format(TarjetasPago.FORMATO_FECHA)
+                + " (72 horas corridas)");
+        reservaFranja.setForeground(Estilos.colorTexto(estado));
+        if (estado == EstadoMatricula.PENDIENTE_PAGO) {
+            reservaFranja.setText("Reserva 1 vacante ahora");
+        } else if (estado == EstadoMatricula.ACTIVA) {
+            reservaFranja.setText("Vacante confirmada");
+        } else {
+            reservaFranja.setText("Vacante liberada");
+        }
+    }
+
+    private void pintarVencimiento(Matricula matricula) {
+        if (matricula.getEstado() == EstadoMatricula.ACTIVA) {
+            vencimiento.setVisible(false);
+            return;
+        }
+        if (matricula.getEstado() == EstadoMatricula.PENDIENTE_PAGO) {
+            tituloVencimiento.setText("SI VENCE SIN PAGO REGISTRADO");
+            detalleVencimiento.setText("Matrícula CANCELADA, libera vacante. Solicitud vuelve"
+                    + " al final de EN_ESPERA_FAVORABLE con nuevo ingreso; conserva inscripción"
+                    + " pagada.");
+        } else {
+            Solicitud solicitud = matricula.getSolicitud();
+            tituloVencimiento.setText("MATRÍCULA CANCELADA");
+            detalleVencimiento.setText(matricula.getMotivoCancelacion() + " · "
+                    + matricula.getFechaCancelacion().format(TarjetasPago.FORMATO_FECHA) + " · "
+                    + matricula.getResponsableCancelacion() + ". Vacante liberada; "
+                    + solicitud.getCodigo() + " está en " + solicitud.getEstado()
+                    + " y conserva la inscripción pagada.");
+        }
+        vencimiento.setVisible(true);
     }
 
     private void confirmar(double monto, MedioPago medio, String numeroOperacion,
@@ -205,8 +376,27 @@ public class PanelPagos extends JPanel {
             }
             throw e;
         }
-        mostrarResumen(actual);
+        mostrarResumen(actual, null);
         tarjetas.mostrarConfirmado(pago, detalleConfirmado(actual));
+    }
+
+    private void confirmarMatricula(double monto, MedioPago medio, String numeroOperacion,
+            LocalDateTime fechaOperacion, String rutaComprobantePago)
+            throws ReglaDominioException {
+        Matricula matricula = matriculaActual;
+        try {
+            Cobros.confirmarMatricula(matricula, monto, medio, numeroOperacion, fechaOperacion,
+                    rutaComprobantePago, Reloj.porDefecto().now(), solicitudes,
+                    matriculas, pagos, cuotas);
+        } catch (ReglaDominioException e) {
+            // Si el rechazo fue por vencimiento, la matrícula ya quedó CANCELADA:
+            // se repinta para que el personal vea el estado real junto al mensaje.
+            if (matricula.getEstado() != EstadoMatricula.PENDIENTE_PAGO) {
+                mostrarMatricula(matricula);
+            }
+            throw e;
+        }
+        mostrarMatricula(matricula);
     }
 
     private void anular(Pago pago, String motivo, String responsable, LocalDateTime fechaHora)
@@ -220,20 +410,11 @@ public class PanelPagos extends JPanel {
             return false;
         }
         try {
-            Turnos.exigirTurno(actual, solicitudes, matriculas, Reloj.porDefecto().now());
+            Turnos.exigirTurno(actual, solicitudes, matriculas);
             return true;
         } catch (ReglaDominioException e) {
             return false;
         }
-    }
-
-    private Pago inscripcionConfirmada(Solicitud solicitud) {
-        for (Pago pago : pagos.deSolicitud(solicitud)) {
-            if (pago.getConcepto() == ConceptoPago.INSCRIPCION && pago.estaConfirmado()) {
-                return pago;
-            }
-        }
-        return null;
     }
 
     private static String detalleConfirmado(Solicitud solicitud) {
@@ -248,16 +429,29 @@ public class PanelPagos extends JPanel {
                 + solicitud.getExpediente().fechaLimiteEntrega().format(FORMATO_DIA) + ".";
     }
 
-    private void mostrarResumen(Solicitud solicitud) {
+    private void mostrarResumen(Solicitud solicitud, Matricula matricula) {
         resumen.removeAll();
         if (solicitud != null) {
-            JLabel datos = new JLabel(solicitud.getAlumno().getNombreCompleto() + "  ·  "
-                    + solicitud.getCodigo() + "  ·  Aula " + solicitud.getAula().getNombre()
-                    + "     ");
-            datos.setFont(Estilos.fuente(Font.PLAIN, 15));
+            StringBuilder texto = new StringBuilder(solicitud.getAlumno().getNombreCompleto());
+            if (matricula != null) {
+                texto.append("  ·  ").append(matricula.getCodigo());
+            }
+            texto.append("  ·  ").append(solicitud.getCodigo()).append("  ·  Aula ")
+                    .append(solicitud.getAula().getNombre());
+            Apoderado responsable = solicitud.getAlumno().getPrincipal();
+            if (matricula != null && responsable != null) {
+                texto.append("  ·  Responsable de pago: ")
+                        .append(responsable.getNombreCompleto());
+            }
+            JLabel datos = new JLabel(texto + "     ");
+            datos.setFont(Estilos.dato());
             datos.setForeground(Estilos.TEXTO_PRINCIPAL);
             resumen.add(datos);
             resumen.add(Estilos.chip(solicitud.getEstado()));
+            if (matricula != null) {
+                resumen.add(Box.createHorizontalStrut(8));
+                resumen.add(Estilos.chip(matricula.getEstado()));
+            }
         }
         resumen.revalidate();
         resumen.repaint();

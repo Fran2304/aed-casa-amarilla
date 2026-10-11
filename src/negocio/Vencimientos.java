@@ -6,6 +6,7 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 
 import datos.ArregloAulas;
+import datos.ArregloMatriculas;
 import datos.ArregloPagos;
 import datos.ArregloSolicitudes;
 import modelo.ConfiguracionCuotas;
@@ -20,27 +21,32 @@ import util.Reloj;
 
 public final class Vencimientos {
 
+    // La matrícula la audita "Motor de vencimientos" (§4.7); la documentación conserva
+    // el responsable "Sistema" que ya usaba PanelExpediente (issue #23 no lo cambió).
     public static final String RESPONSABLE = "Motor de vencimientos";
+    public static final String RESPONSABLE_DOCUMENTACION = "Sistema";
+    public static final String MOTIVO_VENCIMIENTO = "Vencimiento de 72 h sin pago registrado";
     private static final int HORAS_PROXIMOS = 24;
 
     private Vencimientos() {
     }
 
+    /** Barrido global al arrancar y en los bordes pre-vacantes, con el reloj inyectable. */
     public static void barrer(Reloj reloj, ArregloAulas aulas, ArregloSolicitudes solicitudes,
-            ArrayList<Matricula> matriculas, ArregloPagos pagos, ConfiguracionCuotas cuotas)
+            ArregloMatriculas matriculas, ArregloPagos pagos, ConfiguracionCuotas cuotas)
             throws ReglaDominioException {
         if (reloj == null || solicitudes == null || matriculas == null || pagos == null) {
             throw new DatoInvalidoException("Los datos del motor de vencimientos son obligatorios.");
         }
         LocalDateTime ahora = reloj.now();
         solicitudes.vencerHabilitaciones(ahora);
-        solicitudes.cancelarDocumentacionVencida(reloj.fechaActual(), RESPONSABLE);
+        solicitudes.cancelarDocumentacionVencida(reloj.fechaActual(), RESPONSABLE_DOCUMENTACION);
         barrerMatriculas(ahora, solicitudes, matriculas, pagos);
     }
 
     static void barrerMatriculas(LocalDateTime ahora, ArregloSolicitudes solicitudes,
-            ArrayList<Matricula> matriculas, ArregloPagos pagos) throws ReglaDominioException {
-        for (Matricula matricula : new ArrayList<Matricula>(matriculas)) {
+            ArregloMatriculas matriculas, ArregloPagos pagos) throws ReglaDominioException {
+        for (Matricula matricula : matriculas.listar()) {
             if (matricula.getEstado() != EstadoMatricula.PENDIENTE_PAGO
                     || !matricula.pagoOriginalVencido(ahora)
                     || pagos.matriculaConfirmada(matricula)) {
@@ -50,18 +56,9 @@ public final class Vencimientos {
         }
     }
 
-    static void barrerMatriculas(LocalDateTime ahora, ArregloSolicitudes solicitudes,
-            ArrayList<Matricula> matriculas) throws ReglaDominioException {
-        for (Matricula matricula : new ArrayList<Matricula>(matriculas)) {
-            if (matricula.getEstado() == EstadoMatricula.PENDIENTE_PAGO
-                    && matricula.pagoOriginalVencido(ahora)) {
-                Cobros.cancelarMatriculaVencida(matricula.getSolicitud(), matricula, ahora, solicitudes);
-            }
-        }
-    }
-
+    /** Consulta de negocio de los vencimientos dentro de las próximas 24 horas. */
     public static ArrayList<Proximo> proximos(Reloj reloj, ArregloSolicitudes solicitudes,
-            ArrayList<Matricula> matriculas) throws ReglaDominioException {
+            ArregloMatriculas matriculas) throws ReglaDominioException {
         if (reloj == null || solicitudes == null || matriculas == null) {
             throw new DatoInvalidoException("Los datos de consulta son obligatorios.");
         }
@@ -87,7 +84,7 @@ public final class Vencimientos {
                 }
             }
         }
-        for (Matricula matricula : matriculas) {
+        for (Matricula matricula : matriculas.listar()) {
             if (matricula.getEstado() == EstadoMatricula.PENDIENTE_PAGO) {
                 agregarSiDentro(resultado, matricula.getSolicitud(), "MATRICULA",
                         matricula.getVencimientoPagoOriginal(), ahora, limite);
@@ -134,5 +131,63 @@ public final class Vencimientos {
         public int getCodigoAlumno() { return codigoAlumno; }
         public String getTipo() { return tipo; }
         public LocalDateTime getVencimiento() { return vencimiento; }
+    }
+
+    /**
+     * Revisión puntual en los bordes de negocio (pago, turno, oferta): barre los
+     * vencimientos y devuelve avisos en vez de lanzar, para que la pantalla los muestre.
+     */
+    public static ArrayList<String> revisar(LocalDateTime ahora, ArregloSolicitudes solicitudes,
+            ArregloMatriculas matriculas) throws DatoInvalidoException {
+        if (ahora == null) {
+            throw new DatoInvalidoException("La fecha de revisión es obligatoria.");
+        }
+        ArrayList<String> avisos = new ArrayList<String>();
+        cancelarMatriculasVencidas(ahora, solicitudes, matriculas, avisos);
+        try {
+            solicitudes.vencerHabilitaciones(ahora);
+        } catch (ReglaDominioException e) {
+            avisos.add(e.getMessage());
+        }
+        try {
+            solicitudes.cancelarDocumentacionVencida(ahora.toLocalDate(), RESPONSABLE_DOCUMENTACION);
+        } catch (ReglaDominioException e) {
+            avisos.add(e.getMessage());
+        }
+        return avisos;
+    }
+
+    public static String unir(ArrayList<String> avisos) {
+        return String.join("\n", avisos);
+    }
+
+    private static void cancelarMatriculasVencidas(LocalDateTime ahora,
+            ArregloSolicitudes solicitudes, ArregloMatriculas matriculas,
+            ArrayList<String> avisos) {
+        for (Matricula matricula : matriculas.listar()) {
+            if (matricula.getEstado() == EstadoMatricula.PENDIENTE_PAGO
+                    && matricula.pagoOriginalVencido(ahora)) {
+                try {
+                    cancelarVencida(matricula, ahora, solicitudes);
+                } catch (ReglaDominioException e) {
+                    avisos.add(matricula.getCodigo() + ": " + e.getMessage());
+                }
+            }
+        }
+    }
+
+    // Se reingresa con la fecha del barrido y no con la del vencimiento: con la app
+    // cerrada el barrido puede correr días después, y la solicitud debe quedar al final.
+    private static void cancelarVencida(Matricula matricula, LocalDateTime ahora,
+            ArregloSolicitudes solicitudes) throws ReglaDominioException {
+        Solicitud solicitud = matricula.getSolicitud();
+        if (solicitud.getEstado() != EstadoSolicitud.EN_ESPERA_FAVORABLE) {
+            throw new ReglaDominioException(solicitud.getCodigo() + " está en "
+                    + solicitud.getEstado() + " y no puede volver a la cola favorable;"
+                    + " la matrícula sigue PENDIENTE_PAGO.");
+        }
+        LocalDateTime fechaCola = Turnos.fechaAlFinalFavorable(solicitud, ahora, solicitudes);
+        matricula.cancelar(ahora, MOTIVO_VENCIMIENTO, RESPONSABLE);
+        solicitud.ingresarAColaFavorable(fechaCola);
     }
 }
