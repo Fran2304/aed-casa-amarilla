@@ -10,8 +10,6 @@ public final class FechasAdmision {
     private FechasAdmision() {
     }
 
-    // La pantalla de solicitud valida la edad antes de que exista el Alumno,
-    // así que necesita el cálculo a partir de la fecha suelta.
     public static int edadAlCorte(LocalDate nacimiento) {
         return Period.between(nacimiento, CORTE_2027).getYears();
     }

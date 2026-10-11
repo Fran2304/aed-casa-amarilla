@@ -60,7 +60,6 @@ public class PanelSolicitudes extends JPanel {
 
     private static final String FORMULARIO = "FORMULARIO";
     private static final String FICHA = "FICHA";
-    // STRICT para que un 31/02 se rechace en vez de convertirse en silencio en 28/02.
     private static final DateTimeFormatter FORMATO_NACIMIENTO =
             DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(ResolverStyle.STRICT);
     private static final int ANCHO_TEXTO_RUTA = 250;
@@ -108,8 +107,6 @@ public class PanelSolicitudes extends JPanel {
     private Apoderado apoderadoSugerido;
     private Solicitud duplicada;
     private boolean franjaValida;
-    // Los setText que hace el propio panel disparan los DocumentListener: esta bandera
-    // evita que el recálculo se vuelva a llamar a sí mismo a mitad de camino.
     private boolean actualizando;
 
     private Solicitud fichaActual;
@@ -163,15 +160,11 @@ public class PanelSolicitudes extends JPanel {
         desplazable.getVerticalScrollBar().setUnitIncrement(16);
         add(desplazable, BorderLayout.CENTER);
 
-        // Las vacantes y las solicitudes activas cambian desde otras pantallas:
-        // se vuelven a evaluar cada vez que el personal entra aquí.
         addComponentListener(new ComponentAdapter() {
             @Override
             public void componentShown(ComponentEvent e) {
                 recalcular();
                 if (fichaActual != null) {
-                    // El error de turno solo describe a una solicitud que sigue esperando;
-                    // si otra pantalla ya la movió, la ficha muestra su estado real.
                     String error = fichaActual.getEstado() == EstadoSolicitud.EN_ESPERA_SIN_PAGO
                             ? fichaError : null;
                     mostrarFicha(fichaActual, fichaRecienCreada, error,
@@ -356,10 +349,6 @@ public class PanelSolicitudes extends JPanel {
         actualizarBotonGuardar();
     }
 
-    // Si el DNI ya es de un alumno se reutiliza ese alumno: sus datos quedan en solo
-    // lectura y sus apoderados ya vinculados aparecen en la lista. Lo que el personal ya
-    // había escrito se guarda como borrador: el DNI coincide a mitad de tipeo y, si el
-    // siguiente dígito deshace la coincidencia, esos datos vuelven en vez de perderse.
     private void revisarAlumnoExistente() {
         String dni = campoDni.getText().trim();
         Alumno encontrado = dniCompleto(dni) ? alumnos.buscarPorDni(dni) : null;
@@ -445,8 +434,6 @@ public class PanelSolicitudes extends JPanel {
         }
     }
 
-    // Mismo orden que ArregloSolicitudes.registrar: primero la edad y después el duplicado,
-    // para que la franja anticipe exactamente el error que daría al guardar.
     private void actualizarFranja() {
         franjaValida = false;
         duplicada = null;
@@ -530,9 +517,6 @@ public class PanelSolicitudes extends JPanel {
         Estilos.editable(campoCelularApoderado, !bloquear);
     }
 
-    // Nunca se crea un Apoderado suelto: si el DNI ya está en el padrón se usa esa misma
-    // instancia (hermanos que comparten apoderado); si no, sus datos quedan pendientes y
-    // se registran en el padrón recién al guardar, para no dejar apoderados huérfanos.
     private void agregarApoderado() {
         mensajeApoderados.setText(" ");
         try {
@@ -578,7 +562,6 @@ public class PanelSolicitudes extends JPanel {
         campoCelularApoderado.setText("");
     }
 
-    // El primero de la lista queda como principal mientras no se elija otro.
     private void corregirPrincipal() {
         if (dniPrincipal != null && buscarFila(dniPrincipal) != null) {
             return;
@@ -620,8 +603,6 @@ public class PanelSolicitudes extends JPanel {
         } else if (fila.registrado != null) {
             origen = "  ·  ya en el padrón";
         }
-        // Cambiar el principal de un alumno ya registrado afecta a las demás pantallas:
-        // la fila lo dice antes de guardar en vez de hacerlo en silencio.
         Apoderado principalActual = alumnoExistente == null ? null
                 : alumnoExistente.getPrincipal();
         if (esPrincipal && principalActual != null
@@ -646,8 +627,6 @@ public class PanelSolicitudes extends JPanel {
                 }
             });
         }
-        // Solo se quita lo que aún no se guardó: un vínculo ya registrado es un dato del
-        // alumno y no se deshace desde el formulario de una solicitud.
         if (!fila.vinculado) {
             JButton quitar = Estilos.botonSecundario("Quitar");
             quitar.addActionListener(evento -> quitarApoderado(fila));
@@ -656,9 +635,6 @@ public class PanelSolicitudes extends JPanel {
         return panel;
     }
 
-    // Lo que ya quedó registrado (alumno, apoderados, vínculos) se conserva aunque falle
-    // un paso posterior: son personas reales y los padrones no tienen "eliminar". Por eso
-    // la admisión se comprueba antes de tocar los vínculos y el principal del alumno.
     private void guardar() {
         Aula aula = (Aula) comboAula.getSelectedItem();
         Solicitud nueva = null;
@@ -667,8 +643,6 @@ public class PanelSolicitudes extends JPanel {
             if (alumno == null) {
                 alumno = alumnos.registrar(campoDni.getText(), campoNombres.getText(),
                         campoApellidos.getText(), leerNacimiento(), "");
-                // Si un paso posterior falla y el personal corrige el DNI, lo escrito
-                // tiene que volver al formulario igual que con un alumno encontrado.
                 borradorNombres = campoNombres.getText();
                 borradorApellidos = campoApellidos.getText();
                 borradorNacimiento = campoNacimiento.getText();
@@ -716,8 +690,6 @@ public class PanelSolicitudes extends JPanel {
         fichaPromovidas = promovidas;
         ficha.removeAll();
 
-        // La ficha sirve para dos casos opuestos (recién creada / ya existía): el título
-        // tiene que distinguirlos solo, sin depender del color del aviso.
         String titulo = recienCreada ? "✓ Solicitud " + solicitud.getCodigo() + " creada"
                 : "Solicitud activa existente · " + solicitud.getCodigo();
         ficha.add(Estilos.alineado(tituloTarjeta(titulo)));
@@ -746,8 +718,6 @@ public class PanelSolicitudes extends JPanel {
             ficha.add(Estilos.alineado(aviso(Estilos.ESPERA, Estilos.TEXTO_ESPERA,
                     "Su estado cambió desde que se guardó; el estado actual figura abajo.")));
         }
-        // Guardar revisa la cola del aula y puede habilitar a quienes esperaban antes; su
-        // plazo de 48 h ya corre, así que el personal tiene que saber a quién avisar.
         if (!promovidas.isEmpty()) {
             ficha.add(Box.createVerticalStrut(10));
             ficha.add(Estilos.alineado(aviso(Estilos.FAVORABLE, Estilos.BOTON_PRINCIPAL,
@@ -842,8 +812,6 @@ public class PanelSolicitudes extends JPanel {
         return aula.getNombre() + " · " + aula.getEdadRequerida() + " años";
     }
 
-    // Mientras el personal estuvo en otra pantalla, una habilitada pudo pagar o vencer:
-    // el aviso solo debe pedir que se llame a quienes todavía pueden pagar.
     private static ArrayList<Solicitud> siguenHabilitadas(ArrayList<Solicitud> promovidas) {
         LocalDateTime ahora = LocalDateTime.now();
         ArrayList<Solicitud> vigentes = new ArrayList<Solicitud>();
@@ -934,7 +902,6 @@ public class PanelSolicitudes extends JPanel {
         return dato;
     }
 
-    // Ancho fijo en HTML para que el JLabel haga salto de línea dentro de la columna.
     private static JLabel texto(String texto, Color color, int ancho) {
         return nota("<html><div style='width:" + ancho + "px'>" + texto + "</div></html>",
                 color);
@@ -955,8 +922,6 @@ public class PanelSolicitudes extends JPanel {
         return Estilos.alineado(fila);
     }
 
-    // En un BoxLayout vertical los JPanel se estiran a lo alto si sobra espacio; esta fila
-    // conserva su alto preferido aunque cambie (franja, lista de apoderados).
     private static final class Fila extends JPanel {
 
         Fila(LayoutManager layout) {
@@ -999,7 +964,6 @@ public class PanelSolicitudes extends JPanel {
         final String nombres;
         final String apellidos;
         final String celular;
-        // Instancia del padrón; null mientras el apoderado está pendiente de registrar.
         Apoderado registrado;
         boolean vinculado;
 

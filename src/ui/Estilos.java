@@ -161,14 +161,11 @@ public final class Estilos {
         return columna;
     }
 
-    // En un BoxLayout vertical, componentes con alineaciones distintas se desplazan entre sí:
-    // todos los de un formulario se alinean a la izquierda.
     public static <T extends JComponent> T alineado(T componente) {
         componente.setAlignmentX(JComponent.LEFT_ALIGNMENT);
         return componente;
     }
 
-    // Suma relleno interior sin reemplazar el borde redondeado que la tarjeta ya trae.
     public static void rellenarTarjeta(JComponent tarjeta) {
         tarjeta.setBorder(BorderFactory.createCompoundBorder(tarjeta.getBorder(),
                 RELLENO_TARJETA));

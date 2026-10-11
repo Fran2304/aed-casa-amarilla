@@ -2788,8 +2788,6 @@ public class PruebaPagos {
     }
 
     private static void cargarCasos(PrincipalUI ventana) throws ReglaDominioException {
-        // Los padrones de la ventana, no unos propios: con dos padrones los códigos de
-        // alumno se repiten y la pantalla de solicitudes confunde alumnos distintos.
         ArregloAlumnos alumnos = ventana.getAlumnos();
         ArregloApoderados apoderados = ventana.getApoderados();
         Aula girasoles = ventana.getAulas().buscar("AUL-01");

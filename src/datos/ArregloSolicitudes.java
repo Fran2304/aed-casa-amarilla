@@ -38,8 +38,6 @@ public class ArregloSolicitudes {
         return nueva;
     }
 
-    // Todo lo que registrar exige salvo los apoderados: permite comprobarlo antes de
-    // vincular apoderados nuevos a un alumno que ya existe, y no después.
     public void exigirAdmisible(Alumno alumno, Aula aula) throws ReglaDominioException {
         exigirAlumnoYAula(alumno, aula);
         int edad = alumno.edadAl(FechasAdmision.CORTE_2027);

@@ -108,11 +108,7 @@ public final class Turnos {
             ArregloSolicitudes solicitudes, ArregloMatriculas matriculas, LocalDateTime fecha)
             throws ReglaDominioException {
         Vencimientos.revisar(fecha, solicitudes, matriculas);
-        // Entra a la cola antes de evaluar turnos: si habilitar falla, la solicitud queda
-        // esperando turno y no activa pero fuera de toda cola.
         nueva.ingresarAColaSinPago(fecha);
-        // Devuelve solo las otras solicitudes habilitadas: a quién hay que avisar. El
-        // estado de la nueva se consulta en ella misma.
         ArrayList<Solicitud> promovidas = habilitarConTurno(nueva.getAula(), solicitudes,
                 matriculas, fecha);
         promovidas.remove(nueva);
