@@ -87,10 +87,11 @@ public final class Cobros {
         boolean matriculaVencida = matricula != null && matricula.pagoOriginalVencido(fechaHora);
         LocalDateTime fechaCola;
         if (pago.getConcepto() == ConceptoPago.INSCRIPCION) {
-            fechaCola = prepararAnulacionInscripcion(solicitud, fechaHora, solicitudes);
+            fechaCola = prepararAnulacionInscripcion(solicitud, fechaHora, solicitudes,
+                    matriculas);
         } else {
             fechaCola = prepararAnulacionMatricula(solicitud, matricula, matriculaVencida,
-                    fechaHora, solicitudes);
+                    fechaHora, solicitudes, matriculas);
             exigirTransicionMatriculaAnulada(matricula, matriculaVencida);
         }
         Transiciones.exigirTransicion(EstadoPago.CONFIRMADO, EstadoPago.ANULADO);
@@ -104,7 +105,8 @@ public final class Cobros {
     }
 
     private static LocalDateTime prepararAnulacionInscripcion(Solicitud solicitud,
-            LocalDateTime fechaHora, ArregloSolicitudes solicitudes) throws ReglaDominioException {
+            LocalDateTime fechaHora, ArregloSolicitudes solicitudes,
+            ArrayList<Matricula> matriculas) throws ReglaDominioException {
         if (solicitud.getEstado() != EstadoSolicitud.EN_DOCUMENTACION) {
             throw new ReglaDominioException("La solicitud no está en documentación.");
         }
@@ -113,12 +115,13 @@ public final class Cobros {
         }
         // La habilitación original vencida vuelve al final de EN_ESPERA_SIN_PAGO;
         // no se reinicia el plazo de 48 horas.
-        return fechaAlFinal(solicitud, fechaHora, solicitudes, false);
+        return fechaAlFinal(solicitud, fechaHora, solicitudes, matriculas, false);
     }
 
     private static LocalDateTime prepararAnulacionMatricula(Solicitud solicitud,
             Matricula matricula, boolean matriculaVencida, LocalDateTime fechaHora,
-            ArregloSolicitudes solicitudes) throws ReglaDominioException {
+            ArregloSolicitudes solicitudes, ArrayList<Matricula> matriculas)
+            throws ReglaDominioException {
         if (matricula == null || (matricula.getEstado() != EstadoMatricula.PENDIENTE_PAGO
                 && matricula.getEstado() != EstadoMatricula.ACTIVA)) {
             throw new ReglaDominioException("La matrícula no está pendiente ni activa.");
@@ -132,7 +135,7 @@ public final class Cobros {
                 && solicitud.getEstado() != EstadoSolicitud.EN_ESPERA_FAVORABLE) {
             throw new ReglaDominioException("La solicitud no puede volver a la cola favorable.");
         }
-        return fechaAlFinal(solicitud, fechaHora, solicitudes, true);
+        return fechaAlFinal(solicitud, fechaHora, solicitudes, matriculas, true);
     }
 
     private static void exigirTransicionMatriculaAnulada(Matricula matricula,
@@ -185,14 +188,18 @@ public final class Cobros {
         }
     }
 
+    // Las solicitudes con matrícula vigente siguen en EN_ESPERA_FAVORABLE (§6.8) pero ya no
+    // esperan turno: no cuentan para ubicar el final de la cola.
     private static LocalDateTime fechaAlFinal(Solicitud solicitud, LocalDateTime fecha,
-            ArregloSolicitudes solicitudes, boolean favorable) throws ReglaDominioException {
+            ArregloSolicitudes solicitudes, ArrayList<Matricula> matriculas, boolean favorable)
+            throws ReglaDominioException {
         LocalDateTime ultima = fecha;
         ArrayList<Solicitud> cola = favorable
                 ? solicitudes.colaFavorable(solicitud.getAula())
                 : solicitudes.colaSinPago(solicitud.getAula());
         for (Solicitud otra : cola) {
-            if (!otra.getFechaIngresoCola().isBefore(ultima)) {
+            if (!Turnos.tieneMatriculaVigente(otra, matriculas)
+                    && !otra.getFechaIngresoCola().isBefore(ultima)) {
                 try {
                     ultima = otra.getFechaIngresoCola().plusSeconds(1);
                 } catch (DateTimeException e) {

@@ -28,6 +28,7 @@ import modelo.ReglaDominioException;
 import modelo.Solicitud;
 import modelo.TransicionInvalidaException;
 import negocio.Cobros;
+import negocio.Matriculas;
 import negocio.Turnos;
 import negocio.Vacantes;
 import datos.ArregloMatriculas;
@@ -419,14 +420,15 @@ public class PruebaPagos {
                 "MAT-A", base);
         LocalDateTime creacion = base.plusMinutes(20);
         esperarFalloConMensaje(ReglaDominioException.class,
-                () -> matriculas.crear(primera.solicitud, creacion, solicitudes),
+                () -> Matriculas.crear(primera.solicitud, creacion, solicitudes, matriculas),
                 "sin oferta aceptada no se crea matrícula", "oferta aceptada");
-        comprobar(matriculas.listar().isEmpty() && Vacantes.calcular(aula, matriculas.listar()) == 2,
-                "el rechazo sin oferta no reserva vacante");
+        comprobar(matriculas.listar().isEmpty() && Vacantes.calcular(aula, matriculas.listar()) == 2
+                && matriculas.getSiguienteNumero() == 100001,
+                "el rechazo sin oferta no consume número ni reserva vacante");
 
         Turnos.confirmarOferta(primera.solicitud, true, "Personal de admisión",
                 base.plusMinutes(10), solicitudes, matriculas.listar());
-        Matricula creada = matriculas.crear(primera.solicitud, creacion, solicitudes);
+        Matricula creada = Matriculas.crear(primera.solicitud, creacion, solicitudes, matriculas);
         comprobar(creada.getNumMatricula() == 100001
                 && creada.getFechaHoraCreacion().equals(creacion),
                 "la primera matrícula es 100001 con su fecha y hora de creación");
@@ -435,34 +437,95 @@ public class PruebaPagos {
                 "la creación reserva exactamente una vacante");
         comprobar(creada.getVencimientoPagoOriginal().equals(creacion.plusHours(72)),
                 "el vencimiento de 72 horas corridas queda registrado");
-        comprobar(!Turnos.ordenPorPrioridad(aula, solicitudes, matriculas.listar(), creacion)
-                .contains(primera.solicitud), "la solicitud sale de la cola favorable");
+        comprobar(solicitudes.colaFavorable(aula).contains(primera.solicitud)
+                && !Turnos.ordenPorPrioridad(aula, solicitudes, matriculas.listar(), creacion)
+                        .contains(primera.solicitud),
+                "la solicitud con matrícula vigente sigue EN_ESPERA_FAVORABLE pero queda fuera del"
+                        + " orden de prioridad (§6.8)");
 
         esperarFalloConMensaje(ReglaDominioException.class,
-                () -> matriculas.crear(primera.solicitud, creacion.plusMinutes(5), solicitudes),
-                "un alumno con matrícula vigente no recibe otra", "ya tiene la matrícula 100001");
-        comprobar(matriculas.listar().size() == 1 && Vacantes.calcular(aula, matriculas.listar()) == 1,
-                "el rechazo por matrícula vigente deja el cupo intacto");
+                () -> Matriculas.crear(primera.solicitud, creacion.plusMinutes(5), solicitudes,
+                        matriculas),
+                "un alumno con matrícula PENDIENTE_PAGO no recibe otra",
+                "ya tiene la matrícula 100001 en PENDIENTE_PAGO");
+        creada.activar();
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> Matriculas.crear(primera.solicitud, creacion.plusMinutes(6), solicitudes,
+                        matriculas),
+                "un alumno con matrícula ACTIVA no recibe otra",
+                "ya tiene la matrícula 100001 en ACTIVA");
+        comprobar(matriculas.listar().size() == 1 && Vacantes.calcular(aula, matriculas.listar()) == 1
+                && matriculas.getSiguienteNumero() == 100002,
+                "los rechazos por matrícula vigente dejan cupo y correlativo intactos");
+
+        creada.cancelar();
+        LocalDateTime reingreso = base.plusMinutes(40);
+        primera.solicitud.ingresarAColaFavorable(reingreso);
+        Turnos.confirmarOferta(primera.solicitud, true, "Personal de admisión",
+                reingreso.plusMinutes(5), solicitudes, matriculas.listar());
+        Matricula nueva = Matriculas.crear(primera.solicitud, reingreso.plusMinutes(10),
+                solicitudes, matriculas);
+        comprobar(nueva.getNumMatricula() == 100002
+                && creada.getEstado() == EstadoMatricula.CANCELADA
+                && matriculas.listar().contains(creada)
+                && matriculas.buscarVigenteDe(primera.solicitud.getAlumno()) == nueva,
+                "tras una matrícula CANCELADA el alumno puede matricularse de nuevo y el historial"
+                        + " la conserva");
 
         CicloFixture segunda = prepararCicloOferta(solicitudes, pagos, matriculas.listar(), aula,
                 "MAT-B", base.plusHours(1));
         Turnos.confirmarOferta(segunda.solicitud, true, "Personal de admisión",
                 base.plusHours(1).plusMinutes(10), solicitudes, matriculas.listar());
-        Matricula siguiente = matriculas.crear(segunda.solicitud,
-                base.plusHours(1).plusMinutes(20), solicitudes);
-        comprobar(siguiente.getNumMatricula() == 100002
+        Matricula siguiente = Matriculas.crear(segunda.solicitud,
+                base.plusHours(1).plusMinutes(20), solicitudes, matriculas);
+        comprobar(siguiente.getNumMatricula() == 100003
                 && Vacantes.calcular(aula, matriculas.listar()) == 0,
-                "la segunda matrícula es correlativa y ocupa el último cupo");
+                "la siguiente matrícula es correlativa y ocupa el último cupo");
 
-        CicloFixture sinCupo = prepararCicloOfertaSinTurno(solicitudes, pagos,
+        CicloFixture sinOferta = prepararCicloOfertaSinTurno(solicitudes, pagos,
                 matriculas.listar(), aula, "MAT-C", base.plusHours(2));
-        esperarFallo(ReglaDominioException.class,
-                () -> matriculas.crear(sinCupo.solicitud, base.plusHours(2).plusMinutes(20),
-                        solicitudes),
-                "sin vacante no se crea matrícula");
-        comprobar(matriculas.listar().size() == 2 && matriculas.buscarVigenteDe(
-                sinCupo.solicitud.getAlumno()) == null,
-                "el rechazo sin vacante no agrega matrícula");
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> Matriculas.crear(sinOferta.solicitud, base.plusHours(2).plusMinutes(20),
+                        solicitudes, matriculas),
+                "sin oferta ni turno no se crea matrícula", "oferta aceptada");
+        comprobar(matriculas.listar().size() == 3 && matriculas.buscarVigenteDe(
+                sinOferta.solicitud.getAlumno()) == null,
+                "el rechazo sin oferta ni turno no agrega matrícula");
+
+        probarCreacionSinVacante();
+    }
+
+    private static void probarCreacionSinVacante() throws Exception {
+        LocalDateTime base = LocalDateTime.of(2026, 9, 28, 12, 0);
+        Aula aula = new Aula("AUL-M1", "Matrícula sin cupo", 4, 1);
+        ArregloSolicitudes solicitudes = new ArregloSolicitudes();
+        ArregloPagos pagos = new ArregloPagos();
+        ArregloMatriculas matriculas = new ArregloMatriculas();
+
+        CicloFixture conOferta = prepararCicloOferta(solicitudes, pagos, matriculas.listar(), aula,
+                "CUPO-A", base);
+        Turnos.confirmarOferta(conOferta.solicitud, true, "Personal de admisión",
+                base.plusMinutes(10), solicitudes, matriculas.listar());
+        // Entre la oferta y la creación, otra matrícula ocupa el único cupo.
+        CicloFixture otra = prepararCicloOfertaSinTurno(solicitudes, pagos, matriculas.listar(),
+                aula, "CUPO-B", base.plusMinutes(1));
+        matriculas.agregar(new Matricula(matriculas.getSiguienteNumero(), otra.solicitud,
+                base.plusMinutes(15)));
+        Solicitud vencida = registrarSolicitud(solicitudes, aula, "HAB-VENCIDA",
+                base.minusDays(5));
+        vencida.habilitarParaPago(base.minusDays(4));
+
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> Matriculas.crear(conOferta.solicitud, base.plusMinutes(20), solicitudes,
+                        matriculas),
+                "con la oferta aceptada pero sin vacante no se crea matrícula",
+                "No hay vacante disponible");
+        comprobar(matriculas.listar().size() == 1
+                && matriculas.buscarVigenteDe(conOferta.solicitud.getAlumno()) == null
+                && matriculas.getSiguienteNumero() == 100002,
+                "el rechazo sin vacante no agrega matrícula ni consume número");
+        comprobar(vencida.getEstado() == EstadoSolicitud.HABILITADA_PARA_PAGO,
+                "el rechazo de la creación no barre ni modifica otras solicitudes");
     }
 
     private static void probarMatriculaActivaVigenteYVencida() throws Exception {

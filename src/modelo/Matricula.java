@@ -18,7 +18,6 @@ public class Matricula {
         this(solicitud, LocalDateTime.now());
     }
 
-    // Sin número correlativo (0): lo asigna ArregloMatriculas.crear al registrarla.
     public Matricula(Solicitud solicitud, LocalDateTime fechaHoraCreacion)
             throws DatoInvalidoException {
         this(0, solicitud, fechaHoraCreacion);
