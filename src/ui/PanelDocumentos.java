@@ -12,6 +12,9 @@ import java.awt.Insets;
 import java.awt.Rectangle;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -25,17 +28,23 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.Scrollable;
 
+import datos.ArregloEntrevistas;
 import modelo.Alumno;
 import modelo.Apoderado;
 import modelo.Documento;
+import modelo.Entrevista;
 import modelo.EstadoDocumento;
+import modelo.EstadoSolicitud;
 import modelo.ReglaDominioException;
+import modelo.ResultadoEntrevista;
 import modelo.Solicitud;
 import modelo.TipoDocumento;
 import negocio.ExpedienteDocumentos;
 
 public class PanelDocumentos extends JPanel {
 
+    private static final DateTimeFormatter FORMATO_FECHA_HORA =
+            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private static final String[] MESES = { "ene", "feb", "mar", "abr", "may", "jun", "jul",
             "ago", "sep", "oct", "nov", "dic" };
 
@@ -54,6 +63,17 @@ public class PanelDocumentos extends JPanel {
     private final JPanel chipEntrevista = new JPanel();
     private final JLabel estadoEntrevista = new JLabel();
     private final JLabel ayudaEntrevista = new JLabel();
+    private final ArregloEntrevistas entrevistas = new ArregloEntrevistas();
+    private Entrevista entrevista;
+    private final JLabel fechaEntrevista = texto("", Estilos.SECUNDARIO);
+    private final JLabel integrantes = texto("", Estilos.SECUNDARIO);
+    private final JLabel responsable = texto("", Estilos.SECUNDARIO);
+    private final JLabel asistencia = texto("", Estilos.SECUNDARIO);
+    private final JLabel inasistencias = texto("", Estilos.SECUNDARIO);
+    private final JButton agendar = Estilos.botonPrimario("Agendar");
+    private final JButton asistio = Estilos.botonSecundario("Asistió");
+    private final JButton noAsistio = Estilos.botonSecundario("No asistió");
+    private final JButton resultado = Estilos.botonSecundario("Resultado");
 
     public PanelDocumentos(PrincipalUI principal) {
         setLayout(new BorderLayout());
@@ -163,8 +183,12 @@ public class PanelDocumentos extends JPanel {
         tarjeta.add(alinear(texto("La validación puede concluir después.", Estilos.SECUNDARIO)));
         tarjeta.add(Box.createVerticalStrut(16));
 
-        tarjeta.add(alinear(fila(cabecera("DOCUMENTO"), cabecera("ENTREGADO"),
-                cabecera("REVISIÓN"), Estilos.FONDO_CREMA)));
+        JPanel encabezadoTabla = fila(cabecera("DOCUMENTO"), cabecera("ENTREGADO"),
+                cabecera("REVISIÓN"), Estilos.FONDO_CREMA);
+        // Sin tope, BoxLayout estira la cabecera cuando la tarjeta de entrevista es más alta.
+        encabezadoTabla.setMaximumSize(new Dimension(Integer.MAX_VALUE,
+                encabezadoTabla.getPreferredSize().height));
+        tarjeta.add(alinear(encabezadoTabla));
         filas.setOpaque(false);
         tarjeta.add(alinear(filas));
         tarjeta.add(Box.createVerticalStrut(16));
@@ -225,16 +249,29 @@ public class PanelDocumentos extends JPanel {
         tarjeta.add(alinear(chipEntrevista));
         tarjeta.add(Box.createVerticalStrut(18));
 
-        // Agenda, asistencia y resultado los registra la lógica de entrevista (#18).
         tarjeta.add(alinear(subtituloTarjeta("Personal y cita")));
-        tarjeta.add(alinear(texto("Fecha y hora: —", Estilos.SECUNDARIO)));
-        tarjeta.add(alinear(texto("Integrantes del personal (al menos 1): —", Estilos.SECUNDARIO)));
-        tarjeta.add(alinear(texto("Responsable (exactamente 1): —", Estilos.SECUNDARIO)));
+        tarjeta.add(alinear(fechaEntrevista));
+        tarjeta.add(alinear(integrantes));
+        tarjeta.add(alinear(responsable));
         tarjeta.add(Box.createVerticalStrut(18));
         tarjeta.add(alinear(subtituloTarjeta("Asistencia y resultado")));
-        tarjeta.add(alinear(texto("Pendiente · FAVORABLE / NO_FAVORABLE", Estilos.SECUNDARIO)));
-        tarjeta.add(alinear(texto("Inasistencias: 0 de 2", Estilos.SECUNDARIO)));
-        tarjeta.add(Box.createVerticalStrut(18));
+        tarjeta.add(alinear(asistencia));
+        tarjeta.add(alinear(inasistencias));
+        tarjeta.add(Box.createVerticalStrut(12));
+
+        JPanel botones = new JPanel(new GridLayout(2, 2, 6, 6));
+        botones.setOpaque(false);
+        agendar.addActionListener(evento -> agendarEntrevista());
+        asistio.addActionListener(evento -> ejecutar(() -> entrevista.registrarAsistencia()));
+        noAsistio.addActionListener(evento -> registrarInasistencia());
+        resultado.addActionListener(evento -> registrarResultado());
+        botones.add(agendar);
+        botones.add(asistio);
+        botones.add(noAsistio);
+        botones.add(resultado);
+        botones.setMaximumSize(new Dimension(Integer.MAX_VALUE, botones.getPreferredSize().height));
+        tarjeta.add(alinear(botones));
+        tarjeta.add(Box.createVerticalStrut(14));
         tarjeta.add(alinear(texto("Una reprogramación por inasistencia;", Estilos.SECUNDARIO)));
         tarjeta.add(alinear(texto("segunda ausencia → CANCELADA.", Estilos.SECUNDARIO)));
         tarjeta.add(alinear(texto("NO_FAVORABLE → RECHAZADA.", Estilos.SECUNDARIO)));
@@ -286,6 +323,11 @@ public class PanelDocumentos extends JPanel {
     }
 
     private void refrescarEntrevista() {
+        refrescarDatosEntrevista();
+        if (entrevista != null) {
+            refrescarChipConEntrevista();
+            return;
+        }
         if (expediente.puedeAgendarEntrevista()) {
             chipEntrevista.setBackground(Estilos.FAVORABLE);
             estadoEntrevista.setForeground(Estilos.BOTON_PRINCIPAL);
@@ -305,6 +347,141 @@ public class PanelDocumentos extends JPanel {
                 ? "BLOQUEADA · " + observados + (observados == 1 ? " observado" : " observados")
                 : "BLOQUEADA · " + expediente.pendientesDeValidar().size() + " sin validar");
         ayudaEntrevista.setText("Agendable al validar los 4 documentos.");
+    }
+
+    private void refrescarDatosEntrevista() {
+        boolean abierta = solicitud.estaActiva();
+        if (entrevista == null) {
+            fechaEntrevista.setText("Fecha y hora: —");
+            integrantes.setText("Integrantes del personal (al menos 1): —");
+            responsable.setText("Responsable (exactamente 1): —");
+            asistencia.setText("Asistencia: — · Resultado: —");
+            inasistencias.setText("Inasistencias: 0 de 2");
+            agendar.setEnabled(abierta && expediente.puedeAgendarEntrevista());
+            asistio.setEnabled(false);
+            noAsistio.setEnabled(false);
+            resultado.setEnabled(false);
+            return;
+        }
+        Boolean asistioApoderado = entrevista.getAsistioApoderado();
+        boolean sinResultado = entrevista.getResultado() == null;
+        fechaEntrevista.setText("Fecha y hora: " + formatear(entrevista.getFechaHora())
+                + (entrevista.getInasistencias() > 0 ? " (reprogramada)" : ""));
+        integrantes.setText("Integrantes del personal: "
+                + String.join(", ", entrevista.getPersonal()));
+        responsable.setText("Responsable: " + entrevista.getResponsable());
+        asistencia.setText("Asistencia: "
+                + (Boolean.TRUE.equals(asistioApoderado) ? "asistió" : "pendiente")
+                + " · Resultado: " + (sinResultado ? "pendiente" : entrevista.getResultado()));
+        inasistencias.setText("Inasistencias: " + entrevista.getInasistencias() + " de 2");
+        agendar.setEnabled(false);
+        boolean esperaAsistencia = abierta && sinResultado && asistioApoderado == null;
+        asistio.setEnabled(esperaAsistencia);
+        noAsistio.setEnabled(esperaAsistencia);
+        resultado.setEnabled(abierta && sinResultado && Boolean.TRUE.equals(asistioApoderado));
+    }
+
+    private void refrescarChipConEntrevista() {
+        if (solicitud.getEstado() == EstadoSolicitud.CANCELADA) {
+            pintarChip(Estilos.ALERTA, Estilos.TEXTO_ALERTA, "CANCELADA · 2 inasistencias",
+                    "La segunda inasistencia cancela la solicitud.");
+        } else if (entrevista.getResultado() == ResultadoEntrevista.NO_FAVORABLE) {
+            pintarChip(Estilos.ALERTA, Estilos.TEXTO_ALERTA, "NO_FAVORABLE",
+                    "La solicitud queda RECHAZADA.");
+        } else if (entrevista.getResultado() == ResultadoEntrevista.FAVORABLE) {
+            pintarChip(Estilos.FAVORABLE, Estilos.BOTON_PRINCIPAL, "FAVORABLE",
+                    "Habilita evaluar matrícula; no garantiza cupo.");
+        } else {
+            pintarChip(Estilos.FAVORABLE, Estilos.BOTON_PRINCIPAL,
+                    "AGENDADA · " + formatear(entrevista.getFechaHora()),
+                    entrevista.getInasistencias() > 0 ? "Ya usó su única reprogramación."
+                            : "Registre la asistencia del apoderado.");
+        }
+    }
+
+    private void pintarChip(Color fondo, Color texto, String estado, String ayuda) {
+        chipEntrevista.setBackground(fondo);
+        estadoEntrevista.setForeground(texto);
+        estadoEntrevista.setText(estado);
+        ayudaEntrevista.setText(ayuda);
+    }
+
+    private void agendarEntrevista() {
+        String fecha = JOptionPane.showInputDialog(this, "Fecha y hora (dd/mm/aaaa hh:mm):",
+                LocalDate.now().plusDays(1).atTime(10, 0).format(FORMATO_FECHA_HORA));
+        if (fecha == null) {
+            return;
+        }
+        String personal = JOptionPane.showInputDialog(this,
+                "Integrantes del personal (separados por coma):", "Rosa Díaz, Luis Pérez");
+        if (personal == null) {
+            return;
+        }
+        ArrayList<String> participantes = new ArrayList<String>();
+        for (String nombre : personal.split(",")) {
+            if (!nombre.trim().isEmpty()) {
+                participantes.add(nombre.trim());
+            }
+        }
+        String elegido = JOptionPane.showInputDialog(this, "Responsable (uno de los integrantes):",
+                participantes.isEmpty() ? "" : participantes.get(0));
+        if (elegido == null) {
+            return;
+        }
+        LocalDateTime fechaHora = leerFechaHora(fecha);
+        if (fechaHora == null) {
+            return;
+        }
+        ejecutar(() -> entrevista = entrevistas.agendar(solicitud, expediente, fechaHora,
+                participantes, elegido.trim()));
+    }
+
+    private void registrarInasistencia() {
+        if (entrevista.getInasistencias() >= 1) {
+            int respuesta = JOptionPane.showConfirmDialog(this,
+                    "Es la segunda inasistencia: la solicitud quedará CANCELADA. ¿Registrar?",
+                    "Segunda inasistencia", JOptionPane.YES_NO_OPTION);
+            if (respuesta == JOptionPane.YES_OPTION) {
+                ejecutar(() -> entrevista.registrarInasistencia(null));
+            }
+            return;
+        }
+        String fecha = JOptionPane.showInputDialog(this,
+                "Única reprogramación. Nueva fecha y hora (dd/mm/aaaa hh:mm):",
+                entrevista.getFechaHora().plusDays(2).format(FORMATO_FECHA_HORA));
+        if (fecha == null) {
+            return;
+        }
+        LocalDateTime reprogramada = leerFechaHora(fecha);
+        if (reprogramada != null) {
+            ejecutar(() -> entrevista.registrarInasistencia(reprogramada));
+        }
+    }
+
+    private void registrarResultado() {
+        ResultadoEntrevista[] opciones = ResultadoEntrevista.values();
+        int elegido = JOptionPane.showOptionDialog(this, "Resultado de la entrevista realizada:",
+                "Registrar resultado", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
+                null, opciones, opciones[0]);
+        if (elegido < 0) {
+            return;
+        }
+        ejecutar(() -> {
+            if (!entrevista.isRealizada()) {
+                entrevista.marcarRealizada();
+            }
+            entrevista.registrarResultado(opciones[elegido]);
+        });
+    }
+
+    private LocalDateTime leerFechaHora(String texto) {
+        try {
+            return LocalDateTime.parse(texto.trim(), FORMATO_FECHA_HORA);
+        } catch (DateTimeParseException e) {
+            JOptionPane.showMessageDialog(this, "Escriba la fecha como 25/10/2026 10:30.",
+                    "Fecha no válida", JOptionPane.WARNING_MESSAGE);
+            return null;
+        }
     }
 
     private JPanel crearFila(Documento documento) {
