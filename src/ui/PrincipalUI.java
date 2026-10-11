@@ -33,7 +33,6 @@ public class PrincipalUI extends JFrame {
     public static final String COLAS = "COLAS";
     public static final String EXPEDIENTE = "EXPEDIENTE";
     public static final String PAGOS = "PAGOS";
-    public static final String HISTORIAL = "HISTORIAL";
     public static final String CUOTAS = "CUOTAS";
 
     private final CardLayout tarjetas = new CardLayout();
@@ -153,7 +152,6 @@ public class PrincipalUI extends JFrame {
         agregarBotonMenu(lateral, "Colas y vacantes", COLAS);
         agregarBotonMenu(lateral, "Expediente", EXPEDIENTE);
         agregarBotonMenu(lateral, "Pagos y matrículas", PAGOS);
-        agregarBotonMenu(lateral, "Historial", HISTORIAL);
         agregarBotonMenu(lateral, "Cuotas 2027", CUOTAS);
 
         lateral.add(Box.createVerticalGlue());
@@ -172,7 +170,6 @@ public class PrincipalUI extends JFrame {
         agregarPanel(new PanelColas(), COLAS);
         agregarPanel(new PanelExpediente(solicitudes, entrevistas, matriculas), EXPEDIENTE);
         agregarPanel(new PanelPagos(solicitudes, pagos, matriculas, cuotas), PAGOS);
-        agregarPanel(new PanelHistorial(), HISTORIAL);
         agregarPanel(new PanelCuotas(cuotas), CUOTAS);
         return panelCentral;
     }
