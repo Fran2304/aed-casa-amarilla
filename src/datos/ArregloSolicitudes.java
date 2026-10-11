@@ -28,19 +28,23 @@ public class ArregloSolicitudes {
     // Las validaciones van en el orden del flujo (§4.1): si fallan varias,
     // el personal ve primero la que corresponde corregir antes.
     public Solicitud registrar(Alumno alumno, Aula aula) throws ReglaDominioException {
-        if (alumno == null) {
-            throw new DatoInvalidoException("El alumno es obligatorio.");
-        }
-        if (aula == null) {
-            throw new DatoInvalidoException("El aula solicitada es obligatoria.");
-        }
-
+        exigirAlumnoYAula(alumno, aula);
         alumno.validarApoderados();
+        exigirAdmisible(alumno, aula);
 
-        // Supuesto: edad exacta = edad del aula. Los rangos de edad por aula siguen
-        // pendientes de definición (§6.2); si el nido acepta rangos, se cambia aquí.
+        Solicitud nueva = new Solicitud("SOL-" + siguienteNumero, alumno, aula,
+                LocalDateTime.now());
+        solicitudes.add(nueva);
+        siguienteNumero++;
+        return nueva;
+    }
+
+    // Todo lo que registrar exige salvo los apoderados: permite comprobarlo antes de
+    // vincular apoderados nuevos a un alumno que ya existe, y no después.
+    public void exigirAdmisible(Alumno alumno, Aula aula) throws ReglaDominioException {
+        exigirAlumnoYAula(alumno, aula);
         int edad = alumno.edadAl(FechasAdmision.CORTE_2027);
-        if (edad != aula.getEdadRequerida()) {
+        if (!aula.admiteEdad(edad)) {
             throw new ReglaDominioException(alumno.getNombreCompleto() + " tendrá " + edad
                     + " años al 31/03/2027 y el aula " + aula.getNombre() + " es para "
                     + aula.getEdadRequerida() + " años.");
@@ -50,12 +54,16 @@ public class ArregloSolicitudes {
         if (activa != null) {
             throw new SolicitudDuplicadaException(activa);
         }
+    }
 
-        Solicitud nueva = new Solicitud("SOL-" + siguienteNumero, alumno, aula,
-                LocalDateTime.now());
-        solicitudes.add(nueva);
-        siguienteNumero++;
-        return nueva;
+    private static void exigirAlumnoYAula(Alumno alumno, Aula aula)
+            throws DatoInvalidoException {
+        if (alumno == null) {
+            throw new DatoInvalidoException("El alumno es obligatorio.");
+        }
+        if (aula == null) {
+            throw new DatoInvalidoException("El aula solicitada es obligatoria.");
+        }
     }
 
     public Solicitud buscarActivaDe(Alumno alumno) {

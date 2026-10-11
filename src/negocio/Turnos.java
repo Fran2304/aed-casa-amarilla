@@ -109,17 +109,14 @@ public final class Turnos {
     public static ArrayList<Solicitud> ubicarNueva(Solicitud nueva,
             ArregloSolicitudes solicitudes, ArrayList<Matricula> matriculas, LocalDateTime fecha)
             throws ReglaDominioException {
+        // Entra a la cola antes de revisar vencimientos ajenos: si esa revisión falla,
+        // la solicitud queda esperando turno y no activa pero fuera de toda cola.
+        nueva.ingresarAColaSinPago(fecha);
+        // Devuelve solo las otras solicitudes habilitadas: a quién hay que avisar. El
+        // estado de la nueva se consulta en ella misma.
         ArrayList<Solicitud> promovidas = habilitarConTurno(nueva.getAula(), solicitudes,
                 matriculas, fecha);
-        int vacantes = Vacantes.calcular(nueva.getAula(), matriculas);
-        ArrayList<Solicitud> orden = ordenPorPrioridad(nueva.getAula(), solicitudes, matriculas,
-                fecha);
-        if (vacantes > 0 && !tieneMatriculaVigente(nueva, matriculas)
-                && hayTurno(nueva, orden, vacantes)) {
-            nueva.habilitarParaPago(fecha);
-        } else {
-            nueva.ingresarAColaSinPago(fecha);
-        }
+        promovidas.remove(nueva);
         return promovidas;
     }
 

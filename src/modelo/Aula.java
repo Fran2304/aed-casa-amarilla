@@ -31,4 +31,11 @@ public class Aula {
     public int getCapacidad() {
         return capacidad;
     }
+
+    // Supuesto: edad exacta = edad del aula. Los rangos de edad por aula siguen
+    // pendientes de definición (§6.2). Si el nido acepta rangos se cambia solo aquí:
+    // lo usan tanto el registro de la solicitud como la validación en vivo de la pantalla.
+    public boolean admiteEdad(int edad) {
+        return edad == edadRequerida;
+    }
 }

@@ -14,6 +14,8 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
+import datos.ArregloAlumnos;
+import datos.ArregloApoderados;
 import datos.ArregloAulas;
 import datos.ArregloEntrevistas;
 import datos.ArregloPagos;
@@ -38,6 +40,8 @@ public class PrincipalUI extends JFrame {
     // en vez de crear la suya y quedar desincronizados.
     private final ArregloAulas aulas = new ArregloAulas();
     private final ArregloSolicitudes solicitudes = new ArregloSolicitudes();
+    private final ArregloAlumnos alumnos = new ArregloAlumnos();
+    private final ArregloApoderados apoderados = new ArregloApoderados();
     private final ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
     private final ArregloPagos pagos = new ArregloPagos();
     private final ArregloEntrevistas entrevistas = new ArregloEntrevistas();
@@ -74,6 +78,14 @@ public class PrincipalUI extends JFrame {
 
     public ArregloSolicitudes getSolicitudes() {
         return solicitudes;
+    }
+
+    public ArregloAlumnos getAlumnos() {
+        return alumnos;
+    }
+
+    public ArregloApoderados getApoderados() {
+        return apoderados;
     }
 
     public ConfiguracionCuotas getCuotas() {
@@ -143,7 +155,8 @@ public class PrincipalUI extends JFrame {
 
     private JPanel crearCentro() {
         agregarPanel(new PanelInicio(this), INICIO);
-        agregarPanel(new PanelSolicitudes(), SOLICITUDES);
+        agregarPanel(new PanelSolicitudes(aulas, solicitudes, alumnos, apoderados, matriculas),
+                SOLICITUDES);
         agregarPanel(new PanelColas(), COLAS);
         agregarPanel(new PanelExpediente(solicitudes, entrevistas), EXPEDIENTE);
         agregarPanel(new PanelPagos(solicitudes, pagos, matriculas, cuotas), PAGOS);
