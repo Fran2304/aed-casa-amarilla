@@ -83,10 +83,11 @@ public class Entrevista {
         realizada = true;
     }
 
-    // NO_FAVORABLE deja la solicitud RECHAZADA en el historial. FAVORABLE permite
-    // continuar, pero no garantiza vacante: la consulta llega con el issue #21.
-    public void registrarResultado(ResultadoEntrevista resultadoNuevo)
-            throws ReglaDominioException {
+    // NO_FAVORABLE deja la solicitud RECHAZADA en el historial. FAVORABLE no garantiza
+    // vacante y entra siempre a EN_ESPERA_FAVORABLE, haya cupo o no: la oferta (#22)
+    // solo se hace desde esa cola, y con cupo queda primera en su turno (§6.9).
+    public void registrarResultado(ResultadoEntrevista resultadoNuevo,
+            LocalDateTime registradoEl) throws ReglaDominioException {
         if (!realizada) {
             throw new ReglaDominioException(
                     "La entrevista debe realizarse antes de registrar el resultado.");
@@ -97,10 +98,16 @@ public class Entrevista {
         if (resultadoNuevo == null) {
             throw new DatoInvalidoException("El resultado es obligatorio.");
         }
-        resultado = resultadoNuevo;
-        if (resultado == ResultadoEntrevista.NO_FAVORABLE) {
-            solicitud.cambiarEstado(EstadoSolicitud.RECHAZADA);
+        if (registradoEl == null) {
+            throw new DatoInvalidoException("La fecha y hora del resultado es obligatoria.");
         }
+        // Primero la solicitud: si la transición falla, el resultado no queda a medias.
+        if (resultadoNuevo == ResultadoEntrevista.NO_FAVORABLE) {
+            solicitud.cambiarEstado(EstadoSolicitud.RECHAZADA);
+        } else {
+            solicitud.ingresarAColaFavorable(registradoEl);
+        }
+        resultado = resultadoNuevo;
     }
 
     // Un reingreso tras RECHAZADA/CANCELADA exige nuevo pago: esas solicitudes no

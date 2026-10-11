@@ -14,6 +14,7 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.border.AbstractBorder;
 
+import modelo.EstadoDocumento;
 import modelo.EstadoSolicitud;
 
 public final class Estilos {
@@ -156,6 +157,20 @@ public final class Estilos {
         chip.setForeground(TEXTO_ESPERA);
         chip.setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
         return chip;
+    }
+
+    /** En la tabla del expediente la revisión va como texto de color, sin chip. null = sin entregar. */
+    public static Color colorTexto(EstadoDocumento estado) {
+        if (estado == EstadoDocumento.VALIDADO) {
+            return BOTON_PRINCIPAL;
+        }
+        if (estado == EstadoDocumento.OBSERVADO) {
+            return TEXTO_ALERTA;
+        }
+        if (estado == EstadoDocumento.EN_REVISION) {
+            return TEXTO_ESPERA;
+        }
+        return SECUNDARIO;
     }
 
     private static String textoEstado(EstadoSolicitud estado) {

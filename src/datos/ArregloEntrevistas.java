@@ -19,10 +19,25 @@ public class ArregloEntrevistas {
     public Entrevista agendar(Solicitud solicitud, ExpedienteDocumentos expediente,
             LocalDateTime fechaHora, ArrayList<String> personal, String responsable)
             throws ReglaDominioException {
+        // La fecha solo se mueve por inasistencia (registrarInasistencia): volver a agendar
+        // abriría una segunda vía de reprogramación que el flujo no admite.
+        if (buscarDe(solicitud) != null) {
+            throw new ReglaDominioException(
+                    "La entrevista de " + solicitud.getCodigo() + " ya está agendada.");
+        }
         Entrevista nueva = new Entrevista(solicitud, expediente, fechaHora, personal,
                 responsable);
         entrevistas.add(nueva);
         return nueva;
+    }
+
+    public Entrevista buscarDe(Solicitud solicitud) {
+        for (Entrevista entrevista : entrevistas) {
+            if (entrevista.getSolicitud() == solicitud) {
+                return entrevista;
+            }
+        }
+        return null;
     }
 
     public ArrayList<Entrevista> listar() {

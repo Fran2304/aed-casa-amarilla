@@ -15,6 +15,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 
 import datos.ArregloAulas;
+import datos.ArregloEntrevistas;
 import datos.ArregloPagos;
 import datos.ArregloSolicitudes;
 import modelo.ConfiguracionCuotas;
@@ -25,8 +26,7 @@ public class PrincipalUI extends JFrame {
     public static final String INICIO = "INICIO";
     public static final String SOLICITUDES = "SOLICITUDES";
     public static final String COLAS = "COLAS";
-    public static final String DOCUMENTOS = "DOCUMENTOS";
-    public static final String ENTREVISTAS = "ENTREVISTAS";
+    public static final String EXPEDIENTE = "EXPEDIENTE";
     public static final String PAGOS = "PAGOS";
     public static final String HISTORIAL = "HISTORIAL";
     public static final String CUOTAS = "CUOTAS";
@@ -40,6 +40,7 @@ public class PrincipalUI extends JFrame {
     private final ArregloSolicitudes solicitudes = new ArregloSolicitudes();
     private final ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
     private final ArregloPagos pagos = new ArregloPagos();
+    private final ArregloEntrevistas entrevistas = new ArregloEntrevistas();
     private final ArrayList<Matricula> matriculas = new ArrayList<Matricula>();
 
     public PrincipalUI() {
@@ -83,6 +84,10 @@ public class PrincipalUI extends JFrame {
         return pagos;
     }
 
+    public ArregloEntrevistas getEntrevistas() {
+        return entrevistas;
+    }
+
     public ArrayList<Matricula> getMatriculas() {
         return matriculas;
     }
@@ -120,8 +125,7 @@ public class PrincipalUI extends JFrame {
         agregarBotonMenu(lateral, "Inicio", INICIO);
         agregarBotonMenu(lateral, "Solicitudes", SOLICITUDES);
         agregarBotonMenu(lateral, "Colas y vacantes", COLAS);
-        agregarBotonMenu(lateral, "Documentos", DOCUMENTOS);
-        agregarBotonMenu(lateral, "Entrevistas", ENTREVISTAS);
+        agregarBotonMenu(lateral, "Expediente", EXPEDIENTE);
         agregarBotonMenu(lateral, "Pagos y matrículas", PAGOS);
         agregarBotonMenu(lateral, "Historial", HISTORIAL);
         agregarBotonMenu(lateral, "Cuotas 2027", CUOTAS);
@@ -141,8 +145,7 @@ public class PrincipalUI extends JFrame {
         agregarPanel(new PanelInicio(this), INICIO);
         agregarPanel(new PanelSolicitudes(), SOLICITUDES);
         agregarPanel(new PanelColas(), COLAS);
-        agregarPanel(new PanelDocumentos(), DOCUMENTOS);
-        agregarPanel(new PanelEntrevistas(), ENTREVISTAS);
+        agregarPanel(new PanelExpediente(solicitudes, entrevistas), EXPEDIENTE);
         agregarPanel(new PanelPagos(solicitudes, pagos, matriculas, cuotas), PAGOS);
         agregarPanel(new PanelHistorial(), HISTORIAL);
         agregarPanel(new PanelCuotas(cuotas), CUOTAS);

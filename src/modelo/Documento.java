@@ -14,7 +14,8 @@ public class Documento {
     private LocalDateTime fechaHoraCorreccion;
     private EstadoDocumento estado;
     private String observacion;
-    private LocalDate fechaComunicacion;
+    // Con hora para mostrarla como en el diseño; el plazo se sigue contando en días calendario.
+    private LocalDateTime fechaHoraComunicacion;
 
     public Documento(TipoDocumento tipo) throws DatoInvalidoException {
         if (tipo == null) {
@@ -41,7 +42,8 @@ public class Documento {
         estado = EstadoDocumento.VALIDADO;
     }
 
-    public void observar(String motivo, LocalDate comunicadaEl) throws ReglaDominioException {
+    public void observar(String motivo, LocalDateTime comunicadaEl)
+            throws ReglaDominioException {
         exigirEntregado();
         String motivoLimpio = Validaciones.exigirNoVacio("motivo de la observación", motivo);
         if (comunicadaEl == null) {
@@ -49,7 +51,7 @@ public class Documento {
         }
         Transiciones.exigirTransicion(estado, EstadoDocumento.OBSERVADO);
         observacion = motivoLimpio;
-        fechaComunicacion = comunicadaEl;
+        fechaHoraComunicacion = comunicadaEl;
         estado = EstadoDocumento.OBSERVADO;
     }
 
@@ -72,7 +74,7 @@ public class Documento {
         if (estado != EstadoDocumento.OBSERVADO) {
             return null;
         }
-        return fechaComunicacion.plusDays(DIAS_CORRECCION);
+        return fechaHoraComunicacion.toLocalDate().plusDays(DIAS_CORRECCION);
     }
 
     public boolean correccionVencida(LocalDate hoy) {
@@ -116,7 +118,7 @@ public class Documento {
         return observacion;
     }
 
-    public LocalDate getFechaComunicacion() {
-        return fechaComunicacion;
+    public LocalDateTime getFechaHoraComunicacion() {
+        return fechaHoraComunicacion;
     }
 }
