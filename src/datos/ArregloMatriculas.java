@@ -1,15 +1,10 @@
 package datos;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 
 import modelo.Alumno;
 import modelo.DatoInvalidoException;
 import modelo.Matricula;
-import modelo.ReglaDominioException;
-import modelo.Solicitud;
-import negocio.ExpedienteDocumentos;
-import negocio.Turnos;
 
 public class ArregloMatriculas {
 
@@ -23,51 +18,20 @@ public class ArregloMatriculas {
         siguienteNumero = PRIMER_NUMERO;
     }
 
-    public Matricula crear(Solicitud solicitud, ArregloSolicitudes solicitudes)
-            throws ReglaDominioException {
-        return crear(solicitud, LocalDateTime.now(), solicitudes);
+    public int getSiguienteNumero() {
+        return siguienteNumero;
     }
 
-    // Todo se valida antes de crear (§4.6): un rechazo no consume número ni reserva vacante.
-    public Matricula crear(Solicitud solicitud, LocalDateTime fechaHora,
-            ArregloSolicitudes solicitudes) throws ReglaDominioException {
-        if (solicitud == null) {
-            throw new DatoInvalidoException("La solicitud es obligatoria.");
+    public void agregar(Matricula matricula) throws DatoInvalidoException {
+        if (matricula == null) {
+            throw new DatoInvalidoException("La matrícula es obligatoria.");
         }
-        if (fechaHora == null) {
-            throw new DatoInvalidoException("La fecha y hora de creación es obligatoria.");
+        if (matricula.getNumMatricula() != siguienteNumero) {
+            throw new DatoInvalidoException("La matrícula debe llevar el número correlativo "
+                    + siguienteNumero + ".");
         }
-        if (solicitudes == null) {
-            throw new DatoInvalidoException("Las solicitudes son obligatorias.");
-        }
-
-        Matricula vigente = buscarVigenteDe(solicitud.getAlumno());
-        if (vigente != null) {
-            throw new ReglaDominioException(solicitud.getAlumno().getNombreCompleto()
-                    + " ya tiene la matrícula " + vigente.getNumMatricula() + " en "
-                    + vigente.getEstado() + ".");
-        }
-        // EN_ESPERA_FAVORABLE es "documentos validados y entrevista favorable" en la spec.
-        if (!solicitud.estaEnColaFavorable()) {
-            throw new ReglaDominioException(solicitud.getCodigo() + " está en "
-                    + solicitud.getEstado() + ": la matrícula exige documentos validados y"
-                    + " entrevista favorable.");
-        }
-        ExpedienteDocumentos expediente = solicitud.getExpediente();
-        if (expediente == null || !expediente.puedeAgendarEntrevista()) {
-            throw new ReglaDominioException(solicitud.getCodigo()
-                    + " no tiene los cuatro documentos validados.");
-        }
-        if (!solicitud.tieneOfertaAceptada()) {
-            throw new ReglaDominioException(solicitud.getCodigo()
-                    + " no tiene una oferta aceptada por el apoderado.");
-        }
-        Turnos.exigirTurno(solicitud, solicitudes, matriculas, fechaHora);
-
-        Matricula nueva = new Matricula(siguienteNumero, solicitud, fechaHora);
-        matriculas.add(nueva);
+        matriculas.add(matricula);
         siguienteNumero++;
-        return nueva;
     }
 
     public Matricula buscarVigenteDe(Alumno alumno) {

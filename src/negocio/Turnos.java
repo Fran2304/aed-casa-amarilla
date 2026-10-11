@@ -22,9 +22,20 @@ public final class Turnos {
     public static ArrayList<Solicitud> ordenPorPrioridad(Aula aula,
             ArregloSolicitudes solicitudes, ArrayList<Matricula> matriculas,
             LocalDateTime ahora) throws ReglaDominioException {
+        revisarVencimientos(solicitudes, matriculas, ahora);
+        return candidatos(aula, solicitudes, matriculas);
+    }
+
+    // §4.8: se revisa al abrir la app y antes de toda operación que dependa de vacantes.
+    public static void revisarVencimientos(ArregloSolicitudes solicitudes,
+            ArrayList<Matricula> matriculas, LocalDateTime ahora) throws ReglaDominioException {
         solicitudes.vencerHabilitaciones(ahora);
         solicitudes.cancelarDocumentacionVencida(ahora.toLocalDate(), "Personal de turnos");
         cancelarMatriculasVencidas(solicitudes, matriculas, ahora);
+    }
+
+    private static ArrayList<Solicitud> candidatos(Aula aula, ArregloSolicitudes solicitudes,
+            ArrayList<Matricula> matriculas) {
         ArrayList<Solicitud> enCola = solicitudes.colaFavorable(aula);
         enCola.addAll(solicitudes.enDocumentacion(aula));
         enCola.addAll(solicitudes.habilitadas(aula));
@@ -41,8 +52,8 @@ public final class Turnos {
 
     public static Solicitud siguiente(Aula aula, ArregloSolicitudes solicitudes,
             ArrayList<Matricula> matriculas, LocalDateTime ahora) throws ReglaDominioException {
-        int vacantes = Vacantes.calcular(aula, matriculas);
         ArrayList<Solicitud> orden = ordenPorPrioridad(aula, solicitudes, matriculas, ahora);
+        int vacantes = Vacantes.calcular(aula, matriculas);
         for (int i = 0; i < vacantes && i < orden.size(); i++) {
             Solicitud solicitud = orden.get(i);
             if (solicitud.estaEnColaFavorable() || solicitud.estaEnColaSinPago()) {
@@ -54,6 +65,13 @@ public final class Turnos {
 
     public static void exigirTurno(Solicitud solicitud, ArregloSolicitudes solicitudes,
             ArrayList<Matricula> matriculas, LocalDateTime ahora) throws ReglaDominioException {
+        revisarVencimientos(solicitudes, matriculas, ahora);
+        comprobarTurno(solicitud, solicitudes, matriculas);
+    }
+
+    // No barre vencimientos ni modifica nada: un rechazo deja intactas las demás solicitudes.
+    public static void comprobarTurno(Solicitud solicitud, ArregloSolicitudes solicitudes,
+            ArrayList<Matricula> matriculas) throws ReglaDominioException {
         if (tieneMatriculaVigente(solicitud, matriculas)) {
             throw new ReglaDominioException(solicitud.getCodigo() + " ya tiene matrícula vigente.");
         }
@@ -64,7 +82,7 @@ public final class Turnos {
                     + ".");
         }
 
-        ArrayList<Solicitud> orden = ordenPorPrioridad(aula, solicitudes, matriculas, ahora);
+        ArrayList<Solicitud> orden = candidatos(aula, solicitudes, matriculas);
         if (hayTurno(solicitud, orden, vacantes)) {
             return;
         }
@@ -97,8 +115,8 @@ public final class Turnos {
             ArregloSolicitudes solicitudes, ArrayList<Matricula> matriculas, LocalDateTime ahora)
             throws ReglaDominioException {
         ArrayList<Solicitud> habilitadas = new ArrayList<Solicitud>();
-        int vacantes = Vacantes.calcular(aula, matriculas);
         ArrayList<Solicitud> orden = ordenPorPrioridad(aula, solicitudes, matriculas, ahora);
+        int vacantes = Vacantes.calcular(aula, matriculas);
         for (int i = 0; i < vacantes && i < orden.size(); i++) {
             Solicitud solicitud = orden.get(i);
             if (solicitud.estaEnColaSinPago()) {
@@ -126,7 +144,7 @@ public final class Turnos {
         return promovidas;
     }
 
-    private static boolean tieneMatriculaVigente(Solicitud solicitud,
+    static boolean tieneMatriculaVigente(Solicitud solicitud,
             ArrayList<Matricula> matriculas) {
         for (Matricula matricula : matriculas) {
             if (matricula.getSolicitud() == solicitud && matricula.estaVigente()) {
@@ -155,7 +173,8 @@ public final class Turnos {
         Oferta oferta = new Oferta(fechaHora, personal, aceptada);
         solicitud.registrarOferta(oferta);
         if (!aceptada) {
-            solicitud.ingresarAColaFavorable(fechaAlFinal(solicitud, fechaHora, solicitudes));
+            solicitud.ingresarAColaFavorable(fechaAlFinal(solicitud, fechaHora, solicitudes,
+                    matriculas));
         }
         return oferta;
     }
@@ -178,7 +197,7 @@ public final class Turnos {
                 throw new ReglaDominioException(solicitud.getCodigo() + " está en "
                         + solicitud.getEstado() + " y no puede volver a la cola favorable.");
             }
-            LocalDateTime reingreso = fechaAlFinal(solicitud, ahora, solicitudes);
+            LocalDateTime reingreso = fechaAlFinal(solicitud, ahora, solicitudes, matriculas);
             matricula.cancelarPorVencimiento(ahora);
             solicitud.ingresarAColaFavorable(reingreso);
             canceladas.add(matricula);
@@ -186,11 +205,14 @@ public final class Turnos {
         return canceladas;
     }
 
+    // Las solicitudes con matrícula vigente siguen en EN_ESPERA_FAVORABLE (§6.8) pero ya no
+    // esperan turno: no cuentan para ubicar el final de la cola.
     private static LocalDateTime fechaAlFinal(Solicitud rechazada, LocalDateTime fechaRechazo,
-            ArregloSolicitudes solicitudes) {
+            ArregloSolicitudes solicitudes, ArrayList<Matricula> matriculas) {
         LocalDateTime fecha = fechaRechazo;
         for (Solicitud otra : solicitudes.colaFavorable(rechazada.getAula())) {
-            if (otra != rechazada && !otra.getFechaIngresoCola().isBefore(fecha)) {
+            if (otra != rechazada && !tieneMatriculaVigente(otra, matriculas)
+                    && !otra.getFechaIngresoCola().isBefore(fecha)) {
                 fecha = otra.getFechaIngresoCola().plusSeconds(1);
             }
         }

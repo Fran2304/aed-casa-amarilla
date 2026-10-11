@@ -75,6 +75,14 @@ public class ExpedienteDocumentos {
     }
 
     public void exigirAgendarEntrevista() throws ReglaDominioException {
+        exigirValidados("No se puede agendar la entrevista");
+    }
+
+    public void exigirDocumentosValidados() throws ReglaDominioException {
+        exigirValidados("No se puede crear la matrícula");
+    }
+
+    private void exigirValidados(String operacion) throws ReglaDominioException {
         ArrayList<Documento> pendientes = pendientesDeValidar();
         if (!pendientes.isEmpty()) {
             StringBuilder faltan = new StringBuilder();
@@ -84,8 +92,7 @@ public class ExpedienteDocumentos {
                 }
                 faltan.append(documento.getTipo().getDescripcion());
             }
-            throw new ReglaDominioException(
-                    "No se puede agendar la entrevista. Falta validar: " + faltan + ".");
+            throw new ReglaDominioException(operacion + ". Falta validar: " + faltan + ".");
         }
     }
 

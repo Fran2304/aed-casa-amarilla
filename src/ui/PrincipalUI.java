@@ -4,6 +4,7 @@ import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,6 +13,7 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 
 import datos.ArregloAulas;
@@ -19,6 +21,8 @@ import datos.ArregloPagos;
 import datos.ArregloSolicitudes;
 import modelo.ConfiguracionCuotas;
 import modelo.Matricula;
+import modelo.ReglaDominioException;
+import negocio.Turnos;
 
 public class PrincipalUI extends JFrame {
 
@@ -56,7 +60,18 @@ public class PrincipalUI extends JFrame {
         add(crearLateral(), BorderLayout.WEST);
         add(crearCentro(), BorderLayout.CENTER);
 
+        revisarVencimientos();
         mostrar(INICIO);
+    }
+
+    // §4.8: la app puede pasar días cerrada y los plazos siguen corriendo.
+    private void revisarVencimientos() {
+        try {
+            Turnos.revisarVencimientos(solicitudes, matriculas, LocalDateTime.now());
+        } catch (ReglaDominioException e) {
+            JOptionPane.showMessageDialog(this, e.getMessage(), "No se pudieron revisar los plazos",
+                    JOptionPane.WARNING_MESSAGE);
+        }
     }
 
     public void mostrar(String nombrePanel) {

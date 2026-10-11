@@ -23,6 +23,20 @@ public class ArregloPagos {
         pagos.add(pago);
     }
 
+    // §6.7: el número es único entre todos los pagos registrados, anulados incluidos; el vacío
+    // (efectivo) no se compara.
+    public boolean numeroOperacionUsado(String numeroOperacion) {
+        if (numeroOperacion == null || numeroOperacion.trim().isEmpty()) {
+            return false;
+        }
+        for (Pago pago : pagos) {
+            if (numeroOperacion.trim().equals(pago.getNumeroOperacion())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public ArrayList<Pago> deSolicitud(Solicitud solicitud) {
         ArrayList<Pago> deSolicitud = new ArrayList<Pago>();
         for (Pago pago : pagos) {
