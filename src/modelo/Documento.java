@@ -50,6 +50,13 @@ public class Documento {
             throw new DatoInvalidoException("La fecha de comunicación es obligatoria.");
         }
         Transiciones.exigirTransicion(estado, EstadoDocumento.OBSERVADO);
+        // Una comunicación anterior a la entrega dejaría el plazo de corrección ya corrido.
+        LocalDateTime ultimaEntrega = fechaHoraCorreccion != null ? fechaHoraCorreccion
+                : fechaHoraEntrega;
+        if (comunicadaEl.isBefore(ultimaEntrega)) {
+            throw new DatoInvalidoException("La observación no puede comunicarse antes de la"
+                    + " entrega del " + tipo.getDescripcion() + ".");
+        }
         observacion = motivoLimpio;
         fechaHoraComunicacion = comunicadaEl;
         estado = EstadoDocumento.OBSERVADO;
@@ -61,6 +68,10 @@ public class Documento {
         }
         exigirEntregado();
         Transiciones.exigirTransicion(estado, EstadoDocumento.EN_REVISION);
+        if (fechaHora.isBefore(fechaHoraComunicacion)) {
+            throw new DatoInvalidoException("La corrección no puede ser anterior a la"
+                    + " observación del " + tipo.getDescripcion() + ".");
+        }
         if (correccionVencida(fechaHora.toLocalDate())) {
             throw new ReglaDominioException("El plazo para corregir el "
                     + tipo.getDescripcion() + " venció el " + fechaLimiteCorreccion() + ".");

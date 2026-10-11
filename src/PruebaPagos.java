@@ -1889,8 +1889,63 @@ public class PruebaPagos {
         comprobar(carne.getFechaHoraComunicacion().equals(LocalDateTime.of(2026, 9, 21, 23, 30))
                 && carne.fechaLimiteCorreccion().equals(LocalDate.of(2026, 9, 28)),
                 "la hora de comunicación no cambia el plazo en días calendario");
+        esperarFallo(DatoInvalidoException.class,
+                () -> carne.entregarCorreccion(LocalDateTime.of(2026, 9, 21, 22, 0)),
+                "la corrección no puede ser anterior a la observación");
+        modelo.Documento partida = bloqueada.getExpediente()
+                .getDocumento(modelo.TipoDocumento.PARTIDA_NACIMIENTO);
+        partida.registrarEntrega(base.plusHours(3));
+        esperarFallo(DatoInvalidoException.class,
+                () -> partida.observar("Ilegible", base.plusHours(2)),
+                "la observación no puede comunicarse antes de la entrega");
+        comprobar(partida.getEstado() == modelo.EstadoDocumento.EN_REVISION,
+                "una observación rechazada no cambia el documento");
+
+        Solicitud reprogramada = solicitudConDocumentosValidados("ENT-REPRO", base, aula);
+        modelo.Entrevista cita = entrevistas.agendar(reprogramada,
+                reprogramada.getExpediente(), base.plusDays(2), listaDe("Ana Ruiz"), "Ana Ruiz");
+        esperarFallo(DatoInvalidoException.class,
+                () -> cita.registrarInasistencia(base.plusDays(1)),
+                "no se reprograma a una fecha anterior a la cita perdida");
+        comprobar(cita.getInasistencias() == 0, "la reprogramación rechazada no cuenta");
+
+        probarEntrevistaDeInscripcionAnulada(aula, base, entrevistas);
         probarIntegracionUiExpedienteVencido();
         probarIntegracionUiExpediente();
+    }
+
+    // Una inscripción anulada y vuelta a pagar empieza con expediente nuevo: la entrevista
+    // anterior no puede llevar la solicitud a la cola favorable sin los documentos nuevos.
+    private static void probarEntrevistaDeInscripcionAnulada(Aula aula, LocalDateTime base,
+            datos.ArregloEntrevistas entrevistas) throws Exception {
+        Solicitud solicitud = solicitudConDocumentosValidados("ENT-ANUL", base, aula);
+        modelo.Entrevista anterior = entrevistas.agendar(solicitud, solicitud.getExpediente(),
+                base.plusDays(2), listaDe("Ana Ruiz"), "Ana Ruiz");
+        anterior.registrarAsistencia();
+        anterior.marcarRealizada();
+
+        solicitud.revertirInscripcion(base.plusHours(3), base.plusHours(3));
+        comprobar(solicitud.getEstado() == EstadoSolicitud.HABILITADA_PARA_PAGO
+                && !anterior.esDeLaInscripcionVigente(),
+                "con la inscripción anulada la entrevista deja de estar vigente");
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> anterior.registrarResultado(modelo.ResultadoEntrevista.FAVORABLE,
+                        base.plusHours(4)),
+                "sin inscripción vigente no se registra el resultado", "ya no está vigente");
+
+        solicitud.confirmarInscripcion(base.plusHours(4));
+        comprobar(entrevistas.buscarDe(solicitud) == null,
+                "el expediente nuevo no hereda la entrevista anterior");
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> anterior.registrarResultado(modelo.ResultadoEntrevista.FAVORABLE,
+                        base.plusHours(5)),
+                "la entrevista anterior no sirve para el expediente nuevo", "ya no está vigente");
+        comprobar(solicitud.getEstado() == EstadoSolicitud.EN_DOCUMENTACION,
+                "la solicitud sigue en documentación, fuera de la cola favorable");
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> entrevistas.agendar(solicitud, solicitud.getExpediente(),
+                        base.plusDays(3), listaDe("Ana Ruiz"), "Ana Ruiz"),
+                "la nueva entrevista espera los 4 documentos nuevos", "Falta validar");
     }
 
     // Criterios del #19 sobre el panel real: el 4.º validado desbloquea la entrevista y el
@@ -1956,6 +2011,19 @@ public class PruebaPagos {
                 javax.swing.JPanel franja = (javax.swing.JPanel) campoPrivado(panel, "franja");
                 comprobar(textosDe(franja).contains("ESTADO: EN_ESPERA_FAVORABLE"),
                         "la franja muestra el estado nuevo");
+
+                // Volver a la pantalla (CardLayout la muestra con setVisible) renueva la
+                // hora propuesta aunque siga abierta la misma solicitud.
+                javax.swing.JTextField campoFecha = (javax.swing.JTextField) campoPrivado(panel,
+                        "campoFechaDocumento");
+                String horaVieja = ahora.minusHours(7).format(ui.TarjetasPago.FORMATO_FECHA);
+                campoFecha.setText(horaVieja);
+                for (java.awt.event.ComponentListener oyente : panel.getComponentListeners()) {
+                    oyente.componentShown(new java.awt.event.ComponentEvent(panel,
+                            java.awt.event.ComponentEvent.COMPONENT_SHOWN));
+                }
+                comprobar(!campoFecha.getText().equals(horaVieja),
+                        "al volver a la pantalla la hora propuesta es la actual");
             } catch (Exception e) {
                 failure[0] = new RuntimeException(e);
             }
@@ -2004,6 +2072,28 @@ public class PruebaPagos {
                 comprobar(vencida.getEstado() == EstadoSolicitud.CANCELADA
                         && "Sistema".equals(vencida.getResponsableCancelacion()),
                         "abrir el expediente cancela el plazo vencido con responsable Sistema");
+
+                // Entregó todo, pero fuera de plazo, y ya tenía la entrevista agendada: la
+                // tarjeta de entrevista debe dar el motivo documental, no una inasistencia.
+                ArregloSolicitudes conCita = new ArregloSolicitudes();
+                Solicitud tardia = registrarSolicitud(conCita, aula, "NAMED-UI-EXP-T",
+                        ahora.minusDays(10));
+                tardia.habilitarParaPago(ahora.minusDays(9).minusHours(1));
+                tardia.confirmarInscripcion(ahora.minusDays(9));
+                registrarYValidarDocumentos(tardia, ahora.minusDays(1), ahora.minusHours(20));
+                datos.ArregloEntrevistas entrevistas = new datos.ArregloEntrevistas();
+                entrevistas.agendar(tardia, tardia.getExpediente(), ahora.plusDays(1),
+                        listaDe("Ana Ruiz"), "Ana Ruiz");
+
+                ui.PanelExpediente panel = new ui.PanelExpediente(conCita, entrevistas);
+
+                String motivoTarjeta = ((javax.swing.JLabel) campoPrivado(panel,
+                        "motivoEntrevista")).getText();
+                comprobar(tardia.getEstado() == EstadoSolicitud.CANCELADA
+                        && textoEstadoEntrevista(panel).equals("CANCELADA")
+                        && motivoTarjeta.equals(tardia.getMotivoCancelacion())
+                        && !motivoTarjeta.contains("inasistencia"),
+                        "la tarjeta de entrevista muestra el motivo real de la cancelación");
             } catch (Exception e) {
                 failure[0] = new RuntimeException(e);
             }

@@ -19,7 +19,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 
-import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultListCellRenderer;
@@ -54,6 +53,7 @@ import modelo.ReglaDominioException;
 import modelo.ResultadoEntrevista;
 import modelo.Solicitud;
 import negocio.ExpedienteDocumentos;
+import negocio.Turnos;
 import util.FormatoFecha;
 
 /** Expediente por solicitud: documentos, observación y entrevista (diseño 03, issue #19). */
@@ -62,7 +62,7 @@ public class PanelExpediente extends JPanel {
     private static final DateTimeFormatter FORMATO_FECHA = TarjetasPago.FORMATO_FECHA;
     // Los vencimientos que se aplican al abrir el expediente no los decide una persona (#28).
     private static final String RESPONSABLE_VENCIMIENTOS = "Sistema";
-    private static final int INASISTENCIAS_PERMITIDAS = 2;
+
     private static final String SIN_DATO = "—";
 
     private interface Accion {
@@ -125,7 +125,7 @@ public class PanelExpediente extends JPanel {
         super(new BorderLayout(0, 20));
         this.solicitudes = solicitudes;
         this.entrevistas = entrevistas;
-        setBorder(BorderFactory.createEmptyBorder(32, 32, 32, 34));
+        setBorder(Estilos.MARGEN_PANTALLA);
 
         add(crearEncabezado(), BorderLayout.NORTH);
         contenido.setOpaque(false);
@@ -144,7 +144,7 @@ public class PanelExpediente extends JPanel {
         restricciones.insets = new Insets(24, 0, 0, 0);
         JLabel nota = new JLabel("Entrevista FAVORABLE habilita evaluar matrícula, pero no crea"
                 + " una matrícula ni garantiza cupo.");
-        nota.setFont(Estilos.fuente(Font.PLAIN, 14));
+        nota.setFont(Estilos.contenido());
         nota.setForeground(Estilos.SECUNDARIO);
         contenido.add(nota, restricciones);
 
@@ -163,6 +163,9 @@ public class PanelExpediente extends JPanel {
         addComponentListener(new ComponentAdapter() {
             @Override
             public void componentShown(ComponentEvent e) {
+                // Al volver la hora propuesta se renueva aunque sea la misma solicitud:
+                // si no, una entrega quedaría con la hora en que se dejó la pantalla.
+                campoFechaDocumento.setText(LocalDateTime.now().format(FORMATO_FECHA));
                 recargarLista();
             }
         });
@@ -210,7 +213,7 @@ public class PanelExpediente extends JPanel {
         encabezado.add(alineado(filaTitulo));
         encabezado.add(Box.createVerticalStrut(4));
 
-        identificacion.setFont(Estilos.fuente(Font.PLAIN, 16));
+        identificacion.setFont(Estilos.subtitulo());
         identificacion.setForeground(Estilos.SECUNDARIO);
         encabezado.add(alineado(identificacion));
         encabezado.add(Box.createVerticalStrut(20));
@@ -218,10 +221,10 @@ public class PanelExpediente extends JPanel {
         JPanel izquierda = new JPanel();
         izquierda.setLayout(new BoxLayout(izquierda, BoxLayout.Y_AXIS));
         izquierda.setOpaque(false);
-        estadoFranja.setFont(Estilos.fuente(Font.BOLD, 15));
-        fechasFranja.setFont(Estilos.fuente(Font.PLAIN, 15));
-        detalleFranja.setFont(Estilos.fuente(Font.BOLD, 14));
-        correccionFranja.setFont(Estilos.fuente(Font.BOLD, 15));
+        estadoFranja.setFont(Estilos.datoDestacado());
+        fechasFranja.setFont(Estilos.dato());
+        detalleFranja.setFont(Estilos.contenidoDestacado());
+        correccionFranja.setFont(Estilos.datoDestacado());
         izquierda.add(alineado(estadoFranja));
         izquierda.add(Box.createVerticalStrut(10));
         izquierda.add(alineado(fechasFranja));
@@ -232,7 +235,7 @@ public class PanelExpediente extends JPanel {
         encabezado.add(alineado(franja));
         encabezado.add(Box.createVerticalStrut(10));
 
-        mensaje.setFont(Estilos.fuente(Font.BOLD, 14));
+        mensaje.setFont(Estilos.contenidoDestacado());
         encabezado.add(alineado(mensaje));
         return encabezado;
     }
@@ -250,7 +253,7 @@ public class PanelExpediente extends JPanel {
                 + " confirmado. La validación puede concluir después.", 560)));
         tarjeta.add(Box.createVerticalStrut(18));
 
-        tablaDocumentos.setFont(Estilos.fuente(Font.PLAIN, 15));
+        tablaDocumentos.setFont(Estilos.dato());
         tablaDocumentos.setRowHeight(52);
         tablaDocumentos.setShowVerticalLines(false);
         tablaDocumentos.setGridColor(Estilos.BORDE_TARJETA);
@@ -311,8 +314,8 @@ public class PanelExpediente extends JPanel {
         tarjeta.add(Box.createVerticalStrut(16));
 
         cajaEstadoEntrevista.setLayout(new BoxLayout(cajaEstadoEntrevista, BoxLayout.Y_AXIS));
-        estadoEntrevista.setFont(Estilos.fuente(Font.BOLD, 15));
-        motivoEntrevista.setFont(Estilos.fuente(Font.PLAIN, 13));
+        estadoEntrevista.setFont(Estilos.datoDestacado());
+        motivoEntrevista.setFont(Estilos.detalle());
         cajaEstadoEntrevista.add(alineado(estadoEntrevista));
         cajaEstadoEntrevista.add(Box.createVerticalStrut(6));
         cajaEstadoEntrevista.add(alineado(motivoEntrevista));
@@ -407,19 +410,20 @@ public class PanelExpediente extends JPanel {
         return tarjeta;
     }
 
+    // Los vencimientos los revisa abrir(): la lista incluye también las CANCELADAS, así que
+    // revisarlos antes de listar no cambiaría qué solicitudes aparecen.
     private void recargarLista() {
-        // Antes de listar, para que un expediente vencido ya aparezca CANCELADO.
-        revisarVencimientos();
         Solicitud seleccionada = actual;
+        ArrayList<Solicitud> todas = solicitudes.listar();
         llenandoLista = true;
         comboSolicitud.removeAllItems();
-        for (Solicitud solicitud : solicitudes.listar()) {
+        for (Solicitud solicitud : todas) {
             if (solicitud.getExpediente() != null) {
                 comboSolicitud.addItem(solicitud);
             }
         }
         if (seleccionada != null && seleccionada.getExpediente() != null
-                && solicitudes.listar().contains(seleccionada)) {
+                && todas.contains(seleccionada)) {
             comboSolicitud.setSelectedItem(seleccionada);
         } else if (comboSolicitud.getItemCount() > 0) {
             comboSolicitud.setSelectedIndex(0);
@@ -513,13 +517,7 @@ public class PanelExpediente extends JPanel {
         Entrevista entrevista = entrevistas.buscarDe(actual);
         switch (actual.getEstado()) {
             case CANCELADA:
-                String motivo = actual.getMotivoCancelacion();
-                // registrarInasistencia cancela sin motivo propio: se reconstruye desde la entrevista.
-                if (motivo == null && entrevista != null
-                        && entrevista.getInasistencias() >= INASISTENCIAS_PERMITIDAS) {
-                    motivo = "Segunda inasistencia a la entrevista.";
-                }
-                return (motivo == null ? "" : motivo + " ") + "Sin reembolso de la inscripción.";
+                return motivoCancelacion(entrevista) + " Sin reembolso de la inscripción.";
             case RECHAZADA:
                 return "Entrevista NO_FAVORABLE. Una solicitud nueva exige un nuevo pago de"
                         + " inscripción.";
@@ -530,6 +528,20 @@ public class PanelExpediente extends JPanel {
             default:
                 return null;
         }
+    }
+
+    // Franja y tarjeta de entrevista leen el mismo motivo para no contradecirse. El motivo
+    // guardado manda; registrarInasistencia cancela sin guardarlo (#28), así que solo se
+    // atribuye a la entrevista si ella misma registra la segunda inasistencia.
+    private String motivoCancelacion(Entrevista entrevista) {
+        if (actual.getMotivoCancelacion() != null) {
+            return actual.getMotivoCancelacion();
+        }
+        if (entrevista != null
+                && entrevista.getInasistencias() >= Entrevista.INASISTENCIAS_PERMITIDAS) {
+            return "Segunda inasistencia del apoderado a la entrevista.";
+        }
+        return "Solicitud CANCELADA.";
     }
 
     private static LocalDate proximaCorreccion(ExpedienteDocumentos expediente) {
@@ -589,7 +601,7 @@ public class PanelExpediente extends JPanel {
                     ? documento.getTipo().getDescripcion() + ": " : "";
             JLabel linea = new JLabel(prefijo + documento.getObservacion() + " · comunicado "
                     + FormatoFecha.diaHora(documento.getFechaHoraComunicacion()));
-            linea.setFont(Estilos.fuente(Font.BOLD, 15));
+            linea.setFont(Estilos.datoDestacado());
             linea.setForeground(Estilos.TEXTO_ALERTA);
             observaciones.add(alineado(linea));
             observaciones.add(Box.createVerticalStrut(10));
@@ -626,9 +638,10 @@ public class PanelExpediente extends JPanel {
                         : entrevista.getResultado().name()));
         indicadorInasistencias.setText("Inasistencias: "
                 + (entrevista == null ? 0 : entrevista.getInasistencias()) + " de "
-                + INASISTENCIAS_PERMITIDAS);
+                + Entrevista.INASISTENCIAS_PERMITIDAS);
 
-        boolean pendiente = entrevista != null && actual.estaActiva()
+        // Con la inscripción anulada la entrevista sigue a la vista, pero no se opera.
+        boolean pendiente = entrevista != null && entrevista.esDeLaInscripcionVigente()
                 && entrevista.getResultado() == null;
         boolean sinAsistencia = pendiente && entrevista.getAsistioApoderado() == null;
         accionesAsistencia.setVisible(sinAsistencia);
@@ -664,7 +677,7 @@ public class PanelExpediente extends JPanel {
             fondo = Estilos.ALERTA;
             texto = Estilos.TEXTO_ALERTA;
             estado = "CANCELADA";
-            motivo = "Segunda inasistencia del apoderado.";
+            motivo = motivoCancelacion(entrevista);
         } else if (entrevista.isRealizada()) {
             fondo = Estilos.ESPERA;
             texto = Estilos.TEXTO_ESPERA;
@@ -710,7 +723,7 @@ public class PanelExpediente extends JPanel {
         if (Boolean.TRUE.equals(entrevista.getAsistioApoderado())) {
             return "Asistió · entrevista realizada";
         }
-        if (entrevista.getInasistencias() >= INASISTENCIAS_PERMITIDAS) {
+        if (entrevista.getInasistencias() >= Entrevista.INASISTENCIAS_PERMITIDAS) {
             return "No asistió (segunda inasistencia)";
         }
         if (entrevista.getInasistencias() > 0) {
@@ -744,7 +757,13 @@ public class PanelExpediente extends JPanel {
     private void registrarEntrega() {
         Documento documento = seleccionado();
         ejecutar(() -> {
-            LocalDateTime fecha = leerFecha(campoFechaDocumento.getText(), true);
+            LocalDateTime fecha = leerFecha(campoFechaDocumento.getText(), false);
+            // El plazo de entrega corre desde el pago: antes no había expediente que entregar.
+            if (fecha.isBefore(actual.getFechaConfirmacionInscripcion())) {
+                throw new DatoInvalidoException("La entrega no puede ser anterior a la"
+                        + " confirmación de la inscripción ("
+                        + FormatoFecha.diaHora(actual.getFechaConfirmacionInscripcion()) + ").");
+            }
             if (documento.getEstado() == EstadoDocumento.OBSERVADO) {
                 documento.entregarCorreccion(fecha);
             } else {
@@ -768,13 +787,13 @@ public class PanelExpediente extends JPanel {
             return;
         }
         ejecutar(() -> documento.observar(motivo,
-                leerFecha(campoFechaDocumento.getText(), true)),
+                leerFecha(campoFechaDocumento.getText(), false)),
                 documento.getTipo().getDescripcion() + ": OBSERVADO.");
     }
 
     private void agendar() {
         ejecutar(() -> entrevistas.agendar(actual, actual.getExpediente(),
-                leerFecha(campoFechaEntrevista.getText(), false), leerPersonal(),
+                leerFecha(campoFechaEntrevista.getText(), true), leerPersonal(),
                 (String) comboResponsable.getSelectedItem()), "Entrevista agendada.");
     }
 
@@ -789,7 +808,7 @@ public class PanelExpediente extends JPanel {
 
     private void registrarInasistencia() {
         Entrevista entrevista = entrevistas.buscarDe(actual);
-        if (entrevista.getInasistencias() == 0) {
+        if (entrevista.getInasistencias() + 1 < Entrevista.INASISTENCIAS_PERMITIDAS) {
             String texto = JOptionPane.showInputDialog(this,
                     "El apoderado no asistió. Se permite una sola reprogramación.\n"
                             + "Nueva fecha y hora (dd/mm/aaaa hh:mm):",
@@ -797,7 +816,7 @@ public class PanelExpediente extends JPanel {
             if (texto == null) {
                 return;
             }
-            ejecutar(() -> entrevista.registrarInasistencia(leerFecha(texto, false)),
+            ejecutar(() -> entrevista.registrarInasistencia(leerFecha(texto, true)),
                     "Inasistencia registrada: entrevista reprogramada.");
             return;
         }
@@ -815,8 +834,10 @@ public class PanelExpediente extends JPanel {
     private void registrarResultado() {
         Entrevista entrevista = entrevistas.buscarDe(actual);
         ResultadoEntrevista resultado = (ResultadoEntrevista) comboResultado.getSelectedItem();
-        // La fecha de ingreso a la cola favorable es el momento en que se registra (§6.9).
-        ejecutar(() -> entrevista.registrarResultado(resultado, LocalDateTime.now()),
+        // Ingresa en el momento en que se registra (§6.9), pero nunca delante de quien ya
+        // estaba al final de la cola favorable.
+        ejecutar(() -> entrevista.registrarResultado(resultado,
+                Turnos.fechaAlFinalFavorable(actual, LocalDateTime.now(), solicitudes)),
                 "Resultado " + resultado + " registrado.");
     }
 
@@ -840,8 +861,8 @@ public class PanelExpediente extends JPanel {
     }
 
     // Entregas y comunicaciones ya ocurrieron: no se aceptan futuras, igual que en Pagos.
-    // La agenda y la reprogramación sí son futuras.
-    private static LocalDateTime leerFecha(String texto, boolean noFutura)
+    // La agenda y la reprogramación son citas por venir: no se aceptan pasadas.
+    private static LocalDateTime leerFecha(String texto, boolean futura)
             throws DatoInvalidoException {
         LocalDateTime fecha;
         try {
@@ -849,7 +870,11 @@ public class PanelExpediente extends JPanel {
         } catch (DateTimeParseException e) {
             throw new DatoInvalidoException("Use el formato dd/mm/aaaa hh:mm.");
         }
-        if (noFutura && fecha.isAfter(LocalDateTime.now())) {
+        LocalDateTime ahora = LocalDateTime.now();
+        if (futura && !fecha.isAfter(ahora)) {
+            throw new DatoInvalidoException("La cita debe ser en una fecha futura.");
+        }
+        if (!futura && fecha.isAfter(ahora)) {
             throw new DatoInvalidoException("La fecha no puede ser futura.");
         }
         return fecha;
@@ -867,14 +892,14 @@ public class PanelExpediente extends JPanel {
 
     private static JLabel dato() {
         JLabel dato = new JLabel(" ");
-        dato.setFont(Estilos.fuente(Font.PLAIN, 15));
+        dato.setFont(Estilos.dato());
         dato.setForeground(Estilos.SECUNDARIO);
         return dato;
     }
 
     private static JLabel subtitulo(String texto) {
         JLabel subtitulo = new JLabel(texto);
-        subtitulo.setFont(Estilos.fuente(Font.BOLD, 16));
+        subtitulo.setFont(Estilos.seccion());
         subtitulo.setForeground(Estilos.TEXTO_PRINCIPAL);
         return subtitulo;
     }
@@ -883,7 +908,7 @@ public class PanelExpediente extends JPanel {
     private static JLabel texto(String texto, int ancho) {
         JLabel etiqueta = new JLabel("<html><div style='width:" + ancho + "px'>" + texto
                 + "</div></html>");
-        etiqueta.setFont(Estilos.fuente(Font.PLAIN, 14));
+        etiqueta.setFont(Estilos.contenido());
         etiqueta.setForeground(Estilos.SECUNDARIO);
         return etiqueta;
     }
@@ -988,7 +1013,11 @@ public class PanelExpediente extends JPanel {
         }
     }
 
+    // Los renderers corren por celda en cada repintado: las fuentes se crean una sola vez.
     private final class RenderDocumento extends DefaultTableCellRenderer {
+        private final Font fuenteDato = Estilos.dato();
+        private final Font fuenteRevision = Estilos.datoDestacado();
+
         @Override
         public Component getTableCellRendererComponent(JTable tabla, Object valor,
                 boolean seleccionado, boolean conFoco, int fila, int columna) {
@@ -999,8 +1028,8 @@ public class PanelExpediente extends JPanel {
                 texto = estado == null ? "PENDIENTE" : estado.name().replace('_', ' ');
             }
             super.getTableCellRendererComponent(tabla, texto, false, false, fila, columna);
-            setBorder(BorderFactory.createEmptyBorder(0, 14, 0, 14));
-            setFont(columna == 2 ? Estilos.fuente(Font.BOLD, 15) : Estilos.fuente(Font.PLAIN, 15));
+            setBorder(Estilos.MARGEN_CELDA);
+            setFont(columna == 2 ? fuenteRevision : fuenteDato);
             setForeground(columna == 2 ? Estilos.colorTexto(documento.getEstado())
                     : Estilos.TEXTO_PRINCIPAL);
             if (seleccionado) {
@@ -1015,15 +1044,17 @@ public class PanelExpediente extends JPanel {
     }
 
     private static final class RenderCabecera extends DefaultTableCellRenderer {
+        private final Font fuente = Estilos.etiqueta();
+
         @Override
         public Component getTableCellRendererComponent(JTable tabla, Object valor,
                 boolean seleccionado, boolean conFoco, int fila, int columna) {
             super.getTableCellRendererComponent(tabla, String.valueOf(valor).toUpperCase(),
                     false, false, fila, columna);
-            setFont(Estilos.fuente(Font.BOLD, 13));
+            setFont(fuente);
             setForeground(Estilos.SECUNDARIO);
             setBackground(Estilos.FONDO_CAMPO);
-            setBorder(BorderFactory.createEmptyBorder(16, 14, 16, 14));
+            setBorder(Estilos.MARGEN_CABECERA_TABLA);
             return this;
         }
     }

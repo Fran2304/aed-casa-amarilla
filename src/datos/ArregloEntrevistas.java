@@ -31,9 +31,12 @@ public class ArregloEntrevistas {
         return nueva;
     }
 
+    // Solo la del expediente actual: una inscripción anulada y vuelta a pagar empieza con
+    // expediente nuevo, y la entrevista anterior queda en el historial (listarPorSolicitud).
     public Entrevista buscarDe(Solicitud solicitud) {
         for (Entrevista entrevista : entrevistas) {
-            if (entrevista.getSolicitud() == solicitud) {
+            if (entrevista.getSolicitud() == solicitud
+                    && entrevista.getExpediente() == solicitud.getExpediente()) {
                 return entrevista;
             }
         }

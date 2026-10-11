@@ -8,7 +8,13 @@ import negocio.ExpedienteDocumentos;
 /** Entrevista de admisión: agenda, asistencia y resultado (§4.5 del flujo, issue #18). */
 public class Entrevista {
 
+    // La primera inasistencia reprograma una vez; la que alcanza este número cancela.
+    public static final int INASISTENCIAS_PERMITIDAS = 2;
+
     private final Solicitud solicitud;
+    // La entrevista pertenece a una inscripción: si se anula y se vuelve a pagar, la
+    // solicitud recibe otro expediente y esta entrevista deja de ser la suya.
+    private final ExpedienteDocumentos expediente;
     private LocalDateTime fechaHora;
     private final ArrayList<String> personal;
     private final String responsable;
@@ -33,6 +39,11 @@ public class Entrevista {
         if (expediente == null) {
             throw new DatoInvalidoException("El expediente es obligatorio.");
         }
+        if (solicitud.getEstado() != EstadoSolicitud.EN_DOCUMENTACION
+                || solicitud.getExpediente() != expediente) {
+            throw new ReglaDominioException("La entrevista de " + solicitud.getCodigo()
+                    + " solo se agenda con la inscripción confirmada y su expediente vigente.");
+        }
         expediente.exigirAgendarEntrevista();
         if (fechaHora == null) {
             throw new DatoInvalidoException("La fecha y hora de la entrevista es obligatoria.");
@@ -46,6 +57,7 @@ public class Entrevista {
                     "El responsable debe ser uno de los participantes.");
         }
         this.solicitud = solicitud;
+        this.expediente = expediente;
         this.fechaHora = fechaHora;
         this.personal = new ArrayList<String>(personal);
         // Un solo String de responsable: exactamente uno por construcción.
@@ -62,7 +74,7 @@ public class Entrevista {
     public void registrarInasistencia(LocalDateTime reprogramada)
             throws ReglaDominioException {
         exigirPendiente();
-        if (inasistencias >= 1) {
+        if (inasistencias + 1 >= INASISTENCIAS_PERMITIDAS) {
             solicitud.cambiarEstado(EstadoSolicitud.CANCELADA);
             inasistencias++;
             return;
@@ -70,12 +82,17 @@ public class Entrevista {
         if (reprogramada == null) {
             throw new DatoInvalidoException("La fecha reprogramada es obligatoria.");
         }
+        if (!reprogramada.isAfter(fechaHora)) {
+            throw new DatoInvalidoException(
+                    "La nueva fecha debe ser posterior a la cita a la que no asistió.");
+        }
         inasistencias++;
         fechaHora = reprogramada;
         asistioApoderado = null;
     }
 
     public void marcarRealizada() throws ReglaDominioException {
+        exigirPendiente();
         if (asistioApoderado == null || !asistioApoderado) {
             throw new ReglaDominioException(
                     "La entrevista no puede realizarse sin asistencia del apoderado.");
@@ -85,9 +102,14 @@ public class Entrevista {
 
     // NO_FAVORABLE deja la solicitud RECHAZADA en el historial. FAVORABLE no garantiza
     // vacante y entra siempre a EN_ESPERA_FAVORABLE, haya cupo o no: la oferta (#22)
-    // solo se hace desde esa cola, y con cupo queda primera en su turno (§6.9).
+    // solo se hace desde esa cola (§6.9). ingresoCola lo calcula quien ve la cola: al
+    // final, como los reingresos de Turnos y Cobros.
     public void registrarResultado(ResultadoEntrevista resultadoNuevo,
-            LocalDateTime registradoEl) throws ReglaDominioException {
+            LocalDateTime ingresoCola) throws ReglaDominioException {
+        exigirPendiente();
+        // El resultado es la puerta a la cola favorable: se vuelve a exigir el expediente
+        // completo en vez de confiar en que lo estaba al agendar.
+        expediente.exigirAgendarEntrevista();
         if (!realizada) {
             throw new ReglaDominioException(
                     "La entrevista debe realizarse antes de registrar el resultado.");
@@ -98,14 +120,14 @@ public class Entrevista {
         if (resultadoNuevo == null) {
             throw new DatoInvalidoException("El resultado es obligatorio.");
         }
-        if (registradoEl == null) {
-            throw new DatoInvalidoException("La fecha y hora del resultado es obligatoria.");
+        if (ingresoCola == null) {
+            throw new DatoInvalidoException("La fecha de ingreso a la cola es obligatoria.");
         }
         // Primero la solicitud: si la transición falla, el resultado no queda a medias.
         if (resultadoNuevo == ResultadoEntrevista.NO_FAVORABLE) {
             solicitud.cambiarEstado(EstadoSolicitud.RECHAZADA);
         } else {
-            solicitud.ingresarAColaFavorable(registradoEl);
+            solicitud.ingresarAColaFavorable(ingresoCola);
         }
         resultado = resultadoNuevo;
     }
@@ -117,10 +139,24 @@ public class Entrevista {
             throw new ReglaDominioException(
                     "La entrevista de " + solicitud.getCodigo() + " ya está cerrada.");
         }
+        if (!esDeLaInscripcionVigente()) {
+            throw new ReglaDominioException("La entrevista de " + solicitud.getCodigo()
+                    + " corresponde a una inscripción que ya no está vigente.");
+        }
+    }
+
+    /** Falso si la inscripción se anuló, aunque después se haya vuelto a pagar. */
+    public boolean esDeLaInscripcionVigente() {
+        return solicitud.getEstado() == EstadoSolicitud.EN_DOCUMENTACION
+                && solicitud.getExpediente() == expediente;
     }
 
     public Solicitud getSolicitud() {
         return solicitud;
+    }
+
+    public ExpedienteDocumentos getExpediente() {
+        return expediente;
     }
 
     public LocalDateTime getFechaHora() {
