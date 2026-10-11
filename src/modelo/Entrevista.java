@@ -8,12 +8,9 @@ import negocio.ExpedienteDocumentos;
 /** Entrevista de admisión: agenda, asistencia y resultado (§4.5 del flujo, issue #18). */
 public class Entrevista {
 
-    // La primera inasistencia reprograma una vez; la que alcanza este número cancela.
     public static final int INASISTENCIAS_PERMITIDAS = 2;
 
     private final Solicitud solicitud;
-    // La entrevista pertenece a una inscripción: si se anula y se vuelve a pagar, la
-    // solicitud recibe otro expediente y esta entrevista deja de ser la suya.
     private final ExpedienteDocumentos expediente;
     private LocalDateTime fechaHora;
     private final ArrayList<String> personal;
@@ -100,15 +97,9 @@ public class Entrevista {
         realizada = true;
     }
 
-    // NO_FAVORABLE deja la solicitud RECHAZADA en el historial. FAVORABLE no garantiza
-    // vacante y entra siempre a EN_ESPERA_FAVORABLE, haya cupo o no: la oferta (#22)
-    // solo se hace desde esa cola (§6.9). ingresoCola lo calcula quien ve la cola: al
-    // final, como los reingresos de Turnos y Cobros.
     public void registrarResultado(ResultadoEntrevista resultadoNuevo,
             LocalDateTime ingresoCola) throws ReglaDominioException {
         exigirPendiente();
-        // El resultado es la puerta a la cola favorable: se vuelve a exigir el expediente
-        // completo en vez de confiar en que lo estaba al agendar.
         expediente.exigirAgendarEntrevista();
         if (!realizada) {
             throw new ReglaDominioException(
@@ -123,7 +114,6 @@ public class Entrevista {
         if (ingresoCola == null) {
             throw new DatoInvalidoException("La fecha de ingreso a la cola es obligatoria.");
         }
-        // Primero la solicitud: si la transición falla, el resultado no queda a medias.
         if (resultadoNuevo == ResultadoEntrevista.NO_FAVORABLE) {
             solicitud.cambiarEstado(EstadoSolicitud.RECHAZADA);
         } else {
@@ -145,7 +135,6 @@ public class Entrevista {
         }
     }
 
-    /** Falso si la inscripción se anuló, aunque después se haya vuelto a pagar. */
     public boolean esDeLaInscripcionVigente() {
         return solicitud.getEstado() == EstadoSolicitud.EN_DOCUMENTACION
                 && solicitud.getExpediente() == expediente;

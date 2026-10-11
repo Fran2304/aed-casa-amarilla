@@ -56,11 +56,9 @@ import negocio.ExpedienteDocumentos;
 import negocio.Turnos;
 import util.FormatoFecha;
 
-/** Expediente por solicitud: documentos, observación y entrevista (diseño 03, issue #19). */
 public class PanelExpediente extends JPanel {
 
     private static final DateTimeFormatter FORMATO_FECHA = TarjetasPago.FORMATO_FECHA;
-    // Los vencimientos que se aplican al abrir el expediente no los decide una persona (#28).
     private static final String RESPONSABLE_VENCIMIENTOS = "Sistema";
 
     private static final String SIN_DATO = "—";
@@ -73,8 +71,6 @@ public class PanelExpediente extends JPanel {
     private final ArregloEntrevistas entrevistas;
 
     private Solicitud actual;
-    // Rellenar el combo dispara su listener: sin esta marca se recargaría el expediente
-    // una vez por cada solicitud agregada.
     private boolean llenandoLista;
 
     private final JLabel titulo = new JLabel("Expediente");
@@ -148,7 +144,6 @@ public class PanelExpediente extends JPanel {
         nota.setForeground(Estilos.SECUNDARIO);
         contenido.add(nota, restricciones);
 
-        // Con NORTH las tarjetas conservan su alto natural en vez de estirarse a la ventana.
         PanelAncho envoltura = new PanelAncho();
         envoltura.add(contenido, BorderLayout.NORTH);
         desplazable = new JScrollPane(envoltura);
@@ -158,13 +153,9 @@ public class PanelExpediente extends JPanel {
         desplazable.getVerticalScrollBar().setUnitIncrement(16);
         add(desplazable, BorderLayout.CENTER);
 
-        // CardLayout muestra la card con setVisible: así la lista recoge las solicitudes
-        // que confirmaron su inscripción en Pagos mientras esta pantalla estaba oculta.
         addComponentListener(new ComponentAdapter() {
             @Override
             public void componentShown(ComponentEvent e) {
-                // Al volver la hora propuesta se renueva aunque sea la misma solicitud:
-                // si no, una entrega quedaría con la hora en que se dejó la pantalla.
                 campoFechaDocumento.setText(LocalDateTime.now().format(FORMATO_FECHA));
                 recargarLista();
             }
@@ -177,7 +168,6 @@ public class PanelExpediente extends JPanel {
         encabezado.setLayout(new BoxLayout(encabezado, BoxLayout.Y_AXIS));
         encabezado.setOpaque(false);
 
-        // El diseño no tiene selector: va a la derecha del título para no correr el resto.
         JPanel filaTitulo = new JPanel(new BorderLayout(20, 0));
         filaTitulo.setOpaque(false);
         titulo.setFont(Estilos.titulo());
@@ -270,7 +260,6 @@ public class PanelExpediente extends JPanel {
                 actualizarBotonesDocumento();
             }
         });
-        // Sin JScrollPane la cabecera no se agrega sola: va arriba de la tabla a mano.
         tarjeta.add(alineado(tablaDocumentos.getTableHeader()));
         tarjeta.add(alineado(tablaDocumentos));
         tarjeta.add(Box.createVerticalStrut(18));
@@ -279,7 +268,6 @@ public class PanelExpediente extends JPanel {
         observaciones.setOpaque(false);
         tarjeta.add(alineado(observaciones));
 
-        // Las acciones no están en el diseño, pero el issue las pide: van al pie de la tarjeta.
         JPanel acciones = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         acciones.setOpaque(false);
         acciones.add(Estilos.etiquetaCampo("Fecha (dd/mm/aaaa hh:mm)"));
@@ -353,7 +341,6 @@ public class PanelExpediente extends JPanel {
         tarjeta.add(Box.createVerticalStrut(20));
         JSeparator separador = new JSeparator();
         separador.setForeground(Estilos.BORDE_TARJETA);
-        // En BoxLayout un JSeparator crece sin tope y se come el alto que sobra.
         separador.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
         tarjeta.add(alineado(separador));
         tarjeta.add(Box.createVerticalStrut(20));
@@ -381,7 +368,6 @@ public class PanelExpediente extends JPanel {
         accionesResultado.add(botonResultado);
         tarjeta.add(alineado(accionesResultado));
         tarjeta.add(Box.createVerticalStrut(20));
-        // La tarjeta se estira al alto de la de documentos: la nota de reglas va al pie.
         tarjeta.add(Box.createVerticalGlue());
 
         tarjeta.add(alineado(texto("Una reprogramación por inasistencia; segunda ausencia →"
@@ -410,8 +396,6 @@ public class PanelExpediente extends JPanel {
         return tarjeta;
     }
 
-    // Los vencimientos los revisa abrir(): la lista incluye también las CANCELADAS, así que
-    // revisarlos antes de listar no cambiaría qué solicitudes aparecen.
     private void recargarLista() {
         Solicitud seleccionada = actual;
         ArrayList<Solicitud> todas = solicitudes.listar();
@@ -445,14 +429,11 @@ public class PanelExpediente extends JPanel {
         revisarVencimientos();
         refrescar();
         if (otraSolicitud) {
-            // Otra solicitud empieza arriba, no a la altura donde quedó la anterior. Tras el
-            // layout, para que la nueva altura ya esté calculada.
             SwingUtilities.invokeLater(() -> desplazable.getViewport()
                     .setViewPosition(new Point(0, 0)));
         }
     }
 
-    // Se aplica al abrir y antes de cada operación, con las fechas guardadas (§4.8).
     private void revisarVencimientos() {
         try {
             solicitudes.cancelarDocumentacionVencida(LocalDate.now(), RESPONSABLE_VENCIMIENTOS);
@@ -497,7 +478,6 @@ public class PanelExpediente extends JPanel {
         Estilos.aviso(franja, fondo);
         estadoFranja.setText("ESTADO: " + estado.name());
         estadoFranja.setForeground(texto);
-        // El plazo se cuenta en días calendario (§4.4): el límite es un día, no una hora.
         fechasFranja.setText("Inscripción confirmada "
                 + FormatoFecha.diaHora(actual.getFechaConfirmacionInscripcion())
                 + " → entrega hasta " + FormatoFecha.dia(expediente.fechaLimiteEntrega()));
@@ -512,7 +492,6 @@ public class PanelExpediente extends JPanel {
         correccionFranja.setForeground(texto);
     }
 
-    /** null cuando la franja no necesita una tercera línea (el caso del diseño). */
     private String detalleEstado() {
         Entrevista entrevista = entrevistas.buscarDe(actual);
         switch (actual.getEstado()) {
@@ -530,9 +509,6 @@ public class PanelExpediente extends JPanel {
         }
     }
 
-    // Franja y tarjeta de entrevista leen el mismo motivo para no contradecirse. El motivo
-    // guardado manda; registrarInasistencia cancela sin guardarlo (#28), así que solo se
-    // atribuye a la entrevista si ella misma registra la segunda inasistencia.
     private String motivoCancelacion(Entrevista entrevista) {
         if (actual.getMotivoCancelacion() != null) {
             return actual.getMotivoCancelacion();
@@ -596,7 +572,6 @@ public class PanelExpediente extends JPanel {
             }
         }
         for (Documento documento : observados) {
-            // Con un solo observado la fila resaltada ya dice cuál es, como en el diseño.
             String prefijo = observados.size() > 1
                     ? documento.getTipo().getDescripcion() + ": " : "";
             JLabel linea = new JLabel(prefijo + documento.getObservacion() + " · comunicado "
@@ -622,7 +597,6 @@ public class PanelExpediente extends JPanel {
                 && expediente.puedeAgendarEntrevista();
         pintarEstadoEntrevista(entrevista, agendable);
 
-        // Agendable: el formulario reemplaza a los datos vacíos de la cita.
         formularioAgenda.setVisible(agendable);
         datosCita.setVisible(!agendable);
         datoFecha.setText("Fecha y hora: " + (entrevista == null ? SIN_DATO
@@ -640,7 +614,6 @@ public class PanelExpediente extends JPanel {
                 + (entrevista == null ? 0 : entrevista.getInasistencias()) + " de "
                 + Entrevista.INASISTENCIAS_PERMITIDAS);
 
-        // Con la inscripción anulada la entrevista sigue a la vista, pero no se opera.
         boolean pendiente = entrevista != null && entrevista.esDeLaInscripcionVigente()
                 && entrevista.getResultado() == null;
         boolean sinAsistencia = pendiente && entrevista.getAsistioApoderado() == null;
@@ -758,7 +731,6 @@ public class PanelExpediente extends JPanel {
         Documento documento = seleccionado();
         ejecutar(() -> {
             LocalDateTime fecha = leerFecha(campoFechaDocumento.getText(), false);
-            // El plazo de entrega corre desde el pago: antes no había expediente que entregar.
             if (fecha.isBefore(actual.getFechaConfirmacionInscripcion())) {
                 throw new DatoInvalidoException("La entrega no puede ser anterior a la"
                         + " confirmación de la inscripción ("
@@ -799,7 +771,6 @@ public class PanelExpediente extends JPanel {
 
     private void registrarAsistencia() {
         Entrevista entrevista = entrevistas.buscarDe(actual);
-        // El flujo no distingue «asistió» de «se realizó»: un solo paso habilita el resultado.
         ejecutar(() -> {
             entrevista.registrarAsistencia();
             entrevista.marcarRealizada();
@@ -834,8 +805,6 @@ public class PanelExpediente extends JPanel {
     private void registrarResultado() {
         Entrevista entrevista = entrevistas.buscarDe(actual);
         ResultadoEntrevista resultado = (ResultadoEntrevista) comboResultado.getSelectedItem();
-        // Ingresa en el momento en que se registra (§6.9), pero nunca delante de quien ya
-        // estaba al final de la cola favorable.
         ejecutar(() -> entrevista.registrarResultado(resultado,
                 Turnos.fechaAlFinalFavorable(actual, LocalDateTime.now(), solicitudes)),
                 "Resultado " + resultado + " registrado.");
@@ -852,7 +821,6 @@ public class PanelExpediente extends JPanel {
         try {
             accion.ejecutar();
             mostrarMensaje(exito, false);
-            // Tras un error se conserva la fecha tecleada para corregirla.
             campoFechaDocumento.setText(LocalDateTime.now().format(FORMATO_FECHA));
         } catch (ReglaDominioException e) {
             mostrarMensaje(e.getMessage(), true);
@@ -860,8 +828,6 @@ public class PanelExpediente extends JPanel {
         refrescar();
     }
 
-    // Entregas y comunicaciones ya ocurrieron: no se aceptan futuras, igual que en Pagos.
-    // La agenda y la reprogramación son citas por venir: no se aceptan pasadas.
     private static LocalDateTime leerFecha(String texto, boolean futura)
             throws DatoInvalidoException {
         LocalDateTime fecha;
@@ -904,7 +870,6 @@ public class PanelExpediente extends JPanel {
         return subtitulo;
     }
 
-    // Sin ancho, un JLabel HTML pide todo el párrafo en una línea y ensancha la columna.
     private static JLabel texto(String texto, int ancho) {
         JLabel etiqueta = new JLabel("<html><div style='width:" + ancho + "px'>" + texto
                 + "</div></html>");
@@ -921,15 +886,11 @@ public class PanelExpediente extends JPanel {
         return columna;
     }
 
-    // BoxLayout mezcla alineaciones si los hijos no coinciden: todos a la izquierda. No se
-    // fija la altura máxima porque tabla y observación crecen después de construirse; no
-    // hace falta, porque cada columna va en NORTH y nunca recibe alto de sobra.
     private static <T extends JComponent> T alineado(T componente) {
         componente.setAlignmentX(LEFT_ALIGNMENT);
         return componente;
     }
 
-    /** Sigue el ancho de la ventana: el expediente baja con scroll, nunca de costado. */
     private static final class PanelAncho extends JPanel implements Scrollable {
 
         PanelAncho() {
@@ -1005,7 +966,6 @@ public class PanelExpediente extends JPanel {
             if (!documento.estaEntregado()) {
                 return SIN_DATO;
             }
-            // La corrección es la entrega vigente: la original ya fue observada.
             if (documento.getFechaHoraCorreccion() != null) {
                 return FormatoFecha.diaHora(documento.getFechaHoraCorreccion()) + " (corrección)";
             }
@@ -1013,7 +973,6 @@ public class PanelExpediente extends JPanel {
         }
     }
 
-    // Los renderers corren por celda en cada repintado: las fuentes se crean una sola vez.
     private final class RenderDocumento extends DefaultTableCellRenderer {
         private final Font fuenteDato = Estilos.dato();
         private final Font fuenteRevision = Estilos.datoDestacado();

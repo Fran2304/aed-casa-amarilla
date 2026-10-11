@@ -42,9 +42,7 @@ public final class Estilos {
     private static final String INTER = "Inter";
     private static Boolean hayInter;
 
-    // Las pantallas de fichas (Pagos, Cuotas, Expediente) dejan 2 px más a la derecha.
     public static final Border MARGEN_PANTALLA = BorderFactory.createEmptyBorder(32, 32, 32, 34);
-    // Sin borde horizontal, las celdas quedarían pegadas al filo de la tarjeta.
     public static final Border MARGEN_CELDA = BorderFactory.createEmptyBorder(0, 14, 0, 14);
     public static final Border MARGEN_CABECERA_TABLA =
             BorderFactory.createEmptyBorder(16, 14, 16, 14);
@@ -68,17 +66,14 @@ public final class Estilos {
         return fuente(Font.BOLD, 40);
     }
 
-    /** Línea bajo el título de una pantalla (aula, edad, apoderado). */
     public static Font subtitulo() {
         return fuente(Font.PLAIN, 16);
     }
 
-    /** Encabezado de un bloque dentro de una tarjeta («Personal y cita»). */
     public static Font seccion() {
         return fuente(Font.BOLD, 16);
     }
 
-    /** Datos que se leen de un vistazo: fechas, celdas de tabla, estado de la franja. */
     public static Font dato() {
         return fuente(Font.PLAIN, 15);
     }
@@ -91,12 +86,10 @@ public final class Estilos {
         return fuente(Font.BOLD, 14);
     }
 
-    /** Texto de apoyo bajo un estado, más chico que el contenido. */
     public static Font detalle() {
         return fuente(Font.PLAIN, 13);
     }
 
-    /** Rótulos en mayúsculas: etiquetas de campo y cabeceras de tabla. */
     public static Font etiqueta() {
         return fuente(Font.BOLD, 13);
     }
@@ -201,7 +194,6 @@ public final class Estilos {
         return chip;
     }
 
-    /** En la tabla del expediente la revisión va como texto de color, sin chip. null = sin entregar. */
     public static Color colorTexto(EstadoDocumento estado) {
         if (estado == EstadoDocumento.VALIDADO) {
             return BOTON_PRINCIPAL;
@@ -219,8 +211,6 @@ public final class Estilos {
         return estado.name().replace('_', ' ');
     }
 
-    // Enumerar las familias del sistema es lento y fuente() llega a llamarse en cada
-    // repintado de una tabla: se averigua una sola vez por ejecución.
     private static boolean tieneInter() {
         if (hayInter == null) {
             hayInter = false;

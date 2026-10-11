@@ -158,8 +158,6 @@ public final class Turnos {
         return oferta;
     }
 
-    // Toda entrada a la cola favorable (oferta rechazada o entrevista FAVORABLE) va detrás
-    // de la última, aunque esa fecha esté en el futuro: el orden de ingreso no se empata.
     public static LocalDateTime fechaAlFinalFavorable(Solicitud entrante, LocalDateTime fecha,
             ArregloSolicitudes solicitudes) {
         for (Solicitud otra : solicitudes.colaFavorable(entrante.getAula())) {

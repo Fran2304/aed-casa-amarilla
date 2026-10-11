@@ -14,7 +14,6 @@ public class Documento {
     private LocalDateTime fechaHoraCorreccion;
     private EstadoDocumento estado;
     private String observacion;
-    // Con hora para mostrarla como en el diseño; el plazo se sigue contando en días calendario.
     private LocalDateTime fechaHoraComunicacion;
 
     public Documento(TipoDocumento tipo) throws DatoInvalidoException {
@@ -50,7 +49,6 @@ public class Documento {
             throw new DatoInvalidoException("La fecha de comunicación es obligatoria.");
         }
         Transiciones.exigirTransicion(estado, EstadoDocumento.OBSERVADO);
-        // Una comunicación anterior a la entrega dejaría el plazo de corrección ya corrido.
         LocalDateTime ultimaEntrega = fechaHoraCorreccion != null ? fechaHoraCorreccion
                 : fechaHoraEntrega;
         if (comunicadaEl.isBefore(ultimaEntrega)) {

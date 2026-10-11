@@ -56,10 +56,8 @@ public class PruebaPagos {
                 throw new IllegalStateException("No se pudieron cargar los casos: "
                         + e.getMessage(), e);
             }
-            // «java -cp bin PruebaPagos expediente» abre directo en el ejemplo SOL-1038.
             if (args.length > 0 && args[0].equals("expediente")) {
                 ventana.mostrar(PrincipalUI.EXPEDIENTE);
-                // Después del componentShown encolado por mostrar(): ahí se llena la lista.
                 SwingUtilities.invokeLater(() -> seleccionarEnExpediente(ventana, "SOL-1038"));
             } else {
                 ventana.mostrar(PrincipalUI.PAGOS);
@@ -1825,7 +1823,6 @@ public class PruebaPagos {
         comprobar(rechazo, "esperarFallo no acepta excepciones inesperadas");
     }
 
-    // Issue #19: entrevista desde el expediente y paso a la cola favorable (§6.9).
     private static void probarEntrevistaYExpediente() throws Exception {
         Aula aula = new Aula("AUL-ENT", "Entrevistas", 4, 2);
         LocalDateTime base = LocalDateTime.of(2026, 9, 20, 10, 0);
@@ -1914,8 +1911,6 @@ public class PruebaPagos {
         probarIntegracionUiExpediente();
     }
 
-    // Una inscripción anulada y vuelta a pagar empieza con expediente nuevo: la entrevista
-    // anterior no puede llevar la solicitud a la cola favorable sin los documentos nuevos.
     private static void probarEntrevistaDeInscripcionAnulada(Aula aula, LocalDateTime base,
             datos.ArregloEntrevistas entrevistas) throws Exception {
         Solicitud solicitud = solicitudConDocumentosValidados("ENT-ANUL", base, aula);
@@ -1948,9 +1943,6 @@ public class PruebaPagos {
                 "la nueva entrevista espera los 4 documentos nuevos", "Falta validar");
     }
 
-    // Criterios del #19 sobre el panel real: el 4.º validado desbloquea la entrevista y el
-    // resultado cambia el estado de la franja. Las inasistencias abren diálogos modales:
-    // su regla queda cubierta arriba sobre el modelo.
     private static void probarIntegracionUiExpediente() throws Exception {
         final RuntimeException[] failure = new RuntimeException[1];
         SwingUtilities.invokeAndWait(() -> {
@@ -2012,8 +2004,6 @@ public class PruebaPagos {
                 comprobar(textosDe(franja).contains("ESTADO: EN_ESPERA_FAVORABLE"),
                         "la franja muestra el estado nuevo");
 
-                // Volver a la pantalla (CardLayout la muestra con setVisible) renueva la
-                // hora propuesta aunque siga abierta la misma solicitud.
                 javax.swing.JTextField campoFecha = (javax.swing.JTextField) campoPrivado(panel,
                         "campoFechaDocumento");
                 String horaVieja = ahora.minusHours(7).format(ui.TarjetasPago.FORMATO_FECHA);
@@ -2073,8 +2063,6 @@ public class PruebaPagos {
                         && "Sistema".equals(vencida.getResponsableCancelacion()),
                         "abrir el expediente cancela el plazo vencido con responsable Sistema");
 
-                // Entregó todo, pero fuera de plazo, y ya tenía la entrevista agendada: la
-                // tarjeta de entrevista debe dar el motivo documental, no una inasistencia.
                 ArregloSolicitudes conCita = new ArregloSolicitudes();
                 Solicitud tardia = registrarSolicitud(conCita, aula, "NAMED-UI-EXP-T",
                         ahora.minusDays(10));
@@ -2418,8 +2406,6 @@ public class PruebaPagos {
         return null;
     }
 
-    // Ejemplo del diseño 03 (issue #19): SOL-1038 «3 de 4 validados», carné OBSERVADO y
-    // entrevista BLOQUEADA. Las solicitudes de relleno solo existen para llegar a ese código.
     private static void cargarCasosExpediente(PrincipalUI ventana, ArregloAlumnos alumnos,
             ArregloApoderados apoderados, Aula tulipanes, Aula girasoles)
             throws ReglaDominioException {
@@ -2432,7 +2418,6 @@ public class PruebaPagos {
                     cuatroAnios, girasoles);
         }
 
-        // Con su apoderada del diseño (Ana Ruiz) en vez del genérico de registrar().
         Alumno alumnaNoa = alumnos.registrar(String.valueOf(siguienteDni++), "Noa", "Ruiz",
                 tresAnios, null);
         alumnaNoa.agregarApoderado(apoderados.registrar(String.valueOf(siguienteDni++), "Ana",
