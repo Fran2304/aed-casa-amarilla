@@ -29,6 +29,7 @@ import modelo.Solicitud;
 import modelo.TransicionInvalidaException;
 import negocio.Cobros;
 import negocio.Turnos;
+import datos.ArregloMatriculas;
 import datos.ArregloPagos;
 import datos.ArregloSolicitudes;
 import ui.PrincipalUI;
@@ -81,11 +82,13 @@ public class PruebaPagos {
         probarNuevaOfertaTrasAnulacionDeMatricula();
         probarCicloDeOfertaRechazadaYRechazosAtomicos();
         probarCiclosIndependientesConFechasNoMonotonicas();
+        probarCreacionYCicloDeMatricula();
+        probarIntegracionUiMatricula();
         LocalDateTime base = LocalDateTime.of(2026, 10, 8, 10, 0);
         ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
         ArregloSolicitudes solicitudes = new ArregloSolicitudes();
         ArregloPagos pagos = new ArregloPagos();
-        java.util.ArrayList<Matricula> matriculas = new java.util.ArrayList<Matricula>();
+        ArregloMatriculas matriculas = new ArregloMatriculas();
         Aula aula = new Aula("AUL-T", "Prueba", 4, 2);
         Solicitud inscripcion = solicitud("INS", base.minusDays(2), aula);
         inscripcion.habilitarParaPago(base.minusHours(2));
@@ -196,8 +199,7 @@ public class PruebaPagos {
         Solicitud matriculaSolicitud = solicitud("MAT", base.minusDays(3), aula);
         matriculaSolicitud.habilitarParaPago(base.minusHours(3));
         matriculaSolicitud.confirmarInscripcion(base.minusHours(2));
-        Matricula matricula = new Matricula(matriculaSolicitud, base.minusHours(72));
-        matriculas.add(matricula);
+        Matricula matricula = matriculas.registrar(matriculaSolicitud, base.minusHours(72));
         Pago pagoMatricula = new Pago(matriculaSolicitud, ConceptoPago.MATRICULA, matricula,
                 cuotas.getCuotaMatricula(), MedioPago.EFECTIVO, "", base.minusHours(1),
                 base.minusMinutes(30),
@@ -213,8 +215,7 @@ public class PruebaPagos {
         Solicitud activaSolicitud = solicitud("ACT", base.minusDays(4), aula);
         activaSolicitud.habilitarParaPago(base.minusHours(4));
         activaSolicitud.confirmarInscripcion(base.minusHours(3));
-        Matricula activa = new Matricula(activaSolicitud, base.minusHours(2));
-        matriculas.add(activa);
+        Matricula activa = matriculas.registrar(activaSolicitud, base.minusHours(2));
         Pago pagoActivo = new Pago(activaSolicitud, ConceptoPago.MATRICULA, activa,
                 cuotas.getCuotaMatricula(), MedioPago.EFECTIVO, "", base.minusHours(1), base,
                 "voucher-activa", cuotas);
@@ -231,8 +232,7 @@ public class PruebaPagos {
         Solicitud pendienteSolicitud = solicitud("PEND", base.minusDays(4), aula);
         pendienteSolicitud.habilitarParaPago(base.minusHours(4));
         pendienteSolicitud.confirmarInscripcion(base.minusHours(3));
-        Matricula pendienteVigente = new Matricula(pendienteSolicitud, base.minusHours(71));
-        matriculas.add(pendienteVigente);
+        Matricula pendienteVigente = matriculas.registrar(pendienteSolicitud, base.minusHours(71));
         Pago pagoPendienteVigente = new Pago(pendienteSolicitud, ConceptoPago.MATRICULA,
                 pendienteVigente, cuotas.getCuotaMatricula(), MedioPago.EFECTIVO, "",
                 base.minusHours(1), base, "voucher-pendiente", cuotas);
@@ -250,9 +250,8 @@ public class PruebaPagos {
         activaVencida.habilitarParaPago(exactMatriculaBase.minusHours(6));
         activaVencida.confirmarInscripcion(exactMatriculaBase.minusHours(5));
         LocalDateTime creacion72h = exactMatriculaBase.minusHours(72);
-        Matricula matriculaActivaVencida = new Matricula(activaVencida, creacion72h);
+        Matricula matriculaActivaVencida = matriculas.registrar(activaVencida, creacion72h);
         LocalDateTime deadline72h = matriculaActivaVencida.getVencimientoPagoOriginal();
-        matriculas.add(matriculaActivaVencida);
         Pago pagoActivoVencido = new Pago(activaVencida, ConceptoPago.MATRICULA,
                 matriculaActivaVencida, cuotas.getCuotaMatricula(), MedioPago.EFECTIVO, "",
                  exactMatriculaBase.minusHours(1), exactMatriculaBase.minusMinutes(30),
@@ -294,8 +293,7 @@ public class PruebaPagos {
         Solicitud invalida = solicitud("INV", base.minusDays(5), aula);
         invalida.habilitarParaPago(base.minusHours(5));
         invalida.confirmarInscripcion(base.minusHours(4));
-        Matricula pendiente = new Matricula(invalida, base.minusHours(2));
-        matriculas.add(pendiente);
+        Matricula pendiente = matriculas.registrar(invalida, base.minusHours(2));
         Pago pagoPendiente = new Pago(invalida, ConceptoPago.MATRICULA, pendiente,
                 cuotas.getCuotaMatricula(), MedioPago.EFECTIVO, "", base.minusHours(1), base,
                 "voucher-invalido", cuotas);
@@ -351,7 +349,7 @@ public class PruebaPagos {
                 solicitudes, matriculas, pagos), "pago no registrado rechazado");
         assertSnapshot(snapshotNoRegistradoGiant, noRegistrado, invalida, pendiente, solicitudes,
                 matriculas, pagos, "pago no registrado rechazado sin mutación");
-        Matricula matriculaAusente = new Matricula(invalida, base.minusHours(1));
+        Matricula matriculaAusente = new Matricula(0, invalida, base.minusHours(1));
         Pago pagoMatriculaAusente = new Pago(invalida, ConceptoPago.MATRICULA, matriculaAusente,
                 cuotas.getCuotaMatricula(), MedioPago.EFECTIVO, "", base.minusHours(1), base,
                 "voucher-ausente", cuotas);
@@ -367,7 +365,7 @@ public class PruebaPagos {
         Solicitud solicitudIncompatible = solicitud("INCOMP", base.minusDays(2), aula);
         solicitudIncompatible.habilitarParaPago(base.minusHours(2));
         solicitudIncompatible.confirmarInscripcion(base.minusHours(1));
-        Matricula matriculaIncompatible = new Matricula(solicitudIncompatible, base);
+        Matricula matriculaIncompatible = new Matricula(0, solicitudIncompatible, base);
         int pagosAntesIncompatible = pagos.listar().size();
         Snapshot snapshotIncompatibleRequest = snapshot(null, invalida, matriculaIncompatible,
                 solicitudes, matriculas, pagos);
@@ -417,15 +415,14 @@ public class PruebaPagos {
         Aula aula = new Aula("NAMED-A", "Nombrada", 4, 2);
         ArregloSolicitudes solicitudes = new ArregloSolicitudes();
         ArregloPagos pagos = new ArregloPagos();
-        java.util.ArrayList<Matricula> matriculas = new java.util.ArrayList<Matricula>();
+        ArregloMatriculas matriculas = new ArregloMatriculas();
 
         Solicitud vigente = registrarSolicitud(solicitudes, aula, "NAMED-V", base.minusDays(2));
         vigente.habilitarParaPago(base.minusHours(2));
         vigente.confirmarInscripcion(base.minusHours(1));
-        Matricula activa = new Matricula(vigente, base.minusHours(2));
+        Matricula activa = matriculas.registrar(vigente, base.minusHours(2));
         LocalDateTime creacion = activa.getFechaHoraCreacion();
         LocalDateTime deadline = activa.getVencimientoPagoOriginal();
-        matriculas.add(activa);
         Pago pago = pagoMatricula(vigente, activa, base, cuotas, "named-vigente");
         pago.confirmar();
         pagos.agregar(pago);
@@ -446,10 +443,9 @@ public class PruebaPagos {
         inscripcion.confirmar();
         pagos.agregar(inscripcion);
         vencida.confirmarInscripcion(base.minusHours(2));
-        Matricula activaVencida = new Matricula(vencida, base.minusHours(72));
+        Matricula activaVencida = matriculas.registrar(vencida, base.minusHours(72));
         LocalDateTime creacionVencida = activaVencida.getFechaHoraCreacion();
         LocalDateTime deadlineVencida = activaVencida.getVencimientoPagoOriginal();
-        matriculas.add(activaVencida);
         Pago pagoVencido = pagoMatricula(vencida, activaVencida, base, cuotas, "named-vencida");
         pagoVencido.confirmar();
         pagos.agregar(pagoVencido);
@@ -484,8 +480,7 @@ public class PruebaPagos {
         inscripcionPendiente.confirmar();
         pagos.agregar(inscripcionPendiente);
         pendienteSolicitud.confirmarInscripcion(base.minusHours(2));
-        Matricula pendiente = new Matricula(pendienteSolicitud, base.minusHours(72));
-        matriculas.add(pendiente);
+        Matricula pendiente = matriculas.registrar(pendienteSolicitud, base.minusHours(72));
         Pago pagoPendiente = pagoMatricula(pendienteSolicitud, pendiente, base, cuotas,
                 "named-pendiente");
         pagoPendiente.confirmar();
@@ -519,7 +514,7 @@ public class PruebaPagos {
         Aula aula = new Aula("NAMED-OFFER-NEW", "Ofertas nuevas", 4, 1);
         ArregloSolicitudes solicitudes = new ArregloSolicitudes();
         ArregloPagos pagos = new ArregloPagos();
-        java.util.ArrayList<Matricula> matriculas = new java.util.ArrayList<Matricula>();
+        ArregloMatriculas matriculas = new ArregloMatriculas();
 
         CicloFixture fixture = prepararCicloOferta(solicitudes, pagos, matriculas, aula,
                 "OFFER-NEW", base);
@@ -548,9 +543,9 @@ public class PruebaPagos {
         assertSnapshot(antesFalseDuplicado, null, fixture.solicitud, null, solicitudes, matriculas,
                 pagos, "segunda respuesta false conserva historial y ciclo");
 
-        LocalDateTime creacion = fixture.fechaOferta.plusHours(1);
-        Matricula matricula = new Matricula(fixture.solicitud, creacion);
-        matriculas.add(matricula);
+        // La oferta aceptada ya creó la matrícula PENDIENTE_PAGO en la misma operación.
+        Matricula matricula = matriculas.vigenteDe(fixture.solicitud);
+        LocalDateTime creacion = matricula.getFechaHoraCreacion();
         Pago pagoMatricula = pagoMatriculaConFechas(fixture.solicitud, matricula,
                 creacion.plusHours(1), creacion.plusHours(2), "offer-new-matricula", cuotas);
         pagoMatricula.confirmar();
@@ -622,7 +617,7 @@ public class PruebaPagos {
         Aula aula = new Aula("NAMED-OFFER-DECLINE", "Oferta rechazada", 4, 1);
         ArregloSolicitudes solicitudes = new ArregloSolicitudes();
         ArregloPagos pagos = new ArregloPagos();
-        java.util.ArrayList<Matricula> matriculas = new java.util.ArrayList<Matricula>();
+        ArregloMatriculas matriculas = new ArregloMatriculas();
 
         CicloFixture fixture = prepararCicloOferta(solicitudes, pagos, matriculas, aula,
                 "OFFER-DECLINE", base);
@@ -630,9 +625,8 @@ public class PruebaPagos {
         Oferta aceptadaAnterior = Turnos.confirmarOferta(objetivo, true, "Personal anterior",
                 fixture.fechaOferta, solicitudes, matriculas);
 
-        LocalDateTime creacion = fixture.fechaOferta.plusHours(1);
-        Matricula matricula = new Matricula(objetivo, creacion);
-        matriculas.add(matricula);
+        Matricula matricula = matriculas.vigenteDe(objetivo);
+        LocalDateTime creacion = matricula.getFechaHoraCreacion();
         Pago pagoMatricula = pagoMatriculaConFechas(objetivo, matricula, creacion.plusHours(1),
                 creacion.plusHours(2), "offer-decline-matricula", cuotas);
         pagoMatricula.confirmar();
@@ -646,7 +640,7 @@ public class PruebaPagos {
                 "OFFER-AHEAD", anulacion.plusMinutes(4));
         Solicitud otra = otraFixture.solicitud;
         java.util.ArrayList<Matricula> matriculasAntesRechazo =
-                new java.util.ArrayList<Matricula>(matriculas);
+                matriculas.listar();
         int vacantesAntesRechazo = negocio.Vacantes.calcular(aula, matriculas);
         Oferta rechazada = Turnos.confirmarOferta(objetivo, false, "Personal de turno",
                 anulacion.plusMinutes(3), solicitudes, matriculas);
@@ -658,7 +652,7 @@ public class PruebaPagos {
                 && objetivo.getOfertas().get(1) == rechazada
                 && objetivo.getFechaIngresoCola().isAfter(otra.getFechaIngresoCola())
                 && matricula.getEstado() == EstadoMatricula.CANCELADA
-                && matriculas.equals(matriculasAntesRechazo)
+                && matriculas.listar().equals(matriculasAntesRechazo)
                 && negocio.Vacantes.calcular(aula, matriculas) == vacantesAntesRechazo
                 && pagos.inscripcionConfirmada(objetivo),
                 "rechazo inicia ciclo nuevo, conserva aceptación anterior y respeta cola real");
@@ -699,7 +693,7 @@ public class PruebaPagos {
         LocalDateTime fechaReingreso = fechaOfertaAnterior;
         Aula aula = new Aula("NAMED-OFFER-DATES", "Fechas de ciclos", 4, 2);
         ArregloSolicitudes solicitudes = new ArregloSolicitudes();
-        java.util.ArrayList<Matricula> matriculas = new java.util.ArrayList<Matricula>();
+        ArregloMatriculas matriculas = new ArregloMatriculas();
         Solicitud mismaFecha = registrarSolicitud(solicitudes, aula, "OFFER-SAME-DATE",
                 fechaReingreso.minusDays(3));
         mismaFecha.habilitarParaPago(fechaReingreso.minusHours(1));
@@ -707,6 +701,7 @@ public class PruebaPagos {
         mismaFecha.ingresarAColaFavorable(fechaReingreso);
         Oferta historica = Turnos.confirmarOferta(mismaFecha, true, "Personal histórico",
                 fechaOfertaAnterior, solicitudes, matriculas);
+        matriculas.vigenteDe(mismaFecha).cancelar(fechaReingreso, "reingreso de prueba", "Personal");
         mismaFecha.ingresarAColaFavorable(fechaReingreso);
         Oferta actual = Turnos.confirmarOferta(mismaFecha, true, "Personal actual",
                 fechaOfertaAnterior, solicitudes, matriculas);
@@ -721,6 +716,8 @@ public class PruebaPagos {
         fechaDecreciente.ingresarAColaFavorable(fechaOfertaAnterior);
         Oferta ofertaFutura = Turnos.confirmarOferta(fechaDecreciente, true, "Personal futuro",
                 fechaOfertaAnterior.plusDays(1), solicitudes, matriculas);
+        matriculas.vigenteDe(fechaDecreciente).cancelar(fechaReingreso, "reingreso de prueba",
+                "Personal");
         fechaDecreciente.ingresarAColaFavorable(fechaReingreso);
         Oferta ofertaAnterior = Turnos.confirmarOferta(fechaDecreciente, true, "Personal anterior",
                 fechaReingreso, solicitudes, matriculas);
@@ -733,15 +730,14 @@ public class PruebaPagos {
         Aula aulaVencida = new Aula("NAMED-OFFER-FUTURE", "Cola futura", 4, 1);
         ArregloSolicitudes solicitudesVencida = new ArregloSolicitudes();
         ArregloPagos pagosVencida = new ArregloPagos();
-        java.util.ArrayList<Matricula> matriculasVencida = new java.util.ArrayList<Matricula>();
+        ArregloMatriculas matriculasVencida = new ArregloMatriculas();
         CicloFixture objetivo = prepararCicloOferta(solicitudesVencida, pagosVencida,
                 matriculasVencida, aulaVencida, "OFFER-FUTURE-TARGET", cicloBase);
         Oferta ofertaObjetivo = Turnos.confirmarOferta(objetivo.solicitud, true,
                 "Personal objetivo futuro", objetivo.fechaOferta, solicitudesVencida,
                 matriculasVencida);
-        LocalDateTime creacion = objetivo.fechaOferta.plusHours(1);
-        Matricula matricula = new Matricula(objetivo.solicitud, creacion);
-        matriculasVencida.add(matricula);
+        Matricula matricula = matriculasVencida.vigenteDe(objetivo.solicitud);
+        LocalDateTime creacion = matricula.getFechaHoraCreacion();
         Pago pago = pagoMatriculaConFechas(objetivo.solicitud, matricula, creacion.plusHours(1),
                 creacion.plusHours(2), "future-target-matricula", new ConfiguracionCuotas());
         pago.confirmar();
@@ -782,12 +778,309 @@ public class PruebaPagos {
                 "cola futura no desplaza el índice de aceptación actual");
     }
 
+    private static void probarCreacionYCicloDeMatricula() throws Exception {
+        LocalDateTime base = LocalDateTime.of(2026, 9, 25, 16, 0);
+        ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
+        Aula aula = new Aula("NAMED-MAT", "Girasoles prueba", 4, 4);
+        ArregloSolicitudes solicitudes = new ArregloSolicitudes();
+        ArregloPagos pagos = new ArregloPagos();
+        ArregloMatriculas matriculas = new ArregloMatriculas();
+        CicloFixture mia = prepararCicloOferta(solicitudes, pagos, matriculas, aula,
+                "MAT-MIA", base);
+        CicloFixture rechazo = prepararCicloOferta(solicitudes, pagos, matriculas, aula,
+                "MAT-RECHAZO", base.plusMinutes(1));
+        CicloFixture leo = prepararCicloOferta(solicitudes, pagos, matriculas, aula,
+                "MAT-LEO", base.plusMinutes(2));
+        CicloFixture ana = prepararCicloOferta(solicitudes, pagos, matriculas, aula,
+                "MAT-ANA", base.plusMinutes(3));
+        int vacantesIniciales = negocio.Vacantes.calcular(aula, matriculas);
+
+        // #23 · creación dentro de confirmarOferta
+        Turnos.confirmarOferta(mia.solicitud, true, "Personal de admisión", mia.fechaOferta,
+                solicitudes, matriculas);
+        Matricula primera = matriculas.vigenteDe(mia.solicitud);
+        comprobar(primera != null && primera.getNumMatricula() == 100001
+                && primera.getCodigo().equals("MAT-100001")
+                && primera.getEstado() == EstadoMatricula.PENDIENTE_PAGO
+                && primera.getFechaHoraCreacion().equals(mia.fechaOferta)
+                && primera.getVencimientoPagoOriginal().equals(mia.fechaOferta.plusHours(72)),
+                "oferta aceptada crea MAT-100001 PENDIENTE_PAGO con vencimiento de 72 h");
+        comprobar(negocio.Vacantes.calcular(aula, matriculas) == vacantesIniciales - 1,
+                "la creación reserva exactamente una vacante");
+        comprobar(mia.solicitud.getEstado() == EstadoSolicitud.EN_ESPERA_FAVORABLE
+                && !Turnos.ordenPorPrioridad(aula, solicitudes, matriculas)
+                        .contains(mia.solicitud),
+                "con matrícula vigente sigue EN_ESPERA_FAVORABLE pero sale de los turnos");
+
+        Turnos.confirmarOferta(rechazo.solicitud, false, "Personal de admisión",
+                rechazo.fechaOferta, solicitudes, matriculas);
+        comprobar(matriculas.listar().size() == 1 && matriculas.vigenteDe(rechazo.solicitud) == null
+                && negocio.Vacantes.calcular(aula, matriculas) == vacantesIniciales - 1,
+                "oferta no aceptada no crea matrícula ni reserva vacante");
+
+        Snapshot antesDuplicada = snapshot(null, mia.solicitud, primera, solicitudes, matriculas,
+                pagos);
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> matriculas.registrar(mia.solicitud, mia.fechaOferta.plusMinutes(5)),
+                "alumno con matrícula vigente no recibe otra", "ya tiene la matrícula MAT-100001");
+        assertSnapshot(antesDuplicada, null, mia.solicitud, primera, solicitudes, matriculas,
+                pagos, "matrícula duplicada rechazada sin mutación");
+
+        // #24 · operación anterior a la creación de la matrícula
+        LocalDateTime creacionPrimera = primera.getFechaHoraCreacion();
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> Cobros.confirmarMatricula(primera, cuotas.getCuotaMatricula(),
+                        MedioPago.YAPE, "YP-ANTES", creacionPrimera.minusMinutes(1),
+                        "voucher-antes", creacionPrimera.plusHours(1), solicitudes,
+                        matriculas, pagos, cuotas),
+                "pago con operación anterior a la matrícula rechazado",
+                "anterior a la creación de la matrícula MAT-100001");
+        comprobar(primera.getEstado() == EstadoMatricula.PENDIENTE_PAGO
+                && !pagos.matriculaConfirmada(primera),
+                "el pago anterior a la matrícula no la activa ni se registra");
+
+        // #24 · pago válido dentro de 72 h
+        LocalDateTime registroPago = primera.getFechaHoraCreacion().plusHours(18);
+        Pago pagoPrimera = Cobros.confirmarMatricula(primera, cuotas.getCuotaMatricula(),
+                MedioPago.YAPE, "YP-8291457", registroPago.minusHours(1), "voucher-mia",
+                registroPago, solicitudes, matriculas, pagos, cuotas);
+        comprobar(pagoPrimera.estaConfirmado() && primera.getEstado() == EstadoMatricula.ACTIVA
+                && pagos.matriculaConfirmada(primera)
+                && negocio.Vacantes.calcular(aula, matriculas) == vacantesIniciales - 1,
+                "pago válido en plazo activa sin descontar otra vacante");
+        int pagosTrasActivar = pagos.listar().size();
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> Cobros.confirmarMatricula(primera, cuotas.getCuotaMatricula(),
+                        MedioPago.YAPE, "YP-REPETIDO", registroPago, "voucher-repetido",
+                        registroPago.plusMinutes(5), solicitudes,
+                        matriculas, pagos, cuotas),
+                "segundo pago de una matrícula ACTIVA rechazado", "ya tiene el pago confirmado");
+        comprobar(pagos.listar().size() == pagosTrasActivar,
+                "el pago rechazado no se registra");
+
+        // #24 · pago presentado después del vencimiento
+        Turnos.confirmarOferta(leo.solicitud, true, "Personal de admisión", leo.fechaOferta,
+                solicitudes, matriculas);
+        Matricula segunda = matriculas.vigenteDe(leo.solicitud);
+        comprobar(segunda.getNumMatricula() == 100002,
+                "ni la oferta rechazada ni la duplicada consumen correlativo");
+        LocalDateTime tardio = segunda.getVencimientoPagoOriginal().plusHours(1);
+        int vacantesConSegunda = negocio.Vacantes.calcular(aula, matriculas);
+        esperarFalloConMensaje(ReglaDominioException.class,
+                () -> Cobros.confirmarMatricula(segunda, cuotas.getCuotaMatricula(),
+                        MedioPago.EFECTIVO, "", segunda.getVencimientoPagoOriginal()
+                                .minusHours(1), "voucher-tardio", tardio,
+                        solicitudes, matriculas, pagos, cuotas),
+                "pago tras el vencimiento rechazado", "venció");
+        comprobar(segunda.getEstado() == EstadoMatricula.CANCELADA
+                && segunda.getFechaCancelacion().equals(tardio)
+                && negocio.Vencimientos.MOTIVO_VENCIMIENTO.equals(segunda.getMotivoCancelacion())
+                && negocio.Vencimientos.RESPONSABLE.equals(segunda.getResponsableCancelacion()),
+                "el rechazo por vencimiento cancela la matrícula con auditoría");
+        comprobar(leo.solicitud.getEstado() == EstadoSolicitud.EN_ESPERA_FAVORABLE
+                && !leo.solicitud.getFechaIngresoCola().isBefore(tardio)
+                && leo.solicitud.getFechaIngresoCola()
+                        .isAfter(rechazo.solicitud.getFechaIngresoCola())
+                && pagos.inscripcionConfirmada(leo.solicitud)
+                && pagos.listar().size() == pagosTrasActivar
+                && negocio.Vacantes.calcular(aula, matriculas) == vacantesConSegunda + 1,
+                "vencida: vacante liberada y solicitud al final de la cola favorable");
+
+        // #24 · nueva oferta tras la cancelación: nuevo número y nuevo plazo
+        LocalDateTime reoferta = tardio.plusMinutes(1);
+        Turnos.confirmarOferta(leo.solicitud, true, "Personal de admisión", reoferta,
+                solicitudes, matriculas);
+        Matricula tercera = matriculas.vigenteDe(leo.solicitud);
+        comprobar(tercera != segunda && tercera.getNumMatricula() == 100003
+                && tercera.getVencimientoPagoOriginal().equals(reoferta.plusHours(72))
+                && matriculas.ultimaDe(leo.solicitud) == tercera,
+                "la solicitud devuelta recibe nueva matrícula con nuevo plazo");
+
+        // #24 · barrido desde Vencimientos.revisar; ordenPorPrioridad solo consulta
+        Turnos.confirmarOferta(ana.solicitud, true, "Personal de admisión", reoferta,
+                solicitudes, matriculas);
+        Matricula cuarta = matriculas.vigenteDe(ana.solicitud);
+        LocalDateTime barrido = cuarta.getVencimientoPagoOriginal();
+        comprobar(!Turnos.ordenPorPrioridad(aula, solicitudes, matriculas)
+                        .contains(ana.solicitud)
+                && cuarta.getEstado() == EstadoMatricula.PENDIENTE_PAGO,
+                "ordenPorPrioridad no cancela la vencida: consultar no modifica");
+        negocio.Vencimientos.revisar(barrido, solicitudes, matriculas);
+        java.util.ArrayList<Solicitud> orden = Turnos.ordenPorPrioridad(aula, solicitudes,
+                matriculas);
+        comprobar(cuarta.getEstado() == EstadoMatricula.CANCELADA
+                && negocio.Vencimientos.RESPONSABLE.equals(cuarta.getResponsableCancelacion())
+                && negocio.Vencimientos.MOTIVO_VENCIMIENTO.equals(cuarta.getMotivoCancelacion())
+                && orden.contains(ana.solicitud),
+                "Vencimientos.revisar cancela la vencida y la devuelve a los turnos");
+        comprobar(primera.getEstado() == EstadoMatricula.ACTIVA,
+                "el barrido no toca una matrícula ACTIVA aunque pasen las 72 h");
+
+        // §6.5 · anulación con plazo vencido: misma auditoría de cancelación
+        LocalDateTime anulacion = primera.getVencimientoPagoOriginal().plusHours(1);
+        Cobros.anularPago(pagoPrimera, "error de registro", "Personal de caja", anulacion,
+                solicitudes, matriculas, pagos);
+        comprobar(primera.getEstado() == EstadoMatricula.CANCELADA
+                && primera.getFechaCancelacion().equals(anulacion)
+                && Cobros.MOTIVO_ANULACION_VENCIDA.equals(primera.getMotivoCancelacion())
+                && "Personal de caja".equals(primera.getResponsableCancelacion())
+                && mia.solicitud.getEstado() == EstadoSolicitud.EN_ESPERA_FAVORABLE,
+                "anular con plazo vencido cancela con auditoría y reingresa a la cola");
+
+        // #23 · re-ofertar sin barrido previo: confirmarOferta barre antes de comprobar
+        LocalDateTime antesDeOfertar = anulacion.plusMinutes(1);
+        negocio.Vencimientos.revisar(antesDeOfertar, solicitudes, matriculas);
+        Solicitud enTurno = Turnos.siguiente(aula, solicitudes, matriculas);
+        Turnos.confirmarOferta(enTurno, true, "Personal de admisión", antesDeOfertar,
+                solicitudes, matriculas);
+        Matricula sinBarrer = matriculas.vigenteDe(enTurno);
+        LocalDateTime trasVencer = sinBarrer.getVencimientoPagoOriginal().plusMinutes(1)
+                .plusSeconds(42);
+        Turnos.confirmarOferta(enTurno, true, "Personal de admisión", trasVencer,
+                solicitudes, matriculas);
+        Matricula conSegundos = matriculas.vigenteDe(enTurno);
+        comprobar(sinBarrer.getEstado() == EstadoMatricula.CANCELADA
+                && conSegundos != sinBarrer
+                && conSegundos.getFechaHoraCreacion().equals(trasVencer),
+                "la oferta barre primero: una aceptada con matrícula vencida no la bloquea");
+
+        LocalDateTime mismoMinuto = trasVencer.withSecond(0);
+        Cobros.confirmarMatricula(conSegundos, cuotas.getCuotaMatricula(), MedioPago.YAPE,
+                "YP-MISMO-MINUTO", mismoMinuto, "voucher-mismo-minuto",
+                trasVencer.plusSeconds(10), solicitudes, matriculas, pagos, cuotas);
+        comprobar(conSegundos.getEstado() == EstadoMatricula.ACTIVA,
+                "una operación del mismo minuto que la creación de la matrícula se acepta");
+    }
+
+    private static void probarIntegracionUiMatricula() throws Exception {
+        final RuntimeException[] failure = new RuntimeException[1];
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                LocalDateTime ahora = LocalDateTime.now().withSecond(0).withNano(0);
+                ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
+                ArregloSolicitudes solicitudes = new ArregloSolicitudes();
+                ArregloPagos pagos = new ArregloPagos();
+                ArregloMatriculas matriculas = new ArregloMatriculas();
+                Aula vigentes = new Aula("NAMED-UI-MAT", "UI matrícula", 4, 2);
+                CicloFixture vigente = prepararCicloOferta(solicitudes, pagos, matriculas,
+                        vigentes, "UI-MAT-VIGENTE", ahora.minusHours(5));
+                Turnos.confirmarOferta(vigente.solicitud, true, "Personal de admisión",
+                        vigente.fechaOferta, solicitudes, matriculas);
+                Matricula matricula = matriculas.vigenteDe(vigente.solicitud);
+
+                ui.PanelPagos panel = new ui.PanelPagos(solicitudes, pagos, matriculas, cuotas);
+                java.lang.reflect.Method buscar = panel.getClass().getDeclaredMethod("buscar");
+                buscar.setAccessible(true);
+                javax.swing.JTextField campoCodigo =
+                        (javax.swing.JTextField) campoPrivado(panel, "campoCodigo");
+                ui.TarjetasPago tarjetas =
+                        (ui.TarjetasPago) campoPrivado(panel, "tarjetasMatricula");
+
+                campoCodigo.setText(vigente.solicitud.getCodigo());
+                buscar.invoke(panel);
+                comprobar(campoPrivado(panel, "matriculaActual") == matricula
+                        && ((javax.swing.JLabel) campoPrivado(panel, "tituloFranja")).getText()
+                                .equals("MATRÍCULA: PENDIENTE_PAGO")
+                        && ((javax.swing.JLabel) campoPrivado(panel, "reservaFranja")).getText()
+                                .equals("Reserva 1 vacante ahora")
+                        && ((javax.swing.JLabel) campoPrivado(panel, "tituloVencimiento"))
+                                .getText().equals("SI VENCE SIN PAGO REGISTRADO")
+                        && ((javax.swing.JButton) campoPrivado(tarjetas, "botonConfirmar"))
+                                .isVisible(),
+                        "buscar por SOL abre la matrícula PENDIENTE_PAGO lista para cobrar");
+                comprobar(buscarBoton(panel, "observación") == null,
+                        "la pantalla no ofrece «Registrar observación»");
+
+                campoCodigo.setText(matricula.getCodigo().toLowerCase());
+                buscar.invoke(panel);
+                comprobar(campoPrivado(panel, "matriculaActual") == matricula,
+                        "buscar por MAT-xxxxxx abre la misma matrícula");
+
+                java.lang.reflect.Method confirmar = panel.getClass().getDeclaredMethod(
+                        "confirmarMatricula", double.class, MedioPago.class, String.class,
+                        LocalDateTime.class, String.class);
+                confirmar.setAccessible(true);
+                confirmar.invoke(panel, cuotas.getCuotaMatricula(), MedioPago.YAPE,
+                        "UI-MAT-1", ahora.minusMinutes(1), "voucher-ui-matricula");
+                comprobar(matricula.getEstado() == EstadoMatricula.ACTIVA
+                        && ((javax.swing.JLabel) campoPrivado(panel, "tituloFranja")).getText()
+                                .equals("MATRÍCULA: ACTIVA")
+                        && !((javax.swing.JButton) campoPrivado(tarjetas, "botonConfirmar"))
+                                .isVisible()
+                        && ((javax.swing.JPanel) campoPrivado(tarjetas, "panelAnulacion"))
+                                .isVisible()
+                        && !((javax.swing.JPanel) campoPrivado(panel, "vencimiento"))
+                                .isVisible()
+                        && !((javax.swing.JPanel) campoPrivado(tarjetas, "cierre"))
+                                .isVisible(),
+                        "confirmar activa, refresca y bloquea la edición del pago");
+                comprobar(!((javax.swing.JPanel) campoPrivado(
+                        campoPrivado(panel, "tarjetas"), "cierre")).isVisible(),
+                        "la tarjeta de inscripción no deja una fila de cierre vacía");
+
+                Aula vencidas = new Aula("NAMED-UI-MAT-V", "UI vencida", 4, 1);
+                CicloFixture vencida = prepararCicloOferta(solicitudes, pagos, matriculas,
+                        vencidas, "UI-MAT-VENCIDA", ahora.minusHours(80));
+                Turnos.confirmarOferta(vencida.solicitud, true, "Personal de admisión",
+                        vencida.fechaOferta, solicitudes, matriculas);
+                Matricula matriculaVencida = matriculas.vigenteDe(vencida.solicitud);
+                campoCodigo.setText(vencida.solicitud.getCodigo());
+                buscar.invoke(panel);
+                comprobar(campoPrivado(panel, "matriculaActual") == matriculaVencida
+                        && matriculaVencida.getEstado() == EstadoMatricula.CANCELADA
+                        && negocio.Vencimientos.RESPONSABLE.equals(matriculaVencida.getResponsableCancelacion())
+                        && ((javax.swing.JLabel) campoPrivado(panel, "tituloVencimiento"))
+                                .getText().equals("MATRÍCULA CANCELADA")
+                        && !((javax.swing.JButton) campoPrivado(tarjetas, "botonConfirmar"))
+                                .isVisible()
+                        && ((javax.swing.JPanel) campoPrivado(tarjetas, "cierre")).isVisible(),
+                        "buscar barre la matrícula vencida y muestra la tarjeta de cancelación");
+
+                Turnos.confirmarOferta(vencida.solicitud, true, "Personal de admisión", ahora,
+                        solicitudes, matriculas);
+                Matricula nueva = matriculas.vigenteDe(vencida.solicitud);
+                campoCodigo.setText(matriculaVencida.getCodigo());
+                buscar.invoke(panel);
+                String detalle = ((javax.swing.JTextArea) campoPrivado(tarjetas, "detalleAviso"))
+                        .getText();
+                comprobar(campoPrivado(panel, "matriculaActual") == matriculaVencida
+                        && detalle.contains("tiene ahora " + nueva.getCodigo()
+                                + " (PENDIENTE_PAGO)")
+                        && detalle.contains("registrar el pago"),
+                        "buscar la matrícula cancelada la muestra y nombra la vigente");
+            } catch (Exception e) {
+                failure[0] = new RuntimeException(e);
+            }
+        });
+        if (failure[0] != null) {
+            throw failure[0];
+        }
+    }
+
+    private static javax.swing.AbstractButton buscarBoton(java.awt.Container raiz,
+            String fragmento) {
+        for (java.awt.Component hijo : raiz.getComponents()) {
+            if (hijo instanceof javax.swing.AbstractButton
+                    && ((javax.swing.AbstractButton) hijo).getText().contains(fragmento)) {
+                return (javax.swing.AbstractButton) hijo;
+            }
+            if (hijo instanceof java.awt.Container) {
+                javax.swing.AbstractButton encontrado =
+                        buscarBoton((java.awt.Container) hijo, fragmento);
+                if (encontrado != null) {
+                    return encontrado;
+                }
+            }
+        }
+        return null;
+    }
+
     private static void probarColasConEmpates() throws Exception {
         ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
         Aula aula = new Aula("NAMED-Q", "Colas", 4, 4);
         ArregloSolicitudes solicitudes = new ArregloSolicitudes();
         ArregloPagos pagos = new ArregloPagos();
-        java.util.ArrayList<Matricula> matriculas = new java.util.ArrayList<Matricula>();
+        ArregloMatriculas matriculas = new ArregloMatriculas();
 
         LocalDateTime baseSinPago = LocalDateTime.of(2026, 10, 8, 10, 0);
         Solicitud objetivoSinPago = registrarSolicitud(solicitudes, aula, "TARGET-SIN",
@@ -823,8 +1116,7 @@ public class PruebaPagos {
         inscripcion.confirmar();
         pagos.agregar(inscripcion);
         objetivoFavorable.confirmarInscripcion(baseFavorable.minusHours(5));
-        Matricula matricula = new Matricula(objetivoFavorable, baseFavorable.minusHours(72));
-        matriculas.add(matricula);
+        Matricula matricula = matriculas.registrar(objetivoFavorable, baseFavorable.minusHours(72));
         Pago pagoFavorable = pagoMatricula(objetivoFavorable, matricula, baseFavorable, cuotas,
                 "queue-fav");
         pagoFavorable.confirmar();
@@ -854,7 +1146,7 @@ public class PruebaPagos {
         Aula aula = new Aula("NAMED-R", "Rechazos", 4, 2);
         ArregloSolicitudes solicitudes = new ArregloSolicitudes();
         ArregloPagos pagos = new ArregloPagos();
-        java.util.ArrayList<Matricula> matriculas = new java.util.ArrayList<Matricula>();
+        ArregloMatriculas matriculas = new ArregloMatriculas();
         Solicitud solicitud = registrarSolicitud(solicitudes, aula, "NAMED-R-S", base.minusDays(2));
         solicitud.habilitarParaPago(base.minusHours(2));
         Pago pago = new Pago(solicitud, ConceptoPago.INSCRIPCION, null,
@@ -874,7 +1166,7 @@ public class PruebaPagos {
         Solicitud otra = registrarSolicitud(solicitudes, aula, "NAMED-R-M", base.minusDays(2));
         otra.habilitarParaPago(base.minusHours(2));
         otra.confirmarInscripcion(base.minusHours(1));
-        Matricula ausente = new Matricula(otra, base.minusHours(1));
+        Matricula ausente = new Matricula(0, otra, base.minusHours(1));
         Pago pagoAusente = pagoMatricula(otra, ausente, base, cuotas, "named-ausente");
         pagoAusente.confirmar();
         pagos.agregar(pagoAusente);
@@ -889,7 +1181,7 @@ public class PruebaPagos {
         Solicitud incompatible = registrarSolicitud(solicitudes, aula, "NAMED-R-I", base.minusDays(2));
         incompatible.habilitarParaPago(base.minusHours(2));
         incompatible.confirmarInscripcion(base.minusHours(1));
-        Matricula otraMatricula = new Matricula(incompatible, base);
+        Matricula otraMatricula = new Matricula(0, incompatible, base);
         int registrosAntes = pagos.listar().size();
         Snapshot snapshotIncompatible = snapshot(null, otra, otraMatricula, solicitudes, matriculas,
                 pagos);
@@ -998,7 +1290,7 @@ public class PruebaPagos {
         cobrosPago.confirmar();
         cobrosSolicitud.confirmarInscripcion(base.minusHours(1));
         pagos.agregar(cobrosPago);
-        java.util.ArrayList<Matricula> matriculas = new java.util.ArrayList<Matricula>();
+        ArregloMatriculas matriculas = new ArregloMatriculas();
         Cobros.anularPago(cobrosPago, "cobros inicial", "Personal cobros", base,
                 cobrosSolicitudes, matriculas, pagos);
         assertAuditoria(cobrosPago, base, "cobros inicial", "Personal cobros");
@@ -1018,14 +1310,14 @@ public class PruebaPagos {
         Solicitud solicitud = solicitud("NAMED-D-S", creacion.minusDays(2), aula);
         solicitud.habilitarParaPago(creacion.minusHours(2));
         solicitud.confirmarInscripcion(creacion.minusHours(1));
-        Matricula matricula = new Matricula(solicitud, creacion);
+        Matricula matricula = new Matricula(0, solicitud, creacion);
         Pago valido = new Pago(solicitud, ConceptoPago.MATRICULA, matricula,
                 cuotas.getCuotaMatricula(), MedioPago.EFECTIVO, "", vencimiento.minusMinutes(2),
                 vencimiento.minusMinutes(1), "named-deadline-ok", cuotas);
         comprobar(valido.getEstado() == modelo.EstadoPago.RECIBIDO,
                 "pago de matrícula antes del deadline acepta ambas fechas");
         Snapshot snapshot = snapshot(valido, solicitud, matricula, new ArregloSolicitudes(),
-                new java.util.ArrayList<Matricula>(), new ArregloPagos());
+                new ArregloMatriculas(), new ArregloPagos());
         esperarFallo(ReglaDominioException.class,
                 () -> new Pago(solicitud, ConceptoPago.MATRICULA, matricula,
                         cuotas.getCuotaMatricula(), MedioPago.EFECTIVO, "", vencimiento,
@@ -1040,7 +1332,7 @@ public class PruebaPagos {
                 && valido.getFechaHoraRegistro().equals(vencimiento.minusMinutes(1)),
                 "los pagos registrados conservan sus fechas originales");
         assertSnapshot(snapshot, valido, solicitud, matricula, new ArregloSolicitudes(),
-                new java.util.ArrayList<Matricula>(), new ArregloPagos(),
+                new ArregloMatriculas(), new ArregloPagos(),
                 "rechazos de deadline no mutan el pago válido");
 
         comprobar(valido.getFechaHoraOperacion().isBefore(valido.getFechaHoraRegistro())
@@ -1085,10 +1377,10 @@ public class PruebaPagos {
                 "NAMED-D-R-S", reemplazoCreacion.minusDays(2));
         reemplazoSolicitud.habilitarParaPago(reemplazoCreacion.minusHours(2));
         reemplazoSolicitud.confirmarInscripcion(reemplazoCreacion.minusHours(1));
-        Matricula reemplazoMatricula = new Matricula(reemplazoSolicitud, reemplazoCreacion);
-        java.util.ArrayList<Matricula> reemplazoMatriculas =
-                new java.util.ArrayList<Matricula>();
-        reemplazoMatriculas.add(reemplazoMatricula);
+        ArregloMatriculas reemplazoMatriculas =
+                new ArregloMatriculas();
+        Matricula reemplazoMatricula = reemplazoMatriculas.registrar(reemplazoSolicitud,
+                reemplazoCreacion);
         Pago original = new Pago(reemplazoSolicitud, ConceptoPago.MATRICULA, reemplazoMatricula,
                 reemplazoCuotas.getCuotaMatricula(), MedioPago.EFECTIVO, "",
                 reemplazoBase.minusHours(2), reemplazoBase.minusHours(1),
@@ -1141,14 +1433,13 @@ public class PruebaPagos {
         Aula aula = new Aula("AUL-RP-" + caso, "Reemplazo " + caso, 4, 1);
         ArregloSolicitudes solicitudes = new ArregloSolicitudes();
         ArregloPagos pagos = new ArregloPagos();
-        java.util.ArrayList<Matricula> matriculas = new java.util.ArrayList<Matricula>();
+        ArregloMatriculas matriculas = new ArregloMatriculas();
         LocalDateTime creacion = base.minusHours(72);
         Solicitud solicitud = registrarSolicitud(solicitudes, aula, "RP-" + caso,
                 creacion.minusDays(2));
         solicitud.habilitarParaPago(creacion.minusHours(2));
         solicitud.confirmarInscripcion(creacion.minusHours(1));
-        Matricula matricula = new Matricula(solicitud, creacion);
-        matriculas.add(matricula);
+        Matricula matricula = matriculas.registrar(solicitud, creacion);
         Pago original = new Pago(solicitud, ConceptoPago.MATRICULA, matricula,
                 cuotas.getCuotaMatricula(), MedioPago.EFECTIVO, "", base.minusHours(2),
                 base.minusHours(1), "original-" + caso, cuotas);
@@ -1182,7 +1473,7 @@ public class PruebaPagos {
         Aula aula = new Aula("NAMED-G", "Guardia", 4, 1);
         ArregloSolicitudes solicitudes = new ArregloSolicitudes();
         ArregloPagos pagos = new ArregloPagos();
-        java.util.ArrayList<Matricula> matriculas = new java.util.ArrayList<Matricula>();
+        ArregloMatriculas matriculas = new ArregloMatriculas();
         Solicitud solicitud = registrarSolicitud(solicitudes, aula, "NAMED-G-S", base.minusDays(2));
         solicitud.habilitarParaPago(base.minusHours(2));
         Pago inscripcion = new Pago(solicitud, ConceptoPago.INSCRIPCION, null,
@@ -1191,15 +1482,13 @@ public class PruebaPagos {
         inscripcion.confirmar();
         pagos.agregar(inscripcion);
         solicitud.confirmarInscripcion(base.minusHours(1));
-        Matricula vigente = new Matricula(solicitud, base.minusHours(1));
-        matriculas.add(vigente);
+        Matricula vigente = matriculas.registrar(solicitud, base.minusHours(1));
         Solicitud otraSolicitud = registrarSolicitud(solicitudes, aula, "NAMED-G-OTHER",
                 base.minusDays(3));
         otraSolicitud.habilitarParaPago(base.minusHours(3));
         otraSolicitud.confirmarInscripcion(base.minusHours(2));
-        Matricula otraVigente = new Matricula(otraSolicitud, base.minusHours(1));
+        Matricula otraVigente = matriculas.registrar(otraSolicitud, base.minusHours(1));
         otraVigente.activar();
-        matriculas.add(otraVigente);
         Snapshot antes = snapshot(inscripcion, solicitud, vigente, solicitudes, matriculas, pagos);
         esperarFallo(ReglaDominioException.class,
                 () -> Cobros.anularPago(inscripcion, "error", "Personal", base,
@@ -1219,7 +1508,7 @@ public class PruebaPagos {
                 pagos, "guardia de matrícula ACTIVA de la misma solicitud es atómica");
         Snapshot otraAntes = snapshot(null, otraSolicitud, otraVigente, solicitudes, matriculas,
                 pagos);
-        vigente.cancelar();
+        vigente.cancelar(base, "cancelación de prueba", "Personal");
         Cobros.anularPago(inscripcion, "error", "Personal", base,
                 solicitudes, matriculas, pagos);
         comprobar(inscripcion.getEstado() == modelo.EstadoPago.ANULADO,
@@ -1244,11 +1533,11 @@ public class PruebaPagos {
         pagosSinBoleta.agregar(anulado);
         anulado.anular("error", "Personal", base);
         Snapshot antes = snapshot(anulado, solicitud, null, new ArregloSolicitudes(),
-                new java.util.ArrayList<Matricula>(), pagosSinBoleta);
+                new ArregloMatriculas(), pagosSinBoleta);
         esperarFallo(ReglaDominioException.class, () -> anulado.registrarComprobante("12345"),
                 "pago anulado sin boleta rechaza comprobante");
         assertSnapshot(antes, anulado, solicitud, null, new ArregloSolicitudes(),
-                new java.util.ArrayList<Matricula>(), pagosSinBoleta,
+                new ArregloMatriculas(), pagosSinBoleta,
                 "rechazo de comprobante anulado no altera auditoría");
         comprobar(pagosSinBoleta.listar().size() == 1 && anulado.getComprobante().isEmpty(),
                 "pago anulado sin boleta conserva colección y comprobante vacío");
@@ -1264,13 +1553,13 @@ public class PruebaPagos {
         pagosRegistrados.agregar(registrado);
         registrado.anular("error de registro", "Personal", base.plusMinutes(1));
         Snapshot registradoDespues = snapshot(registrado, registradoSolicitud, null,
-                new ArregloSolicitudes(), new java.util.ArrayList<Matricula>(), pagosRegistrados);
+                new ArregloSolicitudes(), new ArregloMatriculas(), pagosRegistrados);
         esperarFalloConMensaje(ReglaDominioException.class,
                 () -> registrado.registrarComprobante("123456"),
                 "pago anulado con boleta conserva el guardia de estado",
                 "No se puede registrar un comprobante en un pago anulado");
         assertSnapshot(registradoDespues, registrado, registradoSolicitud, null,
-                new ArregloSolicitudes(), new java.util.ArrayList<Matricula>(), pagosRegistrados,
+                new ArregloSolicitudes(), new ArregloMatriculas(), pagosRegistrados,
                 "boleta existente, auditoría y colección permanecen inmutables");
         comprobar(registrado.getComprobante().equals("987654")
                 && registrado.getFechaAnulacion().equals(base.plusMinutes(1)),
@@ -1300,7 +1589,7 @@ public class PruebaPagos {
                 Aula aula = new Aula("NAMED-UI", "UI", 4, 1);
                 ArregloSolicitudes solicitudes = new ArregloSolicitudes();
                 ArregloPagos pagos = new ArregloPagos();
-                java.util.ArrayList<Matricula> matriculas = new java.util.ArrayList<Matricula>();
+                ArregloMatriculas matriculas = new ArregloMatriculas();
                 Solicitud solicitud = registrarSolicitud(solicitudes, aula, "NAMED-UI-S",
                         ahora.minusDays(2));
                 solicitud.habilitarParaPago(ahora.minusHours(1));
@@ -1370,8 +1659,8 @@ public class PruebaPagos {
                 Aula aulaExpirada = new Aula("NAMED-UI-EXP", "UI expirada", 4, 1);
                 ArregloSolicitudes solicitudesExpiradas = new ArregloSolicitudes();
                 ArregloPagos pagosExpirados = new ArregloPagos();
-                java.util.ArrayList<Matricula> matriculasExpiradas =
-                        new java.util.ArrayList<Matricula>();
+                ArregloMatriculas matriculasExpiradas =
+                        new ArregloMatriculas();
                 Solicitud expirada = registrarSolicitud(solicitudesExpiradas, aulaExpirada,
                         "NAMED-UI-EXP-S", expiradaAhora.minusDays(3));
                 expirada.habilitarParaPago(expiradaAhora.minusHours(49));
@@ -1426,8 +1715,8 @@ public class PruebaPagos {
                 Aula aulaFallo = new Aula("NAMED-UI-FAIL", "UI fallo", 4, 1);
                 ArregloSolicitudes solicitudesFallo = new ArregloSolicitudes();
                 ArregloPagos pagosFallo = new ArregloPagos();
-                java.util.ArrayList<Matricula> matriculasFallo =
-                        new java.util.ArrayList<Matricula>();
+                ArregloMatriculas matriculasFallo =
+                        new ArregloMatriculas();
                 Solicitud solicitudFallo = registrarSolicitud(solicitudesFallo, aulaFallo,
                         "NAMED-UI-FAIL-S", falloAhora.minusDays(2));
                 solicitudFallo.habilitarParaPago(falloAhora.minusHours(1));
@@ -1438,10 +1727,9 @@ public class PruebaPagos {
                 pagoFallo.confirmar();
                 pagosFallo.agregar(pagoFallo);
                 solicitudFallo.confirmarInscripcion(falloAhora.minusMinutes(20));
-                Matricula matriculaFallo = new Matricula(solicitudFallo,
+                Matricula matriculaFallo = matriculasFallo.registrar(solicitudFallo,
                         falloAhora.minusMinutes(5));
                 matriculaFallo.activar();
-                matriculasFallo.add(matriculaFallo);
                 Snapshot falloAntes = snapshot(pagoFallo, solicitudFallo, matriculaFallo,
                         solicitudesFallo, matriculasFallo, pagosFallo);
                 ui.PanelPagos panelFallo = new ui.PanelPagos(solicitudesFallo, pagosFallo,
@@ -1452,22 +1740,13 @@ public class PruebaPagos {
                         .getDeclaredMethod("buscar");
                 buscarFallo.setAccessible(true);
                 buscarFallo.invoke(panelFallo);
-                ui.TarjetasPago tarjetasFallo = (ui.TarjetasPago) campoPrivado(panelFallo,
-                        "tarjetas");
-                ((javax.swing.JTextField) campoPrivado(tarjetasFallo,
-                        "campoMotivoAnulacion")).setText("error con matrícula");
-                ((javax.swing.JTextField) campoPrivado(tarjetasFallo,
-                        "campoResponsableAnulacion")).setText("Personal");
-                ((javax.swing.JButton) campoPrivado(tarjetasFallo, "botonAnular")).doClick();
-                comprobar(pagoFallo.estaConfirmado()
-                        && solicitudFallo.getEstado() == EstadoSolicitud.EN_DOCUMENTACION
-                        && ((javax.swing.JTextArea) campoPrivado(tarjetasFallo, "mensaje"))
-                                .getText().contains("No se puede anular la inscripción mientras")
-                        && ((javax.swing.JPanel) campoPrivado(tarjetasFallo, "panelAnulacion"))
-                                .isVisible()
-                        && !((javax.swing.JButton) campoPrivado(tarjetasFallo,
-                                "botonConfirmar")).isVisible(),
-                        "UI muestra rechazo de dominio y mantiene pago confirmado");
+                // Con matrícula vigente la búsqueda abre la vista de matrícula: la anulación de
+                // la inscripción ya no se ofrece ahí (la guarda de dominio se prueba en
+                // probarProteccionDeInscripcionConMatriculaVigente).
+                comprobar(campoPrivado(panelFallo, "matriculaActual") == matriculaFallo
+                        && pagoFallo.estaConfirmado()
+                        && solicitudFallo.getEstado() == EstadoSolicitud.EN_DOCUMENTACION,
+                        "UI con matrícula vigente abre la vista de matrícula");
                 assertSnapshot(falloAntes, pagoFallo, solicitudFallo, matriculaFallo,
                         solicitudesFallo, matriculasFallo, pagosFallo,
                         "rechazo de UI por matrícula vigente es atómico");
@@ -1488,7 +1767,7 @@ public class PruebaPagos {
                 Aula aula = new Aula("NAMED-UI-DOC", "UI documental", 4, 1);
                 ArregloSolicitudes solicitudes = new ArregloSolicitudes();
                 ArregloPagos pagos = new ArregloPagos();
-                java.util.ArrayList<Matricula> matriculas = new java.util.ArrayList<Matricula>();
+                ArregloMatriculas matriculas = new ArregloMatriculas();
                 Solicitud solicitud = registrarSolicitud(solicitudes, aula, "NAMED-UI-DOC-S",
                         ahora.minusDays(10));
                 LocalDateTime confirmacion = ahora.minusDays(9);
@@ -1507,7 +1786,8 @@ public class PruebaPagos {
                         && solicitud.getFechaCancelacion() != null
                         && solicitud.getMotivoCancelacion() != null
                         && !solicitud.getMotivoCancelacion().isEmpty()
-                        && "Personal de caja".equals(solicitud.getResponsableCancelacion()),
+                        && negocio.Vencimientos.RESPONSABLE.equals(
+                                solicitud.getResponsableCancelacion()),
                         "UI buscar cancela documentación vencida con auditoría completa");
             } catch (Exception e) {
                 failure[0] = new RuntimeException(e);
@@ -1524,7 +1804,7 @@ public class PruebaPagos {
      * favorable suministrado por la API pública disponible, sin afirmar cobertura de entrevista.
      */
     private static CicloFixture prepararCicloOferta(ArregloSolicitudes solicitudes,
-            ArregloPagos pagos, java.util.ArrayList<Matricula> matriculas, Aula aula,
+            ArregloPagos pagos, ArregloMatriculas matriculas, Aula aula,
             String codigo, LocalDateTime base) throws Exception {
         ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
         LocalDateTime registroSolicitud = base.minusDays(3);
@@ -1553,7 +1833,7 @@ public class PruebaPagos {
     }
 
     private static CicloFixture prepararCicloOfertaSinTurno(ArregloSolicitudes solicitudes,
-            ArregloPagos pagos, java.util.ArrayList<Matricula> matriculas, Aula aula,
+            ArregloPagos pagos, ArregloMatriculas matriculas, Aula aula,
             String codigo, LocalDateTime base) throws Exception {
         ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
         LocalDateTime registroSolicitud = base.minusDays(3);
@@ -1666,7 +1946,7 @@ public class PruebaPagos {
         Solicitud solicitud = solicitud("SOL-" + comprobante, creacion.minusDays(2), aula);
         solicitud.habilitarParaPago(creacion.minusHours(2));
         solicitud.confirmarInscripcion(creacion.minusHours(1));
-        Matricula matricula = new Matricula(solicitud, creacion);
+        Matricula matricula = new Matricula(0, solicitud, creacion);
         comprobar(!operacion.isBefore(solicitud.getFechaRegistro())
                 && !operacion.isAfter(registro),
                 "fixture de deadline conserva orden solicitud-operación-registro");
@@ -1713,7 +1993,7 @@ public class PruebaPagos {
 
         private Snapshot(Pago pago, Solicitud solicitud, Matricula matricula,
                 ArregloSolicitudes arregloSolicitudes,
-                java.util.ArrayList<Matricula> arregloMatriculas, ArregloPagos arregloPagos) {
+                ArregloMatriculas arregloMatriculas, ArregloPagos arregloPagos) {
             estadoPago = pago == null ? null : pago.getEstado();
             fechaAnulacion = pago == null ? null : pago.getFechaAnulacion();
             motivoAnulacion = pago == null ? null : pago.getMotivoAnulacion();
@@ -1734,20 +2014,20 @@ public class PruebaPagos {
             ofertas = solicitud == null ? new java.util.ArrayList<Oferta>() : solicitud.getOfertas();
             tieneOfertaAceptada = solicitud != null && solicitud.tieneOfertaAceptada();
             solicitudes = arregloSolicitudes.listar();
-            matriculas = new java.util.ArrayList<Matricula>(arregloMatriculas);
+            matriculas = arregloMatriculas.listar();
             pagos = arregloPagos.listar();
         }
     }
 
     private static Snapshot snapshot(Pago pago, Solicitud solicitud, Matricula matricula,
-            ArregloSolicitudes solicitudes, java.util.ArrayList<Matricula> matriculas,
+            ArregloSolicitudes solicitudes, ArregloMatriculas matriculas,
             ArregloPagos pagos) {
         return new Snapshot(pago, solicitud, matricula, solicitudes, matriculas, pagos);
     }
 
     private static void assertSnapshot(Snapshot antes, Pago pago, Solicitud solicitud,
             Matricula matricula, ArregloSolicitudes solicitudes,
-            java.util.ArrayList<Matricula> matriculas, ArregloPagos pagos, String descripcion) {
+            ArregloMatriculas matriculas, ArregloPagos pagos, String descripcion) {
         comprobar(antes.estadoPago == (pago == null ? null : pago.getEstado())
                 && java.util.Objects.equals(antes.fechaAnulacion,
                         pago == null ? null : pago.getFechaAnulacion())
@@ -1781,7 +2061,7 @@ public class PruebaPagos {
                         solicitud == null ? new java.util.ArrayList<Oferta>() : solicitud.getOfertas())
                 && antes.tieneOfertaAceptada == (solicitud != null && solicitud.tieneOfertaAceptada())
                 && antes.solicitudes.equals(solicitudes.listar())
-                && antes.matriculas.equals(matriculas)
+                && antes.matriculas.equals(matriculas.listar())
                 && antes.pagos.equals(pagos.listar()), descripcion);
     }
 
@@ -1964,7 +2244,7 @@ public class PruebaPagos {
                 }
 
                 ui.PanelExpediente panel = new ui.PanelExpediente(solicitudes,
-                        new datos.ArregloEntrevistas());
+                        new datos.ArregloEntrevistas(), new ArregloMatriculas());
                 comprobar(textoEstadoEntrevista(panel).equals("BLOQUEADA · 1 observado"),
                         "con el carné observado la entrevista está BLOQUEADA");
 
@@ -2057,7 +2337,8 @@ public class PruebaPagos {
                 vencida.habilitarParaPago(ahora.minusDays(9).minusHours(1));
                 vencida.confirmarInscripcion(ahora.minusDays(9));
 
-                new ui.PanelExpediente(solicitudes, new datos.ArregloEntrevistas());
+                new ui.PanelExpediente(solicitudes, new datos.ArregloEntrevistas(),
+                        new ArregloMatriculas());
 
                 comprobar(vencida.getEstado() == EstadoSolicitud.CANCELADA
                         && "Sistema".equals(vencida.getResponsableCancelacion()),
@@ -2073,7 +2354,8 @@ public class PruebaPagos {
                 entrevistas.agendar(tardia, tardia.getExpediente(), ahora.plusDays(1),
                         listaDe("Ana Ruiz"), "Ana Ruiz");
 
-                ui.PanelExpediente panel = new ui.PanelExpediente(conCita, entrevistas);
+                ui.PanelExpediente panel = new ui.PanelExpediente(conCita, entrevistas,
+                        new ArregloMatriculas());
 
                 String motivoTarjeta = ((javax.swing.JLabel) campoPrivado(panel,
                         "motivoEntrevista")).getText();
@@ -2112,12 +2394,12 @@ public class PruebaPagos {
         inicial.habilitarParaPago(confirmacion.minusHours(2));
         ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
         ArregloSolicitudes solicitudesInicial = new ArregloSolicitudes();
-        java.util.ArrayList<Matricula> matriculasInicial = new java.util.ArrayList<Matricula>();
+        ArregloMatriculas matriculasInicial = new ArregloMatriculas();
         ArregloPagos pagosCancelacion = new ArregloPagos();
         Pago pagoCancelado = Cobros.confirmarInscripcion(inicial, cuotas.getCuotaInscripcion(),
                 MedioPago.EFECTIVO, "", confirmacion, "comprobante-documental", confirmacion,
                 solicitudesInicial, matriculasInicial, pagosCancelacion, cuotas);
-        Matricula matriculaCancelada = new Matricula(inicial, confirmacion.plusHours(1));
+        Matricula matriculaCancelada = new Matricula(0, inicial, confirmacion.plusHours(1));
         comprobar(inicial.getExpediente().debeCancelarse(LocalDate.of(2026, 9, 28)),
                 "el plazo inicial vencido permite cancelar");
         inicial.cancelarPorDocumentacion(LocalDateTime.of(2026, 9, 28, 9, 0),
@@ -2184,7 +2466,7 @@ public class PruebaPagos {
                 "la corrección entregada en el límite ya no vence");
 
         ArregloSolicitudes solicitudes = new ArregloSolicitudes();
-        java.util.ArrayList<Matricula> matriculas = new java.util.ArrayList<Matricula>();
+        ArregloMatriculas matriculas = new ArregloMatriculas();
         Solicitud barrida = solicitud("DOC-BARRIDA", confirmacion.minusDays(2), aula);
         barrida.habilitarParaPago(confirmacion.minusHours(2));
         barrida.confirmarInscripcion(confirmacion);
@@ -2198,14 +2480,17 @@ public class PruebaPagos {
         barridaPorOrden.habilitarParaPago(confirmacion.minusHours(2));
         barridaPorOrden.confirmarInscripcion(confirmacion.minusDays(1));
         almacen.add(barridaPorOrden);
-        comprobar(!Turnos.ordenPorPrioridad(aula, solicitudes, matriculas,
-                LocalDateTime.of(2026, 9, 28, 10, 0)).contains(barrida),
-                "la solicitud cancelada no aparece en la cola");
+        comprobar(!Turnos.ordenPorPrioridad(aula, solicitudes, matriculas).contains(barrida)
+                && barridaPorOrden.getEstado() == EstadoSolicitud.EN_DOCUMENTACION,
+                "la solicitud cancelada no aparece en la cola y consultar no barre");
+        negocio.Vencimientos.revisar(LocalDateTime.of(2026, 9, 28, 10, 0), solicitudes,
+                matriculas);
         comprobar(barridaPorOrden.getEstado() == EstadoSolicitud.CANCELADA
                 && barridaPorOrden.getFechaCancelacion().equals(LocalDate.of(2026, 9, 28)
                         .atStartOfDay())
-                && "Personal de turnos".equals(barridaPorOrden.getResponsableCancelacion()),
-                "ordenPorPrioridad cancela documentación vencida con auditoría");
+                && negocio.Vencimientos.RESPONSABLE.equals(
+                        barridaPorOrden.getResponsableCancelacion()),
+                "Vencimientos.revisar cancela documentación vencida con auditoría");
 
         Snapshot antes = snapshot(null, correccionUltimoDia, null, new ArregloSolicitudes(),
                 matriculas, new ArregloPagos());
@@ -2378,6 +2663,64 @@ public class PruebaPagos {
                 + " recién es válida desde el minuto siguiente.");
 
         cargarCasosExpediente(ventana, alumnos, apoderados, tulipanes, girasoles);
+        cargarCasosMatricula(ventana, alumnos, apoderados, girasoles);
+    }
+
+    private static void cargarCasosMatricula(PrincipalUI ventana, ArregloAlumnos alumnos,
+            ArregloApoderados apoderados, Aula girasoles) throws ReglaDominioException {
+        LocalDate cuatroAnios = LocalDate.of(2022, 6, 18);
+        LocalDateTime ahora = LocalDateTime.now().withSecond(0).withNano(0);
+
+        Solicitud pendiente = enColaFavorable(ventana, alumnos, apoderados, "Rosa", "León",
+                cuatroAnios, girasoles, ahora.minusDays(3));
+        Turnos.confirmarOferta(pendiente, true, "Personal de admisión", ahora.minusHours(20),
+                ventana.getSolicitudes(), ventana.getMatriculas());
+
+        Solicitud activa = enColaFavorable(ventana, alumnos, apoderados, "Pablo", "Quispe",
+                cuatroAnios, girasoles, ahora.minusDays(3).plusMinutes(1));
+        Turnos.confirmarOferta(activa, true, "Personal de admisión", ahora.minusHours(10),
+                ventana.getSolicitudes(), ventana.getMatriculas());
+        // La solicitud se registró recién: la operación no puede ser anterior a ese momento.
+        LocalDateTime pago = LocalDateTime.now();
+        Cobros.confirmarMatricula(ventana.getMatriculas().vigenteDe(activa),
+                ventana.getCuotas().getCuotaMatricula(), MedioPago.YAPE, "YP-8291458", pago,
+                crearComprobanteDeEjemplo(), pago, ventana.getSolicitudes(),
+                ventana.getMatriculas(), ventana.getPagos(), ventana.getCuotas());
+
+        Solicitud vencida = enColaFavorable(ventana, alumnos, apoderados, "Iván", "Salas",
+                cuatroAnios, girasoles, ahora.minusDays(4));
+        Turnos.confirmarOferta(vencida, true, "Personal de admisión", ahora.minusHours(80),
+                ventana.getSolicitudes(), ventana.getMatriculas());
+        // PrincipalUI revisó los vencimientos al abrir, antes de que existieran estos casos;
+        // se repite la revisión para que la demo arranque como si ya estuvieran guardados.
+        ventana.revisarVencimientos();
+
+        System.out.println("Casos de matrícula (Pagos y matrículas):");
+        System.out.println("  " + pendiente.getCodigo() + " / "
+                + ventana.getMatriculas().ultimaDe(pendiente).getCodigo()
+                + "  PENDIENTE_PAGO · vence en 52 h (diseño 05)");
+        System.out.println("  " + activa.getCodigo() + " / "
+                + ventana.getMatriculas().ultimaDe(activa).getCodigo()
+                + "  ACTIVA · pago confirmado (solo lectura y anulación)");
+        System.out.println("  " + vencida.getCodigo() + " / "
+                + ventana.getMatriculas().ultimaDe(vencida).getCodigo()
+                + "  CANCELADA por vencimiento de 72 h (barrido al abrir)");
+    }
+
+    private static Solicitud enColaFavorable(PrincipalUI ventana, ArregloAlumnos alumnos,
+            ArregloApoderados apoderados, String nombres, String apellidos, LocalDate nacimiento,
+            Aula aula, LocalDateTime ingreso) throws ReglaDominioException {
+        Solicitud solicitud = registrar(ventana, alumnos, apoderados, nombres, apellidos,
+                nacimiento, aula);
+        LocalDateTime confirmacion = ingreso.minusDays(2);
+        solicitud.habilitarParaPago(confirmacion.minusHours(2));
+        solicitud.confirmarInscripcion(confirmacion);
+        for (modelo.Documento documento : solicitud.getExpediente().getDocumentos()) {
+            documento.registrarEntrega(confirmacion.plusDays(1));
+            documento.validar();
+        }
+        solicitud.ingresarAColaFavorable(ingreso);
+        return solicitud;
     }
 
     private static void seleccionarEnExpediente(PrincipalUI ventana, String codigo) {

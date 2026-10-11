@@ -10,7 +10,6 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.Point;
-import java.awt.Rectangle;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.time.LocalDate;
@@ -34,7 +33,6 @@ import javax.swing.JSeparator;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
-import javax.swing.Scrollable;
 import javax.swing.SwingUtilities;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -42,6 +40,7 @@ import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 
 import datos.ArregloEntrevistas;
+import datos.ArregloMatriculas;
 import datos.ArregloSolicitudes;
 import modelo.Apoderado;
 import modelo.DatoInvalidoException;
@@ -54,12 +53,12 @@ import modelo.ResultadoEntrevista;
 import modelo.Solicitud;
 import negocio.ExpedienteDocumentos;
 import negocio.Turnos;
+import negocio.Vencimientos;
 import util.FormatoFecha;
 
 public class PanelExpediente extends JPanel {
 
     private static final DateTimeFormatter FORMATO_FECHA = TarjetasPago.FORMATO_FECHA;
-    private static final String RESPONSABLE_VENCIMIENTOS = "Sistema";
 
     private static final String SIN_DATO = "—";
 
@@ -69,6 +68,7 @@ public class PanelExpediente extends JPanel {
 
     private final ArregloSolicitudes solicitudes;
     private final ArregloEntrevistas entrevistas;
+    private final ArregloMatriculas matriculas;
 
     private Solicitud actual;
     private boolean llenandoLista;
@@ -117,10 +117,12 @@ public class PanelExpediente extends JPanel {
             Estilos.campo(new JComboBox<ResultadoEntrevista>(ResultadoEntrevista.values()));
     private final JButton botonResultado = Estilos.botonPrimario("Registrar resultado");
 
-    public PanelExpediente(ArregloSolicitudes solicitudes, ArregloEntrevistas entrevistas) {
+    public PanelExpediente(ArregloSolicitudes solicitudes, ArregloEntrevistas entrevistas,
+            ArregloMatriculas matriculas) {
         super(new BorderLayout(0, 20));
         this.solicitudes = solicitudes;
         this.entrevistas = entrevistas;
+        this.matriculas = matriculas;
         setBorder(Estilos.MARGEN_PANTALLA);
 
         add(crearEncabezado(), BorderLayout.NORTH);
@@ -436,7 +438,12 @@ public class PanelExpediente extends JPanel {
 
     private void revisarVencimientos() {
         try {
-            solicitudes.cancelarDocumentacionVencida(LocalDate.now(), RESPONSABLE_VENCIMIENTOS);
+            ArrayList<String> avisos = Vencimientos.revisar(LocalDateTime.now(), solicitudes,
+                    matriculas);
+            if (!avisos.isEmpty()) {
+                mostrarMensaje("Revisión de vencimientos incompleta: "
+                        + Vencimientos.unir(avisos), true);
+            }
         } catch (ReglaDominioException e) {
             mostrarMensaje(e.getMessage(), true);
         }
@@ -889,39 +896,6 @@ public class PanelExpediente extends JPanel {
     private static <T extends JComponent> T alineado(T componente) {
         componente.setAlignmentX(LEFT_ALIGNMENT);
         return componente;
-    }
-
-    private static final class PanelAncho extends JPanel implements Scrollable {
-
-        PanelAncho() {
-            super(new BorderLayout());
-            setOpaque(false);
-        }
-
-        @Override
-        public Dimension getPreferredScrollableViewportSize() {
-            return getPreferredSize();
-        }
-
-        @Override
-        public int getScrollableUnitIncrement(Rectangle visible, int orientacion, int sentido) {
-            return 16;
-        }
-
-        @Override
-        public int getScrollableBlockIncrement(Rectangle visible, int orientacion, int sentido) {
-            return visible.height;
-        }
-
-        @Override
-        public boolean getScrollableTracksViewportWidth() {
-            return true;
-        }
-
-        @Override
-        public boolean getScrollableTracksViewportHeight() {
-            return false;
-        }
     }
 
     private static final class ModeloDocumentos extends AbstractTableModel {
