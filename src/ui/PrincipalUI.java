@@ -4,6 +4,7 @@ import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,14 +13,18 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 
 import datos.ArregloAulas;
 import datos.ArregloEntrevistas;
+import datos.ArregloMatriculas;
 import datos.ArregloPagos;
 import datos.ArregloSolicitudes;
 import modelo.ConfiguracionCuotas;
-import modelo.Matricula;
+import modelo.ReglaDominioException;
+import negocio.Vencimientos;
 
 public class PrincipalUI extends JFrame {
 
@@ -41,7 +46,7 @@ public class PrincipalUI extends JFrame {
     private final ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
     private final ArregloPagos pagos = new ArregloPagos();
     private final ArregloEntrevistas entrevistas = new ArregloEntrevistas();
-    private final ArrayList<Matricula> matriculas = new ArrayList<Matricula>();
+    private final ArregloMatriculas matriculas = new ArregloMatriculas();
 
     public PrincipalUI() {
         super("La Casa Amarilla · Matrícula 2027");
@@ -51,6 +56,8 @@ public class PrincipalUI extends JFrame {
         setMinimumSize(new Dimension(1280, 720));
         setLocationRelativeTo(null);
         setExtendedState(JFrame.MAXIMIZED_BOTH);
+
+        revisarVencimientos();
 
         setLayout(new BorderLayout());
         add(crearCabecera(), BorderLayout.NORTH);
@@ -66,6 +73,25 @@ public class PrincipalUI extends JFrame {
             boolean esElActual = boton.getNombrePanel().equals(nombrePanel);
             boton.setSeleccionado(esElActual);
         }
+    }
+
+    // El cierre de la aplicación no suspende los plazos (§4.8): al abrir se revisan las
+    // fechas guardadas, porque no hay un temporizador corriendo.
+    public void revisarVencimientos() {
+        String problema;
+        try {
+            ArrayList<String> avisos = Vencimientos.revisar(LocalDateTime.now(), solicitudes,
+                    matriculas);
+            if (avisos.isEmpty()) {
+                return;
+            }
+            problema = Vencimientos.unir(avisos);
+        } catch (ReglaDominioException e) {
+            problema = e.getMessage();
+        }
+        String mensaje = problema;
+        SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, mensaje,
+                "Revisión de vencimientos", JOptionPane.WARNING_MESSAGE));
     }
 
     public ArregloAulas getAulas() {
@@ -88,7 +114,7 @@ public class PrincipalUI extends JFrame {
         return entrevistas;
     }
 
-    public ArrayList<Matricula> getMatriculas() {
+    public ArregloMatriculas getMatriculas() {
         return matriculas;
     }
 
@@ -145,7 +171,7 @@ public class PrincipalUI extends JFrame {
         agregarPanel(new PanelInicio(this), INICIO);
         agregarPanel(new PanelSolicitudes(), SOLICITUDES);
         agregarPanel(new PanelColas(), COLAS);
-        agregarPanel(new PanelExpediente(solicitudes, entrevistas), EXPEDIENTE);
+        agregarPanel(new PanelExpediente(solicitudes, entrevistas, matriculas), EXPEDIENTE);
         agregarPanel(new PanelPagos(solicitudes, pagos, matriculas, cuotas), PAGOS);
         agregarPanel(new PanelHistorial(), HISTORIAL);
         agregarPanel(new PanelCuotas(cuotas), CUOTAS);

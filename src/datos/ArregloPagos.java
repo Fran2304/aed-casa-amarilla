@@ -34,22 +34,30 @@ public class ArregloPagos {
     }
 
     public boolean inscripcionConfirmada(Solicitud solicitud) {
+        return inscripcionConfirmadaDe(solicitud) != null;
+    }
+
+    public Pago inscripcionConfirmadaDe(Solicitud solicitud) {
         for (Pago pago : deSolicitud(solicitud)) {
             if (pago.getConcepto() == ConceptoPago.INSCRIPCION && pago.estaConfirmado()) {
-                return true;
+                return pago;
             }
         }
-        return false;
+        return null;
     }
 
     public boolean matriculaConfirmada(Matricula matricula) {
+        return matriculaConfirmadaDe(matricula) != null;
+    }
+
+    public Pago matriculaConfirmadaDe(Matricula matricula) {
         for (Pago pago : pagos) {
             if (pago.getConcepto() == ConceptoPago.MATRICULA
                     && pago.getMatricula() == matricula && pago.estaConfirmado()) {
-                return true;
+                return pago;
             }
         }
-        return false;
+        return null;
     }
 
     public boolean contiene(Pago pago) {
