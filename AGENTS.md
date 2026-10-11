@@ -32,6 +32,7 @@ Ejecuta los comandos desde la raíz del proyecto. Configura `JAVA_HOME` con un *
 - Ejecuta `PruebaPagos` con `-Djava.awt.headless=true` para las pruebas funcionales. Los casos de interfaz necesitan `-Dopencode.test.logs=<directorio absoluto existente>` para guardar el comprobante de prueba; puede ser cualquier directorio local destinado a esos archivos, sin un harness.
 - Conserva la salida completa y el resultado de las comprobaciones. No confundas ausencia de un framework de pruebas con pruebas ejecutadas o aprobadas.
 - Ejecuta `Main` para abrir la aplicación o `PruebaPagos` sin el modo headless para abrir la demo con datos de ejemplo. Las comprobaciones headless no verifican la apariencia ni toda la interacción manual; informa las pruebas gráficas por separado.
+- Los scripts de CI tienen su propia suite con `unittest` puro (`test_review*.py` en `.github/scripts/`), invisible para los detectores automáticos de framework: al cambiar `.github/workflows/` o `review_checkpoint.py`, ejecútala explícitamente con `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .github/scripts -p 'test_review*.py' -v`.
 
 `PruebaPagos` está marcado para eliminarse más adelante. Mientras sea la entrada de las pruebas de regresión, no lo elimines sin acordar una alternativa que conserve esa cobertura.
 
