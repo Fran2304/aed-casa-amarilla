@@ -215,3 +215,32 @@ Estos puntos **no están resueltos en el PDF**. Una IA debe señalarlos antes de
 - **Página 6:** pago de matrícula, reglas compartidas y vencimientos.
 
 El PDF menciona como fuente previa `reglas_matricula_casa_amarilla_2027.md`, pero ese archivo no fue usado para añadir reglas a esta conversión.
+
+## 8. Notas de implementación: pantalla Nueva solicitud (issue #10)
+
+Razones de diseño de `PanelSolicitudes` y del código que usa. No agregan reglas al proceso: explican cómo se aplican las de §4.1 y §4.2.
+
+### 8.1. Reglas aplicadas en la pantalla
+
+- **Orden de validaciones.** `ArregloSolicitudes.registrar` valida en el orden del flujo (§4.1): datos obligatorios, apoderados, edad y solicitud activa duplicada. Si fallan varias, el personal ve primero la que corresponde corregir antes. La franja de comprobaciones de la pantalla usa el mismo orden (primero la edad, después el duplicado) para anticipar exactamente el error que daría al guardar.
+- **Comprobación previa al guardado.** `ArregloSolicitudes.exigirAdmisible` reúne todo lo que `registrar` exige salvo los apoderados. Sirve para comprobarlo antes de vincular apoderados nuevos a un alumno que ya existe, y no después.
+- **Edad del aula.** Supuesto: edad exacta = edad del aula. Los rangos de edad por aula siguen pendientes de definición (§6, ítem 2). Si el nido acepta rangos, se cambia solo en `Aula.admiteEdad`, que usan tanto el registro de la solicitud como la validación en vivo de la pantalla. La pantalla valida la edad antes de que exista el `Alumno`, por eso `FechasAdmision.edadAlCorte` calcula la edad a partir de la fecha suelta.
+- **Fecha de nacimiento.** Se interpreta en modo estricto para que un 31/02 se rechace en vez de convertirse en silencio en 28/02.
+- **Alumno ya registrado.** Si el DNI ya es de un alumno, se reutiliza ese alumno: sus datos quedan en solo lectura y sus apoderados ya vinculados aparecen en la lista. Lo que el personal ya había escrito se guarda como borrador, porque el DNI puede coincidir a mitad de tipeo; si el siguiente dígito deshace la coincidencia, esos datos vuelven en vez de perderse. Lo mismo ocurre si un guardado registra un alumno nuevo y un paso posterior falla: si el personal corrige el DNI, lo escrito vuelve al formulario.
+- **Apoderados.** Nunca se crea un `Apoderado` suelto. Si el DNI ya está en el padrón se usa esa misma instancia (hermanos que comparten apoderado); si no, sus datos quedan pendientes y se registran en el padrón recién al guardar, para no dejar apoderados huérfanos. Mientras está pendiente, la fila no tiene instancia del padrón.
+- **Apoderado principal.** El primero de la lista queda como principal mientras no se elija otro. Cambiar el principal de un alumno ya registrado afecta a las demás pantallas, así que la fila lo indica antes de guardar en vez de hacerlo en silencio.
+- **Quitar apoderados.** Solo se quita lo que aún no se guardó: un vínculo ya registrado es un dato del alumno y no se deshace desde el formulario de una solicitud.
+- **Qué se conserva si el guardado falla.** Lo que ya quedó registrado (alumno, apoderados, vínculos) se conserva aunque falle un paso posterior: son personas reales y los padrones no tienen eliminar. Por eso la admisión se comprueba antes de tocar los vínculos y el principal del alumno.
+- **Ubicación en la cola.** `Turnos.ubicarNueva` hace entrar la solicitud nueva a la cola sin pago antes de evaluar turnos: si habilitar falla, la solicitud queda esperando turno, y no activa pero fuera de toda cola. Devuelve solo las otras solicitudes habilitadas, es decir, a quién hay que avisar; el estado de la nueva se consulta en ella misma.
+- **Aviso de habilitadas.** Guardar revisa la cola del aula y puede habilitar a quienes esperaban antes. Su plazo de 48 h ya corre, así que la ficha muestra a quién avisar. Mientras el personal estuvo en otra pantalla, una habilitada pudo pagar o vencer: al volver, el aviso solo pide llamar a quienes todavía pueden pagar.
+- **Datos que cambian en otras pantallas.** Las vacantes y las solicitudes activas se vuelven a evaluar cada vez que el personal entra a la pantalla. El error "no se pudo evaluar su turno" solo describe a una solicitud que sigue esperando; si otra pantalla ya la movió, la ficha muestra su estado real.
+- **Título de la ficha.** La ficha sirve para dos casos opuestos (recién creada o ya existía): el título los distingue solo, sin depender del color del aviso.
+
+### 8.2. Detalles técnicos de Swing
+
+- Los `setText` que hace el propio panel disparan los `DocumentListener`; la bandera `actualizando` evita que el recálculo se vuelva a llamar a sí mismo a mitad de camino.
+- En un `BoxLayout` vertical, los `JPanel` se estiran a lo alto si sobra espacio. La clase `Fila` conserva su alto preferido aunque cambie el contenido (franja, lista de apoderados).
+- En un `BoxLayout` vertical, componentes con alineaciones distintas se desplazan entre sí: `Estilos.alineado` alinea todos los de un formulario a la izquierda.
+- `Estilos.rellenarTarjeta` suma relleno interior sin reemplazar el borde redondeado que la tarjeta ya trae.
+- Los textos largos usan HTML con ancho fijo para que el `JLabel` haga salto de línea dentro de la columna.
+- `PruebaPagos` usa los padrones de la ventana y no unos propios: con dos padrones los códigos de alumno se repiten y la pantalla de solicitudes confunde alumnos distintos.

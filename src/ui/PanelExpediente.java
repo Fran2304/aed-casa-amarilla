@@ -24,7 +24,6 @@ import javax.swing.BoxLayout;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
-import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
@@ -203,12 +202,12 @@ public class PanelExpediente extends JPanel {
         });
         selector.add(comboSolicitud);
         filaTitulo.add(selector, BorderLayout.EAST);
-        encabezado.add(alineado(filaTitulo));
+        encabezado.add(Estilos.alineado(filaTitulo));
         encabezado.add(Box.createVerticalStrut(4));
 
         identificacion.setFont(Estilos.subtitulo());
         identificacion.setForeground(Estilos.SECUNDARIO);
-        encabezado.add(alineado(identificacion));
+        encabezado.add(Estilos.alineado(identificacion));
         encabezado.add(Box.createVerticalStrut(20));
 
         JPanel izquierda = new JPanel();
@@ -218,18 +217,18 @@ public class PanelExpediente extends JPanel {
         fechasFranja.setFont(Estilos.dato());
         detalleFranja.setFont(Estilos.contenidoDestacado());
         correccionFranja.setFont(Estilos.datoDestacado());
-        izquierda.add(alineado(estadoFranja));
+        izquierda.add(Estilos.alineado(estadoFranja));
         izquierda.add(Box.createVerticalStrut(10));
-        izquierda.add(alineado(fechasFranja));
+        izquierda.add(Estilos.alineado(fechasFranja));
         izquierda.add(Box.createVerticalStrut(6));
-        izquierda.add(alineado(detalleFranja));
+        izquierda.add(Estilos.alineado(detalleFranja));
         franja.add(izquierda, BorderLayout.CENTER);
         franja.add(correccionFranja, BorderLayout.EAST);
-        encabezado.add(alineado(franja));
+        encabezado.add(Estilos.alineado(franja));
         encabezado.add(Box.createVerticalStrut(10));
 
         mensaje.setFont(Estilos.contenidoDestacado());
-        encabezado.add(alineado(mensaje));
+        encabezado.add(Estilos.alineado(mensaje));
         return encabezado;
     }
 
@@ -239,9 +238,9 @@ public class PanelExpediente extends JPanel {
 
         tituloDocumentos.setFont(Estilos.panel());
         tituloDocumentos.setForeground(Estilos.TEXTO_PRINCIPAL);
-        tarjeta.add(alineado(tituloDocumentos));
+        tarjeta.add(Estilos.alineado(tituloDocumentos));
         tarjeta.add(Box.createVerticalStrut(8));
-        tarjeta.add(alineado(texto("Los cuatro deben entregarse dentro de "
+        tarjeta.add(Estilos.alineado(texto("Los cuatro deben entregarse dentro de "
                 + ExpedienteDocumentos.DIAS_ENTREGA + " días calendario desde el pago"
                 + " confirmado. La validación puede concluir después.", 560)));
         tarjeta.add(Box.createVerticalStrut(18));
@@ -263,20 +262,20 @@ public class PanelExpediente extends JPanel {
                 actualizarBotonesDocumento();
             }
         });
-        tarjeta.add(alineado(tablaDocumentos.getTableHeader()));
-        tarjeta.add(alineado(tablaDocumentos));
+        tarjeta.add(Estilos.alineado(tablaDocumentos.getTableHeader()));
+        tarjeta.add(Estilos.alineado(tablaDocumentos));
         tarjeta.add(Box.createVerticalStrut(18));
 
         observaciones.setLayout(new BoxLayout(observaciones, BoxLayout.Y_AXIS));
         observaciones.setOpaque(false);
-        tarjeta.add(alineado(observaciones));
+        tarjeta.add(Estilos.alineado(observaciones));
 
         JPanel acciones = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         acciones.setOpaque(false);
         acciones.add(Estilos.etiquetaCampo("Fecha (dd/mm/aaaa hh:mm)"));
         acciones.add(Box.createHorizontalStrut(10));
         acciones.add(campoFechaDocumento);
-        tarjeta.add(alineado(acciones));
+        tarjeta.add(Estilos.alineado(acciones));
         tarjeta.add(Box.createVerticalStrut(10));
 
         JPanel botones = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
@@ -286,7 +285,7 @@ public class PanelExpediente extends JPanel {
         botones.add(botonValidar);
         botones.add(Box.createHorizontalStrut(10));
         botones.add(botonObservar);
-        tarjeta.add(alineado(botones));
+        tarjeta.add(Estilos.alineado(botones));
 
         botonEntrega.addActionListener(evento -> registrarEntrega());
         botonValidar.addActionListener(evento -> validarDocumento());
@@ -301,67 +300,67 @@ public class PanelExpediente extends JPanel {
         JLabel tituloTarjeta = new JLabel("Entrevista");
         tituloTarjeta.setFont(Estilos.panel());
         tituloTarjeta.setForeground(Estilos.TEXTO_PRINCIPAL);
-        tarjeta.add(alineado(tituloTarjeta));
+        tarjeta.add(Estilos.alineado(tituloTarjeta));
         tarjeta.add(Box.createVerticalStrut(16));
 
         cajaEstadoEntrevista.setLayout(new BoxLayout(cajaEstadoEntrevista, BoxLayout.Y_AXIS));
         estadoEntrevista.setFont(Estilos.datoDestacado());
         motivoEntrevista.setFont(Estilos.detalle());
-        cajaEstadoEntrevista.add(alineado(estadoEntrevista));
+        cajaEstadoEntrevista.add(Estilos.alineado(estadoEntrevista));
         cajaEstadoEntrevista.add(Box.createVerticalStrut(6));
-        cajaEstadoEntrevista.add(alineado(motivoEntrevista));
-        tarjeta.add(alineado(cajaEstadoEntrevista));
+        cajaEstadoEntrevista.add(Estilos.alineado(motivoEntrevista));
+        tarjeta.add(Estilos.alineado(cajaEstadoEntrevista));
         tarjeta.add(Box.createVerticalStrut(24));
 
-        tarjeta.add(alineado(subtitulo("Personal y cita")));
+        tarjeta.add(Estilos.alineado(subtitulo("Personal y cita")));
         tarjeta.add(Box.createVerticalStrut(10));
         datosCita.setLayout(new BoxLayout(datosCita, BoxLayout.Y_AXIS));
         datosCita.setOpaque(false);
-        datosCita.add(alineado(datoFecha));
+        datosCita.add(Estilos.alineado(datoFecha));
         datosCita.add(Box.createVerticalStrut(10));
-        datosCita.add(alineado(datoPersonal));
+        datosCita.add(Estilos.alineado(datoPersonal));
         datosCita.add(Box.createVerticalStrut(10));
-        datosCita.add(alineado(datoResponsable));
-        tarjeta.add(alineado(datosCita));
+        datosCita.add(Estilos.alineado(datoResponsable));
+        tarjeta.add(Estilos.alineado(datosCita));
 
         formularioAgenda.setLayout(new BoxLayout(formularioAgenda, BoxLayout.Y_AXIS));
         formularioAgenda.setOpaque(false);
-        formularioAgenda.add(alineado(conEtiqueta("Fecha y hora (dd/mm/aaaa hh:mm)",
+        formularioAgenda.add(Estilos.alineado(Estilos.conEtiqueta("Fecha y hora (dd/mm/aaaa hh:mm)",
                 campoFechaEntrevista)));
         formularioAgenda.add(Box.createVerticalStrut(10));
-        formularioAgenda.add(alineado(conEtiqueta("Integrantes del personal (separados por"
-                + " comas)", campoPersonal)));
+        formularioAgenda.add(Estilos.alineado(Estilos.conEtiqueta(
+                "Integrantes del personal (separados por comas)", campoPersonal)));
         formularioAgenda.add(Box.createVerticalStrut(10));
-        formularioAgenda.add(alineado(conEtiqueta("Responsable (exactamente 1)",
+        formularioAgenda.add(Estilos.alineado(Estilos.conEtiqueta("Responsable (exactamente 1)",
                 comboResponsable)));
         formularioAgenda.add(Box.createVerticalStrut(14));
         JPanel filaAgendar = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         filaAgendar.setOpaque(false);
         filaAgendar.add(botonAgendar);
-        formularioAgenda.add(alineado(filaAgendar));
-        tarjeta.add(alineado(formularioAgenda));
+        formularioAgenda.add(Estilos.alineado(filaAgendar));
+        tarjeta.add(Estilos.alineado(formularioAgenda));
 
         tarjeta.add(Box.createVerticalStrut(20));
         JSeparator separador = new JSeparator();
         separador.setForeground(Estilos.BORDE_TARJETA);
         separador.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
-        tarjeta.add(alineado(separador));
+        tarjeta.add(Estilos.alineado(separador));
         tarjeta.add(Box.createVerticalStrut(20));
 
-        tarjeta.add(alineado(subtitulo("Asistencia y resultado")));
+        tarjeta.add(Estilos.alineado(subtitulo("Asistencia y resultado")));
         tarjeta.add(Box.createVerticalStrut(10));
-        tarjeta.add(alineado(datoAsistencia));
+        tarjeta.add(Estilos.alineado(datoAsistencia));
         tarjeta.add(Box.createVerticalStrut(10));
-        tarjeta.add(alineado(datoResultado));
+        tarjeta.add(Estilos.alineado(datoResultado));
         tarjeta.add(Box.createVerticalStrut(10));
-        tarjeta.add(alineado(indicadorInasistencias));
+        tarjeta.add(Estilos.alineado(indicadorInasistencias));
         tarjeta.add(Box.createVerticalStrut(14));
 
         accionesAsistencia.setOpaque(false);
         accionesAsistencia.add(botonAsistio);
         accionesAsistencia.add(Box.createHorizontalStrut(10));
         accionesAsistencia.add(botonNoAsistio);
-        tarjeta.add(alineado(accionesAsistencia));
+        tarjeta.add(Estilos.alineado(accionesAsistencia));
 
         accionesResultado.setOpaque(false);
         comboResultado.setPreferredSize(new Dimension(170,
@@ -369,11 +368,12 @@ public class PanelExpediente extends JPanel {
         accionesResultado.add(comboResultado);
         accionesResultado.add(Box.createHorizontalStrut(10));
         accionesResultado.add(botonResultado);
-        tarjeta.add(alineado(accionesResultado));
+        tarjeta.add(Estilos.alineado(accionesResultado));
         tarjeta.add(Box.createVerticalStrut(20));
         tarjeta.add(Box.createVerticalGlue());
 
-        tarjeta.add(alineado(texto("Una reprogramación por inasistencia; segunda ausencia →"
+        tarjeta.add(Estilos.alineado(texto(
+                "Una reprogramación por inasistencia; segunda ausencia →"
                 + " CANCELADA. NO_FAVORABLE → RECHAZADA.", 340)));
 
         campoPersonal.getDocument().addDocumentListener(new DocumentListener() {
@@ -586,11 +586,12 @@ public class PanelExpediente extends JPanel {
                     + FormatoFecha.diaHora(documento.getFechaHoraComunicacion()));
             linea.setFont(Estilos.datoDestacado());
             linea.setForeground(Estilos.TEXTO_ALERTA);
-            observaciones.add(alineado(linea));
+            observaciones.add(Estilos.alineado(linea));
             observaciones.add(Box.createVerticalStrut(10));
         }
         if (!observados.isEmpty()) {
-            observaciones.add(alineado(texto(Documento.DIAS_CORRECCION + " días calendario para"
+            observaciones.add(Estilos.alineado(texto(
+                    Documento.DIAS_CORRECCION + " días calendario para"
                     + " corregir; vuelve a revisión. Si vence sin corrección, se cancela la"
                     + " solicitud.", 560)));
             observaciones.add(Box.createVerticalStrut(20));
@@ -884,19 +885,6 @@ public class PanelExpediente extends JPanel {
         etiqueta.setFont(Estilos.contenido());
         etiqueta.setForeground(Estilos.SECUNDARIO);
         return etiqueta;
-    }
-
-    private static JPanel conEtiqueta(String etiqueta, JComponent campo) {
-        JPanel columna = new JPanel(new BorderLayout(0, 6));
-        columna.setOpaque(false);
-        columna.add(Estilos.etiquetaCampo(etiqueta), BorderLayout.NORTH);
-        columna.add(campo, BorderLayout.CENTER);
-        return columna;
-    }
-
-    private static <T extends JComponent> T alineado(T componente) {
-        componente.setAlignmentX(LEFT_ALIGNMENT);
-        return componente;
     }
 
     private static final class ModeloDocumentos extends AbstractTableModel {

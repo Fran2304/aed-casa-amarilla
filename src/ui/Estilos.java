@@ -1,5 +1,6 @@
 package ui;
 
+import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Font;
@@ -47,6 +48,7 @@ public final class Estilos {
     public static final Border MARGEN_CELDA = BorderFactory.createEmptyBorder(0, 14, 0, 14);
     public static final Border MARGEN_CABECERA_TABLA =
             BorderFactory.createEmptyBorder(16, 14, 16, 14);
+    private static final Border RELLENO_TARJETA = BorderFactory.createEmptyBorder(8, 8, 8, 8);
     public static final Border MARGEN_FRANJA = BorderFactory.createEmptyBorder(14, 18, 14, 18);
     // El ajuste de línea mide un poco menos de lo que pinta la fuente con escalado:
     // este margen derecho evita que se corte la última letra de cada renglón.
@@ -149,6 +151,24 @@ public final class Estilos {
         etiqueta.setFont(etiqueta());
         etiqueta.setForeground(SECUNDARIO);
         return etiqueta;
+    }
+
+    public static JPanel conEtiqueta(String etiqueta, JComponent campo) {
+        JPanel columna = new JPanel(new BorderLayout(0, 6));
+        columna.setOpaque(false);
+        columna.add(etiquetaCampo(etiqueta), BorderLayout.NORTH);
+        columna.add(campo, BorderLayout.CENTER);
+        return columna;
+    }
+
+    public static <T extends JComponent> T alineado(T componente) {
+        componente.setAlignmentX(JComponent.LEFT_ALIGNMENT);
+        return componente;
+    }
+
+    public static void rellenarTarjeta(JComponent tarjeta) {
+        tarjeta.setBorder(BorderFactory.createCompoundBorder(tarjeta.getBorder(),
+                RELLENO_TARJETA));
     }
 
     public static <T extends JComponent> T campo(T campo) {

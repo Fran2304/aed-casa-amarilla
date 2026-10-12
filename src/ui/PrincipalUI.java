@@ -17,6 +17,8 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 
+import datos.ArregloAlumnos;
+import datos.ArregloApoderados;
 import datos.ArregloAulas;
 import datos.ArregloEntrevistas;
 import datos.ArregloMatriculas;
@@ -40,6 +42,8 @@ public class PrincipalUI extends JFrame {
     private final List<BotonMenu> botonesMenu = new ArrayList<>();
     private final ArregloAulas aulas = new ArregloAulas();
     private final ArregloSolicitudes solicitudes = new ArregloSolicitudes();
+    private final ArregloAlumnos alumnos = new ArregloAlumnos();
+    private final ArregloApoderados apoderados = new ArregloApoderados();
     private final ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
     private final ArregloPagos pagos = new ArregloPagos();
     private final ArregloEntrevistas entrevistas = new ArregloEntrevistas();
@@ -100,6 +104,14 @@ public class PrincipalUI extends JFrame {
 
     public ArregloSolicitudes getSolicitudes() {
         return solicitudes;
+    }
+
+    public ArregloAlumnos getAlumnos() {
+        return alumnos;
+    }
+
+    public ArregloApoderados getApoderados() {
+        return apoderados;
     }
 
     public ConfiguracionCuotas getCuotas() {
@@ -166,7 +178,8 @@ public class PrincipalUI extends JFrame {
     }
 
     private JPanel crearCentro() {
-        agregarPanel(new PanelSolicitudes(), SOLICITUDES);
+        agregarPanel(new PanelSolicitudes(aulas, solicitudes, alumnos, apoderados, matriculas),
+                SOLICITUDES);
         agregarPanel(new PanelColas(), COLAS);
         agregarPanel(new PanelExpediente(solicitudes, entrevistas, matriculas), EXPEDIENTE);
         agregarPanel(new PanelPagos(solicitudes, pagos, matriculas, cuotas), PAGOS);

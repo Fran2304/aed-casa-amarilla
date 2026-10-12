@@ -27,17 +27,21 @@ public class ArregloSolicitudes {
     }
 
     public Solicitud registrar(Alumno alumno, Aula aula) throws ReglaDominioException {
-        if (alumno == null) {
-            throw new DatoInvalidoException("El alumno es obligatorio.");
-        }
-        if (aula == null) {
-            throw new DatoInvalidoException("El aula solicitada es obligatoria.");
-        }
-
+        exigirAlumnoYAula(alumno, aula);
         alumno.validarApoderados();
+        exigirAdmisible(alumno, aula);
 
+        Solicitud nueva = new Solicitud("SOL-" + siguienteNumero, alumno, aula,
+                Reloj.porDefecto().now());
+        solicitudes.add(nueva);
+        siguienteNumero++;
+        return nueva;
+    }
+
+    public void exigirAdmisible(Alumno alumno, Aula aula) throws ReglaDominioException {
+        exigirAlumnoYAula(alumno, aula);
         int edad = alumno.edadAl(FechasAdmision.CORTE_2027);
-        if (edad != aula.getEdadRequerida()) {
+        if (!aula.admiteEdad(edad)) {
             throw new ReglaDominioException(alumno.getNombreCompleto() + " tendrá " + edad
                     + " años al 31/03/2027 y el aula " + aula.getNombre() + " es para "
                     + aula.getEdadRequerida() + " años.");
@@ -47,12 +51,16 @@ public class ArregloSolicitudes {
         if (activa != null) {
             throw new SolicitudDuplicadaException(activa);
         }
+    }
 
-        Solicitud nueva = new Solicitud("SOL-" + siguienteNumero, alumno, aula,
-                Reloj.porDefecto().now());
-        solicitudes.add(nueva);
-        siguienteNumero++;
-        return nueva;
+    private static void exigirAlumnoYAula(Alumno alumno, Aula aula)
+            throws DatoInvalidoException {
+        if (alumno == null) {
+            throw new DatoInvalidoException("El alumno es obligatorio.");
+        }
+        if (aula == null) {
+            throw new DatoInvalidoException("El aula solicitada es obligatoria.");
+        }
     }
 
     public Solicitud buscarActivaDe(Alumno alumno) {
