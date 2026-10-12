@@ -40,7 +40,9 @@ public class ArregloSolicitudes {
 
     public void exigirAdmisible(Alumno alumno, Aula aula) throws ReglaDominioException {
         exigirAlumnoYAula(alumno, aula);
-        int edad = alumno.edadAl(FechasAdmision.CORTE_2027);
+        // Misma función que la validación en vivo de Solicitudes: la franja y el guardado
+        // no pueden discrepar sobre la edad.
+        int edad = FechasAdmision.edadAlCorte(alumno.getFechaNacimiento());
         if (!aula.admiteEdad(edad)) {
             throw new ReglaDominioException(alumno.getNombreCompleto() + " tendrá " + edad
                     + " años al 31/03/2027 y el aula " + aula.getNombre() + " es para "

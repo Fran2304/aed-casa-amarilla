@@ -2,7 +2,6 @@ package modelo;
 
 import java.time.LocalDate;
 import util.Reloj;
-import java.time.Period;
 import java.util.ArrayList;
 
 public class Alumno {
@@ -25,10 +24,6 @@ public class Alumno {
         this.fechaNacimiento = exigirFechaNacimiento(fechaNacimiento);
         this.celular = Validaciones.celularOpcional(celular);
         this.apoderados = new ArrayList<Apoderado>();
-    }
-
-    public int edadAl(LocalDate corte) {
-        return Period.between(fechaNacimiento, corte).getYears();
     }
 
     public void agregarApoderado(Apoderado apoderado, boolean esPrincipal)

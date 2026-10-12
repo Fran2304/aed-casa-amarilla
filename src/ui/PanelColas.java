@@ -171,6 +171,7 @@ public class PanelColas extends JPanel {
         encabezado.add(Box.createVerticalStrut(10));
 
         mensaje.setFont(Estilos.contenidoDestacado());
+        mensaje.setForeground(Estilos.TEXTO_PRINCIPAL);
         encabezado.add(Estilos.alineado(mensaje));
         avisoVencimientos.setFont(Estilos.contenidoDestacado());
         avisoVencimientos.setForeground(Estilos.TEXTO_ALERTA);
@@ -221,7 +222,7 @@ public class PanelColas extends JPanel {
         });
         comboAula.addActionListener(evento -> {
             if (!llenandoAulas) {
-                mostrarMensaje(" ", false);
+                mostrarMensaje(" ");
                 actualizar();
             }
         });
@@ -471,8 +472,8 @@ public class PanelColas extends JPanel {
 
         marcar(checkDocumentos, documentosValidados(turnoActual), "Cuatro documentos validados");
         marcar(checkEntrevista, entrevistaFavorable(turnoActual), "Entrevista FAVORABLE");
-        marcar(checkCupo, vacantes > 0 && matriculas.vigenteDe(turnoActual) == null,
-                "Recalcular cupo y matrícula vigente");
+        // Sin matrícula vigente ya está garantizado: ordenPorPrioridad descarta a quien la tiene.
+        marcar(checkCupo, vacantes > 0, "Recalcular cupo y matrícula vigente");
         marcar(checkConfirmacion, false, "Confirmación de oferta por personal");
 
         boolean ofertable = favorable && vacantes > 0;
@@ -519,10 +520,10 @@ public class PanelColas extends JPanel {
                 Matricula matricula = matriculas.vigenteDe(solicitud);
                 mostrarMensaje("Matrícula " + matricula.getCodigo() + " creada en PENDIENTE_PAGO"
                         + " para " + solicitud.getAlumno().getNombreCompleto()
-                        + ": la vacante queda reservada.", false);
+                        + ": la vacante queda reservada.");
             } else {
                 mostrarMensaje(solicitud.getCodigo() + " no aceptó la oferta: vuelve al final de"
-                        + " la cola favorable.", false);
+                        + " la cola favorable.");
             }
         } catch (ReglaDominioException e) {
             JOptionPane.showMessageDialog(this, e.getMessage(), "No se registró la oferta",
@@ -543,9 +544,8 @@ public class PanelColas extends JPanel {
         item.setForeground(cumplido ? Estilos.BOTON_PRINCIPAL : Estilos.SECUNDARIO);
     }
 
-    private void mostrarMensaje(String texto, boolean error) {
+    private void mostrarMensaje(String texto) {
         mensaje.setText(texto);
-        mensaje.setForeground(error ? Estilos.TEXTO_ALERTA : Estilos.TEXTO_PRINCIPAL);
     }
 
     private static JLabel check() {

@@ -256,7 +256,7 @@ Decisiones de `PanelColas` acordadas en la revisión del issue (2026-10-11). No 
 - **Columna Acción.** Solo informa: «Ofertar →» en la primera fila si es favorable y hay vacantes, «Esperar» en el resto. No navega a otras pantallas.
 - **Ingreso a cola.** Las solicitudes habilitadas o en documentación muestran «—»: al salir de la cola, `Solicitud` borra su fecha de ingreso.
 - **Turno actual no favorable.** Si la primera fila está en documentación, habilitada, sin pago o no hay vacantes, el panel la muestra igual con su estado y una línea que explica por qué no se le oferta; los botones quedan deshabilitados. Con la cola vacía se muestra «No hay solicitudes en cola para <aula>».
-- **Comprobaciones.** Son informativas; la validación real la hace `Turnos.confirmarOferta`. Documentos: los 4 del expediente en `VALIDADO`. Entrevista: `ArregloEntrevistas.buscarDe` con resultado `FAVORABLE`. Cupo: `Vacantes.calcular > 0` y sin matrícula vigente. Confirmación de oferta: siempre sin marcar, porque se cumple recién al confirmar.
+- **Comprobaciones.** Son informativas; la validación real la hace `Turnos.confirmarOferta`. Documentos: los 4 del expediente en `VALIDADO`. Entrevista: `ArregloEntrevistas.buscarDe` con resultado `FAVORABLE`. Cupo: `Vacantes.calcular > 0`; la parte «sin matrícula vigente» ya la garantiza `ordenPorPrioridad`, que descarta a quien la tiene. Confirmación de oferta: siempre sin marcar, porque se cumple recién al confirmar.
 - **Selector de aula.** Un combo en el encabezado, no dentro de la tarjeta del aula, porque cambia toda la pantalla. El diseño no lo dibuja, pero lo pide el criterio de aceptación.
 
 ### 9.2. Oferta
