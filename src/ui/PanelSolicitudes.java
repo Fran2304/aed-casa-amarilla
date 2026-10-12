@@ -717,6 +717,11 @@ public class PanelSolicitudes extends JPanel {
             mostrarFicha(nueva, true, null, promovidas);
         } catch (ReglaDominioException e) {
             if (nueva != null) {
+                // La solicitud ya quedó registrada: se graba aunque la promoción de turno falle
+                // (decisión 10: grabar tras el barrido, antes de decidir el resultado).
+                if (alGuardar != null) {
+                    alGuardar.run();
+                }
                 mostrarFicha(nueva, true, e.getMessage(), new ArrayList<Solicitud>());
                 return;
             }

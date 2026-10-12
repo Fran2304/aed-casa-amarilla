@@ -38,6 +38,9 @@ Integrar la persistencia con la aplicación completa: al abrir, cargar todas las
   - `PanelPagos.buscar` (`:229`) y `PanelExpediente.abrir` (`:432`): si su `revisar`/`barrer` muta estado, graban.
   - `TarjetasPago.registrarBoleta` (`:551`): muta un `Pago` fuera del flujo `PanelPagos`; `PanelPagos` le pasa un hook de grabado (callback `Runnable` o método equivalente) y graba tras registrar la boleta.
   - `PanelCuotas.guardar` (`:84`): graba tras `setCuotas`.
+  - `PrincipalUI` (arranque): tras `cargar()` barre y graba (`barrerYGrabar`), para no perder las cancelaciones/reingresos que corren con la app cerrada.
+  - `PanelSolicitudes` (constructor, `componentShown` e inicio de `guardar`): barre y graba (`barrerVencimientosYGrabar`) en los bordes no-tecla; `recalcular()` (por tecla) no barre ni graba. La rama `catch` con la solicitud ya registrada también graba.
+  - `PanelColas.revisarTurnos`/`ofertar`: barre y graba tras la promoción de turnos y la oferta.
   - Se pasa el `Almacen` (o un hook mínimo) a los constructores afectados; `PrincipalUI.crearCentro` (`:168`) lo inyecta.
 - **Manejo de error al grabar (decisión 11).** `grabar()` lanza `IOException`; los bordes la capturan y la muestran al personal con `JOptionPane` (no puede quedar una operación presentada como exitosa si no se grabó). El estado en memoria se conserva y la siguiente grabación corrige el archivo. No se ocultan errores. Al reutilizar los `grabar` de `ArregloAlumnos`/`ArregloApoderados`, se añade `checkError()` al `PrintWriter` (hoy no comprueba el error retenido) para que un fallo de escritura no pase silencioso.
 
