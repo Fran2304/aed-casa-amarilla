@@ -57,6 +57,7 @@ public class PanelColas extends JPanel {
     private final ArregloSolicitudes solicitudes;
     private final ArregloEntrevistas entrevistas;
     private final ArregloMatriculas matriculas;
+    private final Runnable alGuardar;
 
     private Solicitud turnoActual;
     private boolean llenandoAulas;
@@ -94,12 +95,13 @@ public class PanelColas extends JPanel {
     private final JButton botonNoAceptada = Estilos.botonSecundario("Oferta no aceptada");
 
     public PanelColas(ArregloAulas aulas, ArregloSolicitudes solicitudes,
-            ArregloEntrevistas entrevistas, ArregloMatriculas matriculas) {
+            ArregloEntrevistas entrevistas, ArregloMatriculas matriculas, Runnable alGuardar) {
         super(new BorderLayout(0, 20));
         this.aulas = aulas;
         this.solicitudes = solicitudes;
         this.entrevistas = entrevistas;
         this.matriculas = matriculas;
+        this.alGuardar = alGuardar;
         setBorder(Estilos.MARGEN_PANTALLA);
 
         add(crearEncabezado(), BorderLayout.NORTH);
@@ -395,6 +397,11 @@ public class PanelColas extends JPanel {
             }
         } catch (ReglaDominioException e) {
             avisos.add(e.getMessage());
+        }
+        // El barrido y la promoción de turnos mutan estado (decisión 10): se graba antes de
+        // refrescar, aunque no haya más acciones del Personal.
+        if (alGuardar != null) {
+            alGuardar.run();
         }
         mostrarAvisoVencimientos(avisos);
     }

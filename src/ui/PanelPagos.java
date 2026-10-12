@@ -179,7 +179,7 @@ public class PanelPagos extends JPanel {
         selector.recargar(solicitudes.listar(), solicitud -> true);
     }
 
-    // El barrido puede mutar estado: se graba aunque la acción del usuario luego se rechace.
+    // El barrido puede mutar estado: se graba aunque la acción del Personal luego se rechace.
     private void guardar() {
         if (guardar != null) {
             guardar.run();

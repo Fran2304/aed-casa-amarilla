@@ -77,10 +77,14 @@ public class PrincipalUI extends JFrame {
         add(crearLateral(), BorderLayout.WEST);
         add(crearCentro(), BorderLayout.CENTER);
 
+        // Barrido global y grabado del resultado (decisiones 10 y 11): las mutaciones del
+        // barrido se persisten aunque no haya una operación del Personal en curso.
         try {
-            Vencimientos.barrer(Reloj.porDefecto(), aulas, solicitudes, matriculas, pagos, cuotas);
-        } catch (Exception e) {
-            throw new IllegalStateException("No se pudieron procesar los vencimientos al iniciar.", e);
+            barrerYGrabar(almacen);
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this,
+                    "No se pudo guardar los datos: " + e.getMessage(),
+                    "Error al guardar", JOptionPane.ERROR_MESSAGE);
         }
         mostrar(SOLICITUDES);
     }
@@ -110,6 +114,20 @@ public class PrincipalUI extends JFrame {
         String mensaje = problema;
         SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, mensaje,
                 "Revisión de vencimientos", JOptionPane.WARNING_MESSAGE));
+    }
+
+    // Barrido global de arranque seguido de grabado (decisión 10): las mutaciones del barrido
+    // (habilitaciones vencidas, matrículas canceladas, solicitudes reingresadas) se persisten
+    // aunque no haya una operación del Personal. Estático para poder comprobarlo en pruebas
+    // headless sin construir la ventana (JFrame no se puede crear sin display).
+    public static void barrerYGrabar(Almacen almacen) throws IOException {
+        try {
+            Vencimientos.barrer(Reloj.porDefecto(), almacen.getAulas(), almacen.getSolicitudes(),
+                    almacen.getMatriculas(), almacen.getPagos(), almacen.getCuotas());
+        } catch (Exception e) {
+            throw new IllegalStateException("No se pudieron procesar los vencimientos al iniciar.", e);
+        }
+        almacen.grabar();
     }
 
     public ArregloAulas getAulas() {
@@ -195,7 +213,7 @@ public class PrincipalUI extends JFrame {
         Runnable guardar = guardarCambios();
         agregarPanel(new PanelSolicitudes(aulas, solicitudes, alumnos, apoderados, matriculas,
                 guardar), SOLICITUDES);
-        agregarPanel(new PanelColas(aulas, solicitudes, entrevistas, matriculas), COLAS);
+        agregarPanel(new PanelColas(aulas, solicitudes, entrevistas, matriculas, guardar), COLAS);
         agregarPanel(new PanelExpediente(solicitudes, entrevistas, matriculas, guardar),
                 EXPEDIENTE);
         agregarPanel(new PanelPagos(solicitudes, pagos, matriculas, cuotas, guardar), PAGOS);
