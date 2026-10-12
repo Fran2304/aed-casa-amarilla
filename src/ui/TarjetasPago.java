@@ -149,6 +149,7 @@ public class TarjetasPago extends JPanel {
         if (pagable == borradorDe && cuota == this.cuota
                 && FormatoFecha.alMinuto(inicioPlazo).equals(this.inicioPlazo)
                 && finPlazo.equals(this.finPlazo)) {
+            validar();
             return;
         }
         borradorDe = pagable;
