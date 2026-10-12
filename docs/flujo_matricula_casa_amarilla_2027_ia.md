@@ -244,3 +244,34 @@ Razones de diseño de `PanelSolicitudes` y del código que usa. No agregan regla
 - `Estilos.rellenarTarjeta` suma relleno interior sin reemplazar el borde redondeado que la tarjeta ya trae.
 - Los textos largos usan HTML con ancho fijo para que el `JLabel` haga salto de línea dentro de la columna.
 - `PruebaPagos` usa los padrones de la ventana y no unos propios: con dos padrones los códigos de alumno se repiten y la pantalla de solicitudes confunde alumnos distintos.
+
+## 9. Notas de implementación: pantalla Colas y disponibilidad (issue #25)
+
+Decisiones de `PanelColas` acordadas en la revisión del issue (2026-10-11). No agregan reglas al proceso: explican cómo se muestran las de §4.2 y §4.6. Criterio usado: cuando el diseño de Figma (frame `04 · Colas y cálculo de aula`) y el código chocan, gana el código.
+
+### 9.1. Qué muestra la pantalla
+
+- **Orden de atención.** Las filas salen de `Turnos.ordenPorPrioridad`, tal cual: favorable, en documentación, habilitada y sin pago. El diseño solo muestra favorable y sin pago, pero una solicitud en documentación o habilitada ocupa turno (§4.2); si se ocultara, el «turno 1» de la tabla no coincidiría con a quién le toca de verdad. El grupo va dentro de la columna TURNO («1 · Favorable», «3 · En documentación»), sin columna extra.
+- **Un solo turno actual.** Solo la primera fila es el turno actual, resaltada en amarillo espera. Aunque `Turnos.exigirTurno` permite ofertar a cualquier favorable dentro de las N vacantes, la pantalla las atiende en secuencia: al confirmar, la tabla se recalcula y la siguiente pasa a ser la primera. El resultado es el mismo y respeta el diseño.
+- **Columna Acción.** Solo informa: «Ofertar →» en la primera fila si es favorable y hay vacantes, «Esperar» en el resto. No navega a otras pantallas.
+- **Ingreso a cola.** Las solicitudes habilitadas o en documentación muestran «—»: al salir de la cola, `Solicitud` borra su fecha de ingreso.
+- **Turno actual no favorable.** Si la primera fila está en documentación, habilitada, sin pago o no hay vacantes, el panel la muestra igual con su estado y una línea que explica por qué no se le oferta; los botones quedan deshabilitados. Con la cola vacía se muestra «No hay solicitudes en cola para <aula>».
+- **Comprobaciones.** Son informativas; la validación real la hace `Turnos.confirmarOferta`. Documentos: los 4 del expediente en `VALIDADO`. Entrevista: `ArregloEntrevistas.buscarDe` con resultado `FAVORABLE`. Cupo: `Vacantes.calcular > 0` y sin matrícula vigente. Confirmación de oferta: siempre sin marcar, porque se cumple recién al confirmar.
+- **Selector de aula.** Un combo en el encabezado, no dentro de la tarjeta del aula, porque cambia toda la pantalla. El diseño no lo dibuja, pero lo pide el criterio de aceptación.
+
+### 9.2. Oferta
+
+- **Oferta no aceptada.** El diseño tiene un solo botón, pero §6 ítem 3 exige registrar el rechazo para que la solicitud vuelva al final de la cola favorable; sin él, un candidato que no acepta bloquearía la cola. Por eso hay un botón secundario «Oferta no aceptada» que llama a `confirmarOferta` con `aceptada = false`. No pide confirmación.
+- **Personal que confirma.** `Oferta` exige el personal y no hay usuario con sesión: se escribe en un campo obligatorio, igual que en el expediente.
+- **Errores.** Si `confirmarOferta` rechaza la operación, su mensaje se muestra en un diálogo.
+
+### 9.3. Recálculo y avisos
+
+- **Cuándo se recalcula.** Al entrar a la pantalla, al cambiar de aula y tras cada oferta. Primero se revisan vencimientos y turnos (`Turnos.revisarTurnos`, que habilita a las solicitudes sin pago con turno) y después se redibuja; así la tabla muestra el mismo estado que verá `confirmarOferta`. El desglose y las vacantes nunca se guardan.
+- **Avisos de vencimiento.** Van en el encabezado y no en un diálogo: el mismo aviso vuelve en cada revisión mientras los datos no se corrijan.
+- **Habilitadas por avisar.** Las que habilita la revisión de turnos, de cualquier aula, se acumulan en una franja para llamar a sus familias (§4.2: el aviso es telefónico y fuera del sistema) hasta que el personal pulsa «Ya se avisó». Usa `AvisoHabilitadas`, que comparte con Solicitudes.
+
+### 9.4. Fuera de alcance
+
+- **Sin datos precargados.** La app arranca vacía. Precargar un ejemplo con plazos vigentes obliga a usar fechas relativas al reloj, choca con la carga desde archivo de #33 y se rompe al cambiar las reglas provisorias de §6 ítem 2. Si se quiere, va en un issue propio de `datos`.
+- **Sin pruebas automáticas.** La pantalla se verifica a mano en la GUI. `java -cp bin PruebaPagos` abre la ventana con casos cargados (SOL-1001 a SOL-1011) que también se ven en Colas.
