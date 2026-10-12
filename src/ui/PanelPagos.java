@@ -175,13 +175,21 @@ public class PanelPagos extends JPanel {
         selector.recargar(solicitudes.listar(), solicitud -> true);
     }
 
+    // Al volver a la pantalla la lista se recarga y llega la misma solicitud: solo se sube al
+    // inicio si cambió, para no perder la posición en el pago que se estaba llenando.
     private void elegir(Solicitud solicitud) {
+        if (solicitud != actual) {
+            volverArriba();
+        }
         actual = solicitud;
         refrescar();
     }
 
-    private void refrescar() {
+    private void volverArriba() {
         SwingUtilities.invokeLater(() -> desplazable.getVerticalScrollBar().setValue(0));
+    }
+
+    private void refrescar() {
         matriculaActual = null;
         cambioVista.show(vistas, VISTA_INSCRIPCION);
         if (actual == null) {
@@ -244,7 +252,7 @@ public class PanelPagos extends JPanel {
         if (actual.getFechaRegistro().isAfter(inicio)) {
             inicio = actual.getFechaRegistro();
         }
-        tarjetas.prepararPago(cuotas.getCuotaInscripcion(), inicio,
+        tarjetas.prepararPago(actual, cuotas.getCuotaInscripcion(), inicio,
                 actual.getVencimientoHabilitacion());
     }
 
@@ -258,7 +266,7 @@ public class PanelPagos extends JPanel {
             tarjetasMatricula.mostrarConfirmado(confirmado, "Matrícula ACTIVA · mantiene la"
                     + " vacante reservada en Aula " + matricula.getAula().getNombre() + ".");
         } else if (matricula.getEstado() == EstadoMatricula.PENDIENTE_PAGO) {
-            tarjetasMatricula.prepararPago(cuotas.getCuotaMatricula(),
+            tarjetasMatricula.prepararPago(matricula, cuotas.getCuotaMatricula(),
                     matricula.getFechaHoraCreacion(), matricula.getVencimientoPagoOriginal());
         } else {
             tarjetasMatricula.bloquear("La matrícula " + matricula.getCodigo() + " está "
@@ -322,6 +330,7 @@ public class PanelPagos extends JPanel {
                     matriculas, pagos, cuotas);
         } catch (ReglaDominioException e) {
             if (!puedePagar()) {
+                volverArriba();
                 refrescar();
             }
             throw e;
@@ -352,6 +361,7 @@ public class PanelPagos extends JPanel {
     private void anular(Pago pago, String motivo, String responsable, LocalDateTime fechaHora)
             throws ReglaDominioException {
         Cobros.anularPago(pago, motivo, responsable, fechaHora, solicitudes, matriculas, pagos);
+        volverArriba();
         refrescar();
     }
 

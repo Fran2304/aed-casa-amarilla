@@ -65,6 +65,15 @@ public class PanelColas extends JPanel {
 
     private final JComboBox<Aula> comboAula = Estilos.campo(new JComboBox<Aula>());
     private final JLabel mensaje = new JLabel(" ");
+    // Separado de mensaje: ofertar escribe ahí su confirmación y luego vuelve a revisar.
+    private final JLabel avisoVencimientos = new JLabel(" ");
+
+    // Habilitadas por la revisión de turnos a las que aún no se ha llamado. Se acumulan entre
+    // revisiones: la siguiente ya no las devuelve, y cambiar de aula no debe borrar a quién avisar.
+    private final ArrayList<Solicitud> porAvisar = new ArrayList<Solicitud>();
+    private final JPanel franjaAvisar = Estilos.aviso(new JPanel(new BorderLayout(16, 0)),
+            Estilos.FAVORABLE);
+    private final JLabel textoAvisar = new JLabel(" ");
 
     private final JLabel tituloAula = new JLabel(" ");
     private final JLabel desglose = new JLabel(" ");
@@ -165,7 +174,32 @@ public class PanelColas extends JPanel {
 
         mensaje.setFont(Estilos.contenidoDestacado());
         encabezado.add(Estilos.alineado(mensaje));
+        avisoVencimientos.setFont(Estilos.contenidoDestacado());
+        avisoVencimientos.setForeground(Estilos.TEXTO_ALERTA);
+        encabezado.add(Estilos.alineado(avisoVencimientos));
+        encabezado.add(Box.createVerticalStrut(10));
+        encabezado.add(Estilos.alineado(crearFranjaAvisar()));
         return encabezado;
+    }
+
+    // Franja dentro del panel y no un diálogo: se queda a la vista mientras el personal llama,
+    // sin interrumpir cada vez que se vuelve a la pantalla.
+    private JPanel crearFranjaAvisar() {
+        textoAvisar.setFont(Estilos.detalle());
+        textoAvisar.setForeground(Estilos.BOTON_PRINCIPAL);
+        franjaAvisar.add(textoAvisar, BorderLayout.CENTER);
+
+        JButton avisadas = Estilos.botonSecundario("Ya se avisó");
+        avisadas.addActionListener(evento -> {
+            porAvisar.clear();
+            refrescarAvisar();
+        });
+        JPanel contenedorBoton = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        contenedorBoton.setOpaque(false);
+        contenedorBoton.add(avisadas);
+        franjaAvisar.add(contenedorBoton, BorderLayout.EAST);
+        franjaAvisar.setVisible(false);
+        return franjaAvisar;
     }
 
     private JPanel crearSelectorAula() {
@@ -353,21 +387,49 @@ public class PanelColas extends JPanel {
 
     // Vencimientos.revisar se llama aparte para mostrar sus avisos: revisarTurnos también lo
     // ejecuta, pero los descarta. Después habilita a las solicitudes sin pago con turno, así
-    // la tabla muestra el mismo estado que verá confirmarOferta.
+    // la tabla muestra el mismo estado que verá confirmarOferta. Las habilitadas, de cualquier
+    // aula, quedan para avisar: su plazo de 48 h ya corre.
     private void revisarTurnos() {
         LocalDateTime ahora = Reloj.porDefecto().now();
+        ArrayList<String> avisos = new ArrayList<String>();
         try {
-            ArrayList<String> avisos = Vencimientos.revisar(ahora, solicitudes, matriculas);
-            Turnos.revisarTurnos(aulas, solicitudes, matriculas, ahora);
-            if (!avisos.isEmpty()) {
-                advertir(Vencimientos.unir(avisos));
+            avisos.addAll(Vencimientos.revisar(ahora, solicitudes, matriculas));
+            for (Solicitud habilitada : Turnos.revisarTurnos(aulas, solicitudes, matriculas,
+                    ahora)) {
+                if (!porAvisar.contains(habilitada)) {
+                    porAvisar.add(habilitada);
+                }
             }
         } catch (ReglaDominioException e) {
-            advertir(e.getMessage());
+            avisos.add(e.getMessage());
         }
+        mostrarAvisoVencimientos(avisos);
+    }
+
+    // En el encabezado y no en un diálogo: el mismo aviso vuelve en cada revisión mientras los
+    // datos no se corrijan, y se borra solo cuando la revisión ya no lo devuelve.
+    private void mostrarAvisoVencimientos(ArrayList<String> avisos) {
+        if (avisos.isEmpty()) {
+            avisoVencimientos.setText(" ");
+            return;
+        }
+        avisoVencimientos.setText("<html>Revisión de vencimientos incompleta:<br>"
+                + Vencimientos.unir(avisos).replace("\n", "<br>") + "</html>");
+    }
+
+    private void refrescarAvisar() {
+        ArrayList<Solicitud> vigentes = AvisoHabilitadas.vigentes(porAvisar);
+        porAvisar.clear();
+        porAvisar.addAll(vigentes);
+        franjaAvisar.setVisible(!porAvisar.isEmpty());
+        textoAvisar.setText("<html>" + AvisoHabilitadas.texto("Quedaron habilitadas para pago"
+                + " al liberarse una vacante. Avisar a sus familias:", porAvisar, true)
+                + "</html>");
+        revalidate();
     }
 
     private void refrescar() {
+        refrescarAvisar();
         Aula aula = aulaElegida();
         if (aula == null) {
             return;
@@ -500,11 +562,6 @@ public class PanelColas extends JPanel {
     private static void marcar(JLabel item, boolean cumplido, String texto) {
         item.setText((cumplido ? HECHO : PENDIENTE) + texto);
         item.setForeground(cumplido ? Estilos.BOTON_PRINCIPAL : Estilos.SECUNDARIO);
-    }
-
-    private void advertir(String texto) {
-        JOptionPane.showMessageDialog(this, texto, "Revisión de vencimientos",
-                JOptionPane.WARNING_MESSAGE);
     }
 
     private void mostrarMensaje(String texto, boolean error) {

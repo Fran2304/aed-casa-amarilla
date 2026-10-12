@@ -62,6 +62,8 @@ public class TarjetasPago extends JPanel {
     private LocalDateTime finPlazo;
     private Pago pagoConfirmado;
     private boolean editable;
+    // Solicitud o matrícula cuyo pago se está llenando; null si la tarjeta no admite pago.
+    private Object borradorDe;
 
     private final JPanel aviso = new JPanel();
     private final JLabel tituloAviso = new JLabel(" ");
@@ -143,7 +145,16 @@ public class TarjetasPago extends JPanel {
                 "Ingrese su código para registrar el pago.");
     }
 
-    public void prepararPago(double cuota, LocalDateTime inicioPlazo, LocalDateTime finPlazo) {
+    // La pantalla se repinta cada vez que se vuelve a ella. Si sigue siendo el mismo pago, con
+    // la misma cuota y plazo, se conserva lo que el personal ya escribió.
+    public void prepararPago(Object pagable, double cuota, LocalDateTime inicioPlazo,
+            LocalDateTime finPlazo) {
+        if (pagable == borradorDe && cuota == this.cuota
+                && FormatoFecha.alMinuto(inicioPlazo).equals(this.inicioPlazo)
+                && finPlazo.equals(this.finPlazo)) {
+            return;
+        }
+        borradorDe = pagable;
         this.cuota = cuota;
         this.inicioPlazo = FormatoFecha.alMinuto(inicioPlazo);
         this.finPlazo = finPlazo;
@@ -167,6 +178,7 @@ public class TarjetasPago extends JPanel {
     }
 
     public void mostrarConfirmado(Pago pago, String detalle) {
+        borradorDe = null;
         this.pagoConfirmado = pago;
         campoMonto.setText(soles(pago.getMontoPagado()));
         comboMedio.setSelectedItem(pago.getMedio());
@@ -194,6 +206,7 @@ public class TarjetasPago extends JPanel {
 
     private void esperar(Color fondo, Color texto, String titulo, String detalle) {
         setEditable(false);
+        borradorDe = null;
         pagoConfirmado = null;
         comboMedio.setSelectedIndex(-1);
         campoMonto.setText("");
