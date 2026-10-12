@@ -21,11 +21,9 @@ import java.util.ArrayList;
 
 import javax.swing.Box;
 import javax.swing.BoxLayout;
-import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
-import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -71,10 +69,9 @@ public class PanelExpediente extends JPanel {
     private final ArregloMatriculas matriculas;
 
     private Solicitud actual;
-    private boolean llenandoLista;
 
     private final JLabel titulo = new JLabel("Expediente");
-    private final JComboBox<Solicitud> comboSolicitud = Estilos.campo(new JComboBox<Solicitud>());
+    private final SelectorSolicitud selector = new SelectorSolicitud(true, this::abrir);
     private final JLabel identificacion = new JLabel(" ");
     private final JPanel franja = new JPanel(new BorderLayout(20, 0));
     private final JLabel estadoFranja = new JLabel(" ");
@@ -175,32 +172,6 @@ public class PanelExpediente extends JPanel {
         titulo.setFont(Estilos.titulo());
         titulo.setForeground(Estilos.TEXTO_PRINCIPAL);
         filaTitulo.add(titulo, BorderLayout.WEST);
-        JPanel selector = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        selector.setOpaque(false);
-        selector.add(Estilos.etiquetaCampo("Solicitud"));
-        selector.add(Box.createHorizontalStrut(12));
-        comboSolicitud.setPreferredSize(new Dimension(300,
-                comboSolicitud.getPreferredSize().height));
-        comboSolicitud.setRenderer(new DefaultListCellRenderer() {
-            @Override
-            public Component getListCellRendererComponent(JList<?> lista, Object valor,
-                    int indice, boolean seleccionado, boolean conFoco) {
-                Object texto = valor;
-                if (valor instanceof Solicitud) {
-                    Solicitud solicitud = (Solicitud) valor;
-                    texto = solicitud.getCodigo() + " · "
-                            + solicitud.getAlumno().getNombreCompleto();
-                }
-                return super.getListCellRendererComponent(lista, texto, indice, seleccionado,
-                        conFoco);
-            }
-        });
-        comboSolicitud.addActionListener(evento -> {
-            if (!llenandoLista) {
-                abrir((Solicitud) comboSolicitud.getSelectedItem());
-            }
-        });
-        selector.add(comboSolicitud);
         filaTitulo.add(selector, BorderLayout.EAST);
         encabezado.add(Estilos.alineado(filaTitulo));
         encabezado.add(Box.createVerticalStrut(4));
@@ -400,23 +371,7 @@ public class PanelExpediente extends JPanel {
     }
 
     private void recargarLista() {
-        Solicitud seleccionada = actual;
-        ArrayList<Solicitud> todas = solicitudes.listar();
-        llenandoLista = true;
-        comboSolicitud.removeAllItems();
-        for (Solicitud solicitud : todas) {
-            if (solicitud.getExpediente() != null) {
-                comboSolicitud.addItem(solicitud);
-            }
-        }
-        if (seleccionada != null && seleccionada.getExpediente() != null
-                && todas.contains(seleccionada)) {
-            comboSolicitud.setSelectedItem(seleccionada);
-        } else if (comboSolicitud.getItemCount() > 0) {
-            comboSolicitud.setSelectedIndex(0);
-        }
-        llenandoLista = false;
-        abrir((Solicitud) comboSolicitud.getSelectedItem());
+        selector.recargar(solicitudes.listar(), solicitud -> solicitud.getExpediente() != null);
     }
 
     private void abrir(Solicitud solicitud) {
