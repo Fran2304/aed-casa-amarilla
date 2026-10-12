@@ -63,6 +63,7 @@ public class TarjetasPago extends JPanel {
     private LocalDateTime finPlazo;
     private Pago pagoConfirmado;
     private boolean editable;
+    private Object borradorDe;
 
     private final JPanel aviso = new JPanel();
     private final JLabel tituloAviso = new JLabel(" ");
@@ -149,7 +150,15 @@ public class TarjetasPago extends JPanel {
                 "Ingrese su código para registrar el pago.");
     }
 
-    public void prepararPago(double cuota, LocalDateTime inicioPlazo, LocalDateTime finPlazo) {
+    public void prepararPago(Object pagable, double cuota, LocalDateTime inicioPlazo,
+            LocalDateTime finPlazo) {
+        if (pagable == borradorDe && cuota == this.cuota
+                && FormatoFecha.alMinuto(inicioPlazo).equals(this.inicioPlazo)
+                && finPlazo.equals(this.finPlazo)) {
+            validar();
+            return;
+        }
+        borradorDe = pagable;
         this.cuota = cuota;
         this.inicioPlazo = FormatoFecha.alMinuto(inicioPlazo);
         this.finPlazo = finPlazo;
@@ -173,6 +182,7 @@ public class TarjetasPago extends JPanel {
     }
 
     public void mostrarConfirmado(Pago pago, String detalle) {
+        borradorDe = null;
         this.pagoConfirmado = pago;
         campoMonto.setText(soles(pago.getMontoPagado()));
         comboMedio.setSelectedItem(pago.getMedio());
@@ -200,6 +210,7 @@ public class TarjetasPago extends JPanel {
 
     private void esperar(Color fondo, Color texto, String titulo, String detalle) {
         setEditable(false);
+        borradorDe = null;
         pagoConfirmado = null;
         comboMedio.setSelectedIndex(-1);
         campoMonto.setText("");

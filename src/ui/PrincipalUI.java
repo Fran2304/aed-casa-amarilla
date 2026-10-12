@@ -195,7 +195,7 @@ public class PrincipalUI extends JFrame {
         Runnable guardar = guardarCambios();
         agregarPanel(new PanelSolicitudes(aulas, solicitudes, alumnos, apoderados, matriculas,
                 guardar), SOLICITUDES);
-        agregarPanel(new PanelColas(), COLAS);
+        agregarPanel(new PanelColas(aulas, solicitudes, entrevistas, matriculas), COLAS);
         agregarPanel(new PanelExpediente(solicitudes, entrevistas, matriculas, guardar),
                 EXPEDIENTE);
         agregarPanel(new PanelPagos(solicitudes, pagos, matriculas, cuotas, guardar), PAGOS);

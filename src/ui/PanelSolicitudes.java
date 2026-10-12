@@ -172,7 +172,7 @@ public class PanelSolicitudes extends JPanel {
                     String error = fichaActual.getEstado() == EstadoSolicitud.EN_ESPERA_SIN_PAGO
                             ? fichaError : null;
                     mostrarFicha(fichaActual, fichaRecienCreada, error,
-                            siguenHabilitadas(fichaPromovidas));
+                            AvisoHabilitadas.vigentes(fichaPromovidas));
                 }
             }
         });
@@ -634,7 +634,7 @@ public class PanelSolicitudes extends JPanel {
         }
         JLabel texto = new JLabel((esPrincipal ? "●  Principal" : "○  Adicional") + " · "
                 + fila.nombres + " " + fila.apellidos + " · DNI " + fila.dni + " · "
-                + celular(fila.celular) + origen);
+                + AvisoHabilitadas.celular(fila.celular) + origen);
         texto.setFont(Estilos.contenido());
         texto.setForeground(Estilos.TEXTO_PRINCIPAL);
         panel.add(texto, BorderLayout.CENTER);
@@ -752,7 +752,8 @@ public class PanelSolicitudes extends JPanel {
         if (!promovidas.isEmpty()) {
             ficha.add(Box.createVerticalStrut(10));
             ficha.add(Estilos.alineado(aviso(Estilos.FAVORABLE, Estilos.BOTON_PRINCIPAL,
-                    textoPromovidas(promovidas))));
+                    AvisoHabilitadas.texto("También quedaron habilitadas para pago. Avisar a"
+                            + " sus familias:", promovidas, false))));
         }
         ficha.add(Box.createVerticalStrut(18));
 
@@ -769,7 +770,8 @@ public class PanelSolicitudes extends JPanel {
         ficha.add(Box.createVerticalStrut(14));
         Apoderado principal = alumno.getPrincipal();
         String textoPrincipal = principal == null ? "—"
-                : principal.getNombreCompleto() + " · " + celular(principal.getCelular());
+                : principal.getNombreCompleto() + " · "
+                        + AvisoHabilitadas.celular(principal.getCelular());
         ficha.add(dosColumnas(Estilos.conEtiqueta("Apoderado principal", dato(textoPrincipal)),
                 Estilos.conEtiqueta("Vence habilitación", dato(fechaOGuion(
                         solicitud.getVencimientoHabilitacion())))));
@@ -841,41 +843,6 @@ public class PanelSolicitudes extends JPanel {
 
     private static String textoAula(Aula aula) {
         return aula.getNombre() + " · " + aula.getEdadRequerida() + " años";
-    }
-
-    private static ArrayList<Solicitud> siguenHabilitadas(ArrayList<Solicitud> promovidas) {
-        LocalDateTime ahora = Reloj.porDefecto().now();
-        ArrayList<Solicitud> vigentes = new ArrayList<Solicitud>();
-        for (Solicitud promovida : promovidas) {
-            if (promovida.getEstado() == EstadoSolicitud.HABILITADA_PARA_PAGO
-                    && !promovida.habilitacionVencida(ahora)) {
-                vigentes.add(promovida);
-            }
-        }
-        return vigentes;
-    }
-
-    private static String textoPromovidas(ArrayList<Solicitud> promovidas) {
-        String texto = "También quedaron habilitadas para pago. Avisar a sus familias:";
-        for (Solicitud promovida : promovidas) {
-            Apoderado principal = promovida.getAlumno().getPrincipal();
-            texto += "<br>· " + promovida.getCodigo() + " · "
-                    + promovida.getAlumno().getNombreCompleto();
-            if (principal != null) {
-                texto += " · " + principal.getNombreCompleto() + " "
-                        + celular(principal.getCelular());
-            }
-            texto += " · hasta " + FormatoFecha.diaHora(promovida.getVencimientoHabilitacion());
-        }
-        return texto;
-    }
-
-    private static String celular(String celular) {
-        if (celular == null || celular.length() != Validaciones.LARGO_CELULAR) {
-            return celular;
-        }
-        return celular.substring(0, 3) + " " + celular.substring(3, 6) + " "
-                + celular.substring(6);
     }
 
     private static String fechaOGuion(LocalDateTime fecha) {
