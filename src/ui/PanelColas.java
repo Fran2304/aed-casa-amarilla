@@ -34,9 +34,7 @@ import datos.ArregloEntrevistas;
 import datos.ArregloMatriculas;
 import datos.ArregloSolicitudes;
 import modelo.Aula;
-import modelo.Documento;
 import modelo.Entrevista;
-import modelo.EstadoMatricula;
 import modelo.EstadoSolicitud;
 import modelo.Matricula;
 import modelo.ReglaDominioException;
@@ -434,13 +432,13 @@ public class PanelColas extends JPanel {
         if (aula == null) {
             return;
         }
-        int pendientes = contar(aula, EstadoMatricula.PENDIENTE_PAGO);
-        int activas = contar(aula, EstadoMatricula.ACTIVA);
-        int vacantes = Vacantes.calcular(aula, matriculas);
+        Vacantes.Desglose cupo = Vacantes.desglose(aula, matriculas);
+        int vacantes = cupo.getDisponibles();
         tituloAula.setText("Aula " + aula.getNombre() + " · " + aula.getEdadRequerida()
                 + " años");
-        desglose.setText("Capacidad " + aula.getCapacidad() + "   −   PENDIENTE_PAGO "
-                + pendientes + "   −   ACTIVA " + activas + "   =   " + vacantes
+        desglose.setText("Capacidad " + cupo.getCapacidad() + "   −   PENDIENTE_PAGO "
+                + cupo.getPendientes() + "   −   ACTIVA " + cupo.getActivas() + "   =   "
+                + vacantes
                 + (vacantes == 1 ? " disponible" : " disponibles"));
         cifraVacantes.setText(String.format("%02d", vacantes));
 
@@ -455,18 +453,6 @@ public class PanelColas extends JPanel {
         refrescarTurno(vacantes);
         revalidate();
         repaint();
-    }
-
-    // El desglose muestra los dos sumandos que Vacantes.calcular resta; el total sale de
-    // Vacantes para que la tarjeta y el botón nunca discrepen.
-    private int contar(Aula aula, EstadoMatricula estado) {
-        int cantidad = 0;
-        for (Matricula matricula : matriculas.listar()) {
-            if (matricula.getAula() == aula && matricula.getEstado() == estado) {
-                cantidad++;
-            }
-        }
-        return cantidad;
     }
 
     private void refrescarTurno(int vacantes) {
@@ -512,15 +498,8 @@ public class PanelColas extends JPanel {
     }
 
     private static boolean documentosValidados(Solicitud solicitud) {
-        if (solicitud.getExpediente() == null) {
-            return false;
-        }
-        for (Documento documento : solicitud.getExpediente().getDocumentos()) {
-            if (!documento.estaValidado()) {
-                return false;
-            }
-        }
-        return true;
+        return solicitud.getExpediente() != null
+                && solicitud.getExpediente().todosValidados();
     }
 
     private boolean entrevistaFavorable(Solicitud solicitud) {

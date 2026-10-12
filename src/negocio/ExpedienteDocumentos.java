@@ -70,8 +70,13 @@ public class ExpedienteDocumentos {
         return "Incumplimiento del plazo documental.";
     }
 
-    public boolean puedeAgendarEntrevista() {
+    // Condición propia de los documentos: la usan tanto la entrevista como la oferta en colas.
+    public boolean todosValidados() {
         return pendientesDeValidar().isEmpty();
+    }
+
+    public boolean puedeAgendarEntrevista() {
+        return todosValidados();
     }
 
     public void exigirAgendarEntrevista() throws ReglaDominioException {

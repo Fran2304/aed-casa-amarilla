@@ -12,18 +12,41 @@ public final class Vacantes {
     }
 
     public static int calcular(Aula aula, ArregloMatriculas matriculas) {
-        int pendientes = contar(aula, matriculas, EstadoMatricula.PENDIENTE_PAGO);
-        int activas = contar(aula, matriculas, EstadoMatricula.ACTIVA);
-        return aula.getCapacidad() - pendientes - activas;
+        return desglose(aula, matriculas).getDisponibles();
     }
 
-    private static int contar(Aula aula, ArregloMatriculas matriculas, EstadoMatricula estado) {
-        int cantidad = 0;
+    // La pantalla de colas muestra los sumandos; se entregan juntos con el total para que
+    // nadie rearme la fórmula por su cuenta y olvide uno de los dos estados que reservan.
+    public static Desglose desglose(Aula aula, ArregloMatriculas matriculas) {
+        int pendientes = 0;
+        int activas = 0;
         for (Matricula matricula : matriculas.listar()) {
-            if (matricula.getAula() == aula && matricula.getEstado() == estado) {
-                cantidad++;
+            if (matricula.getAula() != aula) {
+                continue;
+            }
+            if (matricula.getEstado() == EstadoMatricula.PENDIENTE_PAGO) {
+                pendientes++;
+            } else if (matricula.getEstado() == EstadoMatricula.ACTIVA) {
+                activas++;
             }
         }
-        return cantidad;
+        return new Desglose(aula.getCapacidad(), pendientes, activas);
+    }
+
+    public static final class Desglose {
+        private final int capacidad;
+        private final int pendientes;
+        private final int activas;
+
+        private Desglose(int capacidad, int pendientes, int activas) {
+            this.capacidad = capacidad;
+            this.pendientes = pendientes;
+            this.activas = activas;
+        }
+
+        public int getCapacidad() { return capacidad; }
+        public int getPendientes() { return pendientes; }
+        public int getActivas() { return activas; }
+        public int getDisponibles() { return capacidad - pendientes - activas; }
     }
 }
