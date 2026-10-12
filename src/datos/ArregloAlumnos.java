@@ -3,9 +3,7 @@ package datos;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -20,7 +18,6 @@ import modelo.Validaciones;
 public class ArregloAlumnos {
 
     private static final int PRIMER_CODIGO = 202010001;
-    private static final String SEPARADOR = ";";
 
     private ArrayList<Alumno> alumnos;
     private int siguienteCodigo;
@@ -79,28 +76,29 @@ public class ArregloAlumnos {
     }
 
     public void grabar(String rutaAlumnos, String rutaVinculos) throws IOException {
-        try (PrintWriter salida = new PrintWriter(
-                new FileWriter(rutaAlumnos, StandardCharsets.UTF_8))) {
-            for (Alumno alumno : alumnos) {
-                salida.println(alumno.getCodAlumno() + SEPARADOR
-                        + alumno.getDni() + SEPARADOR
-                        + alumno.getNombres() + SEPARADOR
-                        + alumno.getApellidos() + SEPARADOR
-                        + alumno.getFechaNacimiento() + SEPARADOR
-                        + alumno.getCelular());
+        ArrayList<String> lineasAlumnos = new ArrayList<String>();
+        for (Alumno alumno : alumnos) {
+            lineasAlumnos.add(EscrituraCsv.unir(
+                    String.valueOf(alumno.getCodAlumno()),
+                    alumno.getDni(),
+                    alumno.getNombres(),
+                    alumno.getApellidos(),
+                    alumno.getFechaNacimiento().toString(),
+                    alumno.getCelular()));
+        }
+        EscrituraCsv.escribir(rutaAlumnos, lineasAlumnos);
+
+        ArrayList<String> lineasVinculos = new ArrayList<String>();
+        for (Alumno alumno : alumnos) {
+            for (Apoderado apoderado : alumno.getApoderados()) {
+                boolean esPrincipal = apoderado == alumno.getPrincipal();
+                lineasVinculos.add(EscrituraCsv.unir(
+                        String.valueOf(alumno.getCodAlumno()),
+                        apoderado.getDni(),
+                        String.valueOf(esPrincipal)));
             }
         }
-        try (PrintWriter salida = new PrintWriter(
-                new FileWriter(rutaVinculos, StandardCharsets.UTF_8))) {
-            for (Alumno alumno : alumnos) {
-                for (Apoderado apoderado : alumno.getApoderados()) {
-                    boolean esPrincipal = apoderado == alumno.getPrincipal();
-                    salida.println(alumno.getCodAlumno() + SEPARADOR
-                            + apoderado.getDni() + SEPARADOR
-                            + esPrincipal);
-                }
-            }
-        }
+        EscrituraCsv.escribir(rutaVinculos, lineasVinculos);
     }
 
     public void cargar(String rutaAlumnos, String rutaVinculos, ArregloApoderados apoderados)
@@ -128,16 +126,27 @@ public class ArregloAlumnos {
             int numeroLinea = 0;
             while ((linea = entrada.readLine()) != null) {
                 numeroLinea++;
-                String[] campos = linea.split(SEPARADOR, -1);
+                String[] campos = EscrituraCsv.dividir(linea);
                 if (campos.length != 6) {
                     throw new IOException(ruta + ", línea " + numeroLinea
                             + ": se esperaban 6 campos y hay " + campos.length + ".");
                 }
                 try {
-                    int codAlumno = Integer.parseInt(campos[0]);
-                    LocalDate fechaNacimiento = LocalDate.parse(campos[4]);
-                    leidos.add(new Alumno(codAlumno, campos[1], campos[2], campos[3],
-                            fechaNacimiento, campos[5]));
+                    int codAlumno = Integer.parseInt(EscrituraCsv.desescapar(campos[0]));
+                    String dni = EscrituraCsv.campoALeer(campos[1]);
+                    String nombres = EscrituraCsv.campoALeer(campos[2]);
+                    String apellidos = EscrituraCsv.campoALeer(campos[3]);
+                    LocalDate fechaNacimiento = LocalDate.parse(EscrituraCsv.desescapar(campos[4]));
+                    String celular = EscrituraCsv.campoALeer(campos[5]);
+                    Alumno alumno = new Alumno(codAlumno, dni, nombres, apellidos,
+                            fechaNacimiento, celular);
+                    if (buscarEn(leidos, codAlumno) != null) {
+                        throw new IOException(ruta + ", línea " + numeroLinea
+                                + ": código de alumno duplicado " + codAlumno + ".");
+                    }
+                    leidos.add(alumno);
+                } catch (IOException e) {
+                    throw e;
                 } catch (NumberFormatException | DateTimeParseException
                         | ReglaDominioException e) {
                     throw new IOException(ruta + ", línea " + numeroLinea + ": "
@@ -159,19 +168,23 @@ public class ArregloAlumnos {
             int numeroLinea = 0;
             while ((linea = entrada.readLine()) != null) {
                 numeroLinea++;
-                String[] campos = linea.split(SEPARADOR, -1);
+                String[] campos = EscrituraCsv.dividir(linea);
                 if (campos.length != 3) {
                     throw new IOException(ruta + ", línea " + numeroLinea
                             + ": se esperaban 3 campos y hay " + campos.length + ".");
                 }
                 try {
-                    Alumno alumno = buscarEn(leidos, Integer.parseInt(campos[0]));
-                    Apoderado apoderado = apoderados.buscar(campos[1]);
+                    Alumno alumno = buscarEn(leidos,
+                            Integer.parseInt(EscrituraCsv.desescapar(campos[0])));
+                    Apoderado apoderado = apoderados.buscar(EscrituraCsv.campoALeer(campos[1]));
                     if (alumno == null || apoderado == null) {
                         throw new IOException(ruta + ", línea " + numeroLinea
                                 + ": el alumno o el apoderado no existe.");
                     }
-                    alumno.agregarApoderado(apoderado, campos[2].equals("true"));
+                    alumno.agregarApoderado(apoderado,
+                            "true".equals(EscrituraCsv.campoALeer(campos[2])));
+                } catch (IOException e) {
+                    throw e;
                 } catch (NumberFormatException | ReglaDominioException e) {
                     throw new IOException(ruta + ", línea " + numeroLinea + ": "
                             + e.getMessage());

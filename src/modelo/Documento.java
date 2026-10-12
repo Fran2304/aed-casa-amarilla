@@ -23,6 +23,17 @@ public class Documento {
         this.tipo = tipo;
     }
 
+    // Reconstruye el estado persistido de un documento ya creado por su expediente (issue #33):
+    // el TipoDocumento lo aporta el expediente y la fila del archivo.
+    public void reconstruir(LocalDateTime fechaHoraEntrega, LocalDateTime fechaHoraCorreccion,
+            EstadoDocumento estado, String observacion, LocalDateTime fechaHoraComunicacion) {
+        this.fechaHoraEntrega = fechaHoraEntrega;
+        this.fechaHoraCorreccion = fechaHoraCorreccion;
+        this.estado = estado;
+        this.observacion = observacion;
+        this.fechaHoraComunicacion = fechaHoraComunicacion;
+    }
+
     public void registrarEntrega(LocalDateTime fechaHora) throws ReglaDominioException {
         if (fechaHora == null) {
             throw new DatoInvalidoException("La fecha y hora de entrega es obligatoria.");

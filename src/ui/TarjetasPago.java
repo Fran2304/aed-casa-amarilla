@@ -57,6 +57,7 @@ public class TarjetasPago extends JPanel {
 
     private final AccionConfirmar accion;
     private AccionAnular accionAnular;
+    private Runnable alGuardar;
 
     private double cuota;
     private LocalDateTime inicioPlazo;
@@ -131,6 +132,11 @@ public class TarjetasPago extends JPanel {
 
     public void configurarAnulacion(AccionAnular accionAnular) {
         this.accionAnular = accionAnular;
+    }
+
+    // Hook de grabado para registrarBoleta (el comprobante se registra fuera del flujo de pago).
+    public void configurarGuardado(Runnable alGuardar) {
+        this.alGuardar = alGuardar;
     }
 
     /** Aviso propio de cada pantalla al pie de «Validación y cierre», como en el diseño 05. */
@@ -555,6 +561,9 @@ public class TarjetasPago extends JPanel {
             mensajeBoleta.setText(e.getMessage());
             mensajeBoleta.setForeground(Estilos.TEXTO_ALERTA);
             return;
+        }
+        if (alGuardar != null) {
+            alGuardar.run();
         }
         mostrarBoleta();
         mensajeBoleta.setText("Boleta registrada.");

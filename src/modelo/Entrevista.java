@@ -62,6 +62,35 @@ public class Entrevista {
         this.inasistencias = 0;
     }
 
+    // Reconstruye una entrevista desde el estado persistido, sin exigir el orden de las
+    // transiciones (issue #33).
+    private Entrevista(Solicitud solicitud, ExpedienteDocumentos expediente,
+            LocalDateTime fechaHora, ArrayList<String> personal, String responsable,
+            Boolean asistioApoderado, boolean realizada, int inasistencias,
+            ResultadoEntrevista resultado) {
+        this.solicitud = solicitud;
+        this.expediente = expediente;
+        this.fechaHora = fechaHora;
+        this.personal = new ArrayList<String>(personal);
+        this.responsable = responsable;
+        this.asistioApoderado = asistioApoderado;
+        this.realizada = realizada;
+        this.inasistencias = inasistencias;
+        this.resultado = resultado;
+    }
+
+    public static Entrevista reconstruir(Solicitud solicitud, ExpedienteDocumentos expediente,
+            LocalDateTime fechaHora, ArrayList<String> personal, String responsable,
+            Boolean asistioApoderado, boolean realizada, int inasistencias,
+            ResultadoEntrevista resultado) throws DatoInvalidoException {
+        if (solicitud == null || expediente == null || fechaHora == null || personal == null
+                || responsable == null) {
+            throw new DatoInvalidoException("Datos de entrevista incompletos para reconstruir.");
+        }
+        return new Entrevista(solicitud, expediente, fechaHora, personal, responsable,
+                asistioApoderado, realizada, inasistencias, resultado);
+    }
+
     public void registrarAsistencia() throws ReglaDominioException {
         exigirPendiente();
         asistioApoderado = true;

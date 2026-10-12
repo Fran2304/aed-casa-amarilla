@@ -170,6 +170,11 @@ de negocio de los vencimientos dentro de las próximas 24 horas, sin panel de in
 - Todo pago guarda el comprobante que presenta el apoderado (captura o voucher de la operación) y no se confirma sin él. No es el número de comprobante que el nido emite después de confirmar (§4.3). Se guarda la ruta del archivo; copiarlo a una carpeta propia queda para la persistencia.
 - Todo pago se relaciona con una solicitud. El pago de matrícula también se relaciona con su matrícula; el de inscripción ocurre antes de crearla.
 - Revisar vencimientos al abrir la aplicación de escritorio y antes de operaciones que dependen de vacantes. El cierre de la aplicación no suspende los plazos.
+  **Resuelto (issue #33):** al abrir, se cargan primero todas las entidades desde archivos
+  (`Almacen`) y recién después corre el motor de vencimientos; tras cada operación que
+  modifica datos se graba el estado. El historial son los campos de auditoría embebidos en
+  solicitudes, matrículas y pagos (más las ofertas), que persisten con esas entidades: no se
+  agrega una entidad `Evento`/`Historial`.
 
 ## 5. Eventos y resultados esperados
 

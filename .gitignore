@@ -4,3 +4,8 @@
 .metadata/
 .opencode/
 /reviews/
+# Salidas de compilación y datos de persistencia locales (issue #33)
+/out/
+/datos/
+# Scratch de logs del harness
+/.harness/

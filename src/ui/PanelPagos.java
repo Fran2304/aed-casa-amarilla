@@ -48,6 +48,7 @@ public class PanelPagos extends JPanel {
     private final ArregloPagos pagos;
     private final ArregloMatriculas matriculas;
     private final ConfiguracionCuotas cuotas;
+    private final Runnable guardar;
 
     private Solicitud actual;
     private Matricula matriculaActual;
@@ -70,22 +71,25 @@ public class PanelPagos extends JPanel {
     private final JScrollPane desplazable;
 
     public PanelPagos(ArregloSolicitudes solicitudes, ArregloPagos pagos,
-            ArregloMatriculas matriculas, ConfiguracionCuotas cuotas) {
+            ArregloMatriculas matriculas, ConfiguracionCuotas cuotas, Runnable guardar) {
         super(new BorderLayout(0, 20));
         this.solicitudes = solicitudes;
         this.pagos = pagos;
         this.matriculas = matriculas;
         this.cuotas = cuotas;
+        this.guardar = guardar;
         setBorder(Estilos.MARGEN_PANTALLA);
 
         tarjetas = new TarjetasPago("Pago de inscripción · comprobante recibido",
                 "Inscripción 2027", "Confirmar pago → EN_DOCUMENTACION",
                 "Fecha real dentro de la habilitación (48 h)", this::confirmar);
         tarjetas.configurarAnulacion(this::anular);
+        tarjetas.configurarGuardado(guardar);
         tarjetasMatricula = new TarjetasPago("Pago de matrícula · comprobante recibido",
                 "Matrícula 2027", "Confirmar pago → ACTIVA", "Fecha real dentro de 72 h",
                 this::confirmarMatricula);
         tarjetasMatricula.configurarAnulacion(this::anular);
+        tarjetasMatricula.configurarGuardado(guardar);
 
         add(crearEncabezado(), BorderLayout.NORTH);
         vistas.setOpaque(false);
@@ -206,6 +210,13 @@ public class PanelPagos extends JPanel {
         tarjetas.reiniciar();
     }
 
+    // El barrido puede mutar estado: se graba aunque la acción del usuario luego se rechace.
+    private void guardar() {
+        if (guardar != null) {
+            guardar.run();
+        }
+    }
+
     private void buscar() {
         SwingUtilities.invokeLater(() -> desplazable.getVerticalScrollBar().setValue(0));
         String codigo = campoCodigo.getText().trim().toUpperCase();
@@ -228,10 +239,12 @@ public class PanelPagos extends JPanel {
         try {
             avisos = Vencimientos.revisar(ahora, solicitudes, matriculas);
         } catch (ReglaDominioException e) {
+            guardar();
             mostrarResumen(actual, null);
             tarjetas.bloquear(e.getMessage());
             return;
         }
+        guardar();
         mostrarBusqueda(buscada, habilitacionVencida, ahora);
         if (!avisos.isEmpty()) {
             TarjetasPago visible = matriculaActual != null ? tarjetasMatricula : tarjetas;
@@ -365,11 +378,13 @@ public class PanelPagos extends JPanel {
             LocalDateTime fechaOperacion, String rutaComprobantePago)
             throws ReglaDominioException {
         Vencimientos.barrer(Reloj.porDefecto(), null, solicitudes, matriculas, pagos, cuotas);
+        guardar();
         Pago pago;
         try {
             pago = Cobros.confirmarInscripcion(actual, monto, medio, numeroOperacion,
                     fechaOperacion, rutaComprobantePago, Reloj.porDefecto().now(), solicitudes,
                     matriculas, pagos, cuotas);
+            guardar();
         } catch (ReglaDominioException e) {
             if (!puedePagar()) {
                 buscar();
@@ -394,14 +409,17 @@ public class PanelPagos extends JPanel {
             if (matricula.getEstado() != EstadoMatricula.PENDIENTE_PAGO) {
                 mostrarMatricula(matricula);
             }
+            guardar();
             throw e;
         }
+        guardar();
         mostrarMatricula(matricula);
     }
 
     private void anular(Pago pago, String motivo, String responsable, LocalDateTime fechaHora)
             throws ReglaDominioException {
         Cobros.anularPago(pago, motivo, responsable, fechaHora, solicitudes, matriculas, pagos);
+        guardar();
         buscar();
     }
 
