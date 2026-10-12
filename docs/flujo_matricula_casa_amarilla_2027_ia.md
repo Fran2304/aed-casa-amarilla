@@ -224,7 +224,7 @@ Razones de diseño de `PanelSolicitudes` y del código que usa. No agregan regla
 
 - **Orden de validaciones.** `ArregloSolicitudes.registrar` valida en el orden del flujo (§4.1): datos obligatorios, apoderados, edad y solicitud activa duplicada. Si fallan varias, el personal ve primero la que corresponde corregir antes. La franja de comprobaciones de la pantalla usa el mismo orden (primero la edad, después el duplicado) para anticipar exactamente el error que daría al guardar.
 - **Comprobación previa al guardado.** `ArregloSolicitudes.exigirAdmisible` reúne todo lo que `registrar` exige salvo los apoderados. Sirve para comprobarlo antes de vincular apoderados nuevos a un alumno que ya existe, y no después.
-- **Edad del aula.** Supuesto: edad exacta = edad del aula. Los rangos de edad por aula siguen pendientes de definición (§6, ítem 2). Si el nido acepta rangos, se cambia solo en `Aula.admiteEdad`, que usan tanto el registro de la solicitud como la validación en vivo de la pantalla. La pantalla valida la edad antes de que exista el `Alumno`, por eso `FechasAdmision.edadAlCorte` calcula la edad a partir de la fecha suelta.
+- **Edad del aula.** Supuesto: edad exacta = edad del aula. Los rangos de edad por aula siguen pendientes de definición (§6, ítem 2). Si el nido acepta rangos, se cambia solo en `Aula.admiteEdad`, que usan tanto el registro de la solicitud como la validación en vivo de la pantalla. La pantalla valida la edad antes de que exista el `Alumno`, por eso `FechasAdmision.edadAlCorte` calcula la edad a partir de la fecha suelta. `ArregloSolicitudes.exigirAdmisible` usa esa misma función al guardar, para que la franja y el guardado nunca discrepen sobre la edad.
 - **Fecha de nacimiento.** Se interpreta en modo estricto para que un 31/02 se rechace en vez de convertirse en silencio en 28/02.
 - **Alumno ya registrado.** Si el DNI ya es de un alumno, se reutiliza ese alumno: sus datos quedan en solo lectura y sus apoderados ya vinculados aparecen en la lista. Lo que el personal ya había escrito se guarda como borrador, porque el DNI puede coincidir a mitad de tipeo; si el siguiente dígito deshace la coincidencia, esos datos vuelven en vez de perderse. Lo mismo ocurre si un guardado registra un alumno nuevo y un paso posterior falla: si el personal corrige el DNI, lo escrito vuelve al formulario.
 - **Apoderados.** Nunca se crea un `Apoderado` suelto. Si el DNI ya está en el padrón se usa esa misma instancia (hermanos que comparten apoderado); si no, sus datos quedan pendientes y se registran en el padrón recién al guardar, para no dejar apoderados huérfanos. Mientras está pendiente, la fila no tiene instancia del padrón.
@@ -244,3 +244,41 @@ Razones de diseño de `PanelSolicitudes` y del código que usa. No agregan regla
 - `Estilos.rellenarTarjeta` suma relleno interior sin reemplazar el borde redondeado que la tarjeta ya trae.
 - Los textos largos usan HTML con ancho fijo para que el `JLabel` haga salto de línea dentro de la columna.
 - `PruebaPagos` usa los padrones de la ventana y no unos propios: con dos padrones los códigos de alumno se repiten y la pantalla de solicitudes confunde alumnos distintos.
+
+## 9. Notas de implementación: pantalla Colas y disponibilidad (issue #25)
+
+Decisiones de `PanelColas` acordadas en la revisión del issue (2026-10-11). No agregan reglas al proceso: explican cómo se muestran las de §4.2 y §4.6. Criterio usado: cuando el diseño de Figma (frame `04 · Colas y cálculo de aula`) y el código chocan, gana el código.
+
+### 9.1. Qué muestra la pantalla
+
+- **Orden de atención.** Las filas salen de `Turnos.ordenPorPrioridad`, tal cual: favorable, en documentación, habilitada y sin pago. El diseño solo muestra favorable y sin pago, pero una solicitud en documentación o habilitada ocupa turno (§4.2); si se ocultara, el «turno 1» de la tabla no coincidiría con a quién le toca de verdad. El grupo va dentro de la columna TURNO («1 · Favorable», «3 · En documentación»), sin columna extra.
+- **Un solo turno actual.** Solo la primera fila es el turno actual, resaltada en amarillo espera. Aunque `Turnos.exigirTurno` permite ofertar a cualquier favorable dentro de las N vacantes, la pantalla las atiende en secuencia: al confirmar, la tabla se recalcula y la siguiente pasa a ser la primera. El resultado es el mismo y respeta el diseño.
+- **Columna Acción.** Solo informa: «Ofertar →» en la primera fila si es favorable y hay vacantes, «Esperar» en el resto. No navega a otras pantallas.
+- **Ingreso a cola.** Las solicitudes habilitadas o en documentación muestran «—»: al salir de la cola, `Solicitud` borra su fecha de ingreso.
+- **Turno actual no favorable.** Si la primera fila está en documentación, habilitada, sin pago o no hay vacantes, el panel la muestra igual con su estado y una línea que explica por qué no se le oferta; los botones quedan deshabilitados. Con la cola vacía se muestra «No hay solicitudes en cola para <aula>».
+- **Comprobaciones.** Son informativas; la validación real la hace `Turnos.confirmarOferta`. Documentos: los 4 del expediente en `VALIDADO`, con `ExpedienteDocumentos.todosValidados`, la misma condición que habilita agendar la entrevista. Entrevista: `ArregloEntrevistas.buscarDe` con resultado `FAVORABLE`. Cupo: `Vacantes.calcular > 0`; la parte «sin matrícula vigente» ya la garantiza `ordenPorPrioridad`, que descarta a quien la tiene. Confirmación de oferta: siempre sin marcar, porque se cumple recién al confirmar.
+- **Selector de aula.** Un combo en el encabezado, no dentro de la tarjeta del aula, porque cambia toda la pantalla. El diseño no lo dibuja, pero lo pide el criterio de aceptación.
+
+### 9.2. Oferta
+
+- **Oferta no aceptada.** El diseño tiene un solo botón, pero §6 ítem 3 exige registrar el rechazo para que la solicitud vuelva al final de la cola favorable; sin él, un candidato que no acepta bloquearía la cola. Por eso hay un botón secundario «Oferta no aceptada» que llama a `confirmarOferta` con `aceptada = false`. No pide confirmación.
+- **Personal que confirma.** `Oferta` exige el personal y no hay usuario con sesión: se escribe en un campo obligatorio, igual que en el expediente.
+- **Errores.** Si `confirmarOferta` rechaza la operación, su mensaje se muestra en un diálogo.
+
+### 9.3. Recálculo y avisos
+
+- **Cuándo se recalcula.** Al entrar a la pantalla, al cambiar de aula y tras cada oferta. Primero se revisan vencimientos y turnos (`Turnos.revisarTurnos`, que habilita a las solicitudes sin pago con turno) y después se redibuja; así la tabla muestra el mismo estado que verá `confirmarOferta`. El desglose y las vacantes nunca se guardan.
+- **Desglose del aula.** Los sumandos (`PENDIENTE_PAGO` y `ACTIVA`) y el total salen juntos de `Vacantes.desglose`, y `Vacantes.calcular` usa ese mismo desglose. Así ninguna pantalla rearma la fórmula por su cuenta ni olvida uno de los dos estados que reservan vacante, y la tarjeta y el botón de oferta nunca discrepan.
+- **Avisos de vencimiento.** Van en el encabezado y no en un diálogo: el mismo aviso vuelve en cada revisión mientras los datos no se corrijan, y se borra solo cuando la revisión ya no lo devuelve. Usan una etiqueta propia, separada del mensaje de la oferta, porque `ofertar` escribe ahí su confirmación y justo después vuelve a revisar. Si `Turnos.revisarTurnos` falla, su error se muestra junto con los avisos de `Vencimientos.revisar`.
+- **Habilitadas por avisar.** Las que habilita la revisión de turnos, de cualquier aula, se acumulan en una franja para llamar a sus familias (§4.2: el aviso es telefónico y fuera del sistema) hasta que el personal pulsa «Ya se avisó». Se acumulan porque la siguiente revisión ya no las devuelve, y cambiar de aula o volver a la pantalla no debe borrar a quién avisar. Es una franja dentro del panel y no un diálogo, para que siga a la vista mientras el personal llama. Una habilitada que entretanto pagó o venció sale sola de la lista.
+
+### 9.4. Cambios en pantallas vecinas
+
+- **`AvisoHabilitadas`.** Solicitudes (§8.1, «Aviso de habilitadas») y Colas muestran a quién llamar con la misma clase: el filtro de las que todavía pueden pagar y el formato de cada línea (código, alumno, apoderado principal con celular y vencimiento). Colas añade el aula, porque reúne habilitadas de todas las aulas.
+- **Borrador del pago.** Pagos recarga la lista de solicitudes cada vez que el personal vuelve a la pantalla, y la tarjeta se repinta. `TarjetasPago.prepararPago` recibe la solicitud o matrícula que se paga: si es la misma, con la misma cuota y plazo, conserva lo que el personal ya escribió. Si cambió, o si en medio la tarjeta pasó a bloqueada o a pago confirmado, el formulario se limpia.
+- **Posición en Pagos.** La pantalla solo vuelve al inicio si cambió la solicitud elegida, tras anular un pago o tras un rechazo por vencimiento; al volver a la misma solicitud no se pierde la posición en el pago que se estaba llenando.
+
+### 9.5. Fuera de alcance
+
+- **Sin datos precargados.** La app arranca vacía. Precargar un ejemplo con plazos vigentes obliga a usar fechas relativas al reloj, choca con la carga desde archivo de #33 y se rompe al cambiar las reglas provisorias de §6 ítem 2. Si se quiere, va en un issue propio de `datos`.
+- **Sin pruebas automáticas.** La pantalla se verifica a mano en la GUI. `java -cp bin PruebaPagos` abre la ventana con casos cargados (SOL-1001 a SOL-1011) que también se ven en Colas.

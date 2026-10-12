@@ -180,7 +180,7 @@ public class PrincipalUI extends JFrame {
     private JPanel crearCentro() {
         agregarPanel(new PanelSolicitudes(aulas, solicitudes, alumnos, apoderados, matriculas),
                 SOLICITUDES);
-        agregarPanel(new PanelColas(), COLAS);
+        agregarPanel(new PanelColas(aulas, solicitudes, entrevistas, matriculas), COLAS);
         agregarPanel(new PanelExpediente(solicitudes, entrevistas, matriculas), EXPEDIENTE);
         agregarPanel(new PanelPagos(solicitudes, pagos, matriculas, cuotas), PAGOS);
         agregarPanel(new PanelCuotas(cuotas), CUOTAS);

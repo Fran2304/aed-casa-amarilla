@@ -70,8 +70,12 @@ public class ExpedienteDocumentos {
         return "Incumplimiento del plazo documental.";
     }
 
-    public boolean puedeAgendarEntrevista() {
+    public boolean todosValidados() {
         return pendientesDeValidar().isEmpty();
+    }
+
+    public boolean puedeAgendarEntrevista() {
+        return todosValidados();
     }
 
     public void exigirAgendarEntrevista() throws ReglaDominioException {

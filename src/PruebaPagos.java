@@ -55,15 +55,16 @@ public class PruebaPagos {
         }
         SwingUtilities.invokeLater(() -> {
             PrincipalUI ventana = new PrincipalUI();
+            Solicitud casoExpediente;
             try {
-                cargarCasos(ventana);
+                casoExpediente = cargarCasos(ventana);
             } catch (ReglaDominioException e) {
                 throw new IllegalStateException("No se pudieron cargar los casos: "
                         + e.getMessage(), e);
             }
             if (args.length > 0 && args[0].equals("expediente")) {
                 ventana.mostrar(PrincipalUI.EXPEDIENTE);
-                SwingUtilities.invokeLater(() -> seleccionarEnExpediente(ventana, "SOL-1038"));
+                SwingUtilities.invokeLater(() -> seleccionarEnExpediente(ventana, casoExpediente));
             } else {
                 ventana.mostrar(PrincipalUI.PAGOS);
             }
@@ -2842,7 +2843,8 @@ public class PruebaPagos {
         throw new AssertionError(descripcion + ": la operación fue aceptada");
     }
 
-    private static void cargarCasos(PrincipalUI ventana) throws ReglaDominioException {
+    /** Devuelve el caso que abre el modo "expediente" (Noa, ejemplo del diseño 03). */
+    private static Solicitud cargarCasos(PrincipalUI ventana) throws ReglaDominioException {
         ArregloAlumnos alumnos = ventana.getAlumnos();
         ArregloApoderados apoderados = ventana.getApoderados();
         Aula girasoles = ventana.getAulas().buscar("AUL-01");
@@ -2894,8 +2896,10 @@ public class PruebaPagos {
         System.out.println("Las solicitudes se registran al abrir: la fecha de operación (con minutos)"
                 + " recién es válida desde el minuto siguiente.");
 
-        cargarCasosExpediente(ventana, alumnos, apoderados, tulipanes, girasoles);
+        Solicitud casoExpediente = cargarCasosExpediente(ventana, alumnos, apoderados, tulipanes,
+                girasoles);
         cargarCasosMatricula(ventana, alumnos, apoderados, girasoles);
+        return casoExpediente;
     }
 
     private static void cargarCasosMatricula(PrincipalUI ventana, ArregloAlumnos alumnos,
@@ -2964,14 +2968,15 @@ public class PruebaPagos {
                 .setSelectedItem(solicitud);
     }
 
-    private static void seleccionarEnExpediente(PrincipalUI ventana, String codigo) {
+    private static void seleccionarEnExpediente(PrincipalUI ventana, Solicitud solicitud) {
         ui.PanelExpediente panel = buscarComponente(ventana.getContentPane(),
                 ui.PanelExpediente.class);
         try {
             ((javax.swing.JComboBox<?>) campoPrivado(campoPrivado(panel, "selector"), "combo"))
-                    .setSelectedItem(ventana.getSolicitudes().buscar(codigo));
+                    .setSelectedItem(solicitud);
         } catch (Exception e) {
-            throw new IllegalStateException("No se pudo seleccionar " + codigo + ".", e);
+            throw new IllegalStateException("No se pudo seleccionar " + solicitud.getCodigo()
+                    + ".", e);
         }
     }
 
@@ -2990,18 +2995,12 @@ public class PruebaPagos {
         return null;
     }
 
-    private static void cargarCasosExpediente(PrincipalUI ventana, ArregloAlumnos alumnos,
+    private static Solicitud cargarCasosExpediente(PrincipalUI ventana, ArregloAlumnos alumnos,
             ArregloApoderados apoderados, Aula tulipanes, Aula girasoles)
             throws ReglaDominioException {
         LocalDate tresAnios = LocalDate.of(2023, 5, 10);
         LocalDate cuatroAnios = LocalDate.of(2022, 6, 18);
         LocalDateTime ahora = Reloj.porDefecto().now().withSecond(0).withNano(0);
-        int relleno = 1;
-        while (ventana.getSolicitudes().listar().size() < 37) {
-            registrar(ventana, alumnos, apoderados, "Relleno", String.valueOf(relleno++),
-                    cuatroAnios, girasoles);
-        }
-
         Alumno alumnaNoa = alumnos.registrar(String.valueOf(siguienteDni++), "Noa", "Ruiz",
                 tresAnios, null);
         alumnaNoa.agregarApoderado(apoderados.registrar(String.valueOf(siguienteDni++), "Ana",
@@ -3039,6 +3038,7 @@ public class PruebaPagos {
                 + " entrevista BLOQUEADA (ejemplo del diseño 03)");
         System.out.println("  " + mateo.getCodigo() + "  4 validados · entrevista agendada"
                 + " (asistencia, inasistencias y resultado)");
+        return noa;
     }
 
     private static String crearComprobanteDeEjemplo() {
