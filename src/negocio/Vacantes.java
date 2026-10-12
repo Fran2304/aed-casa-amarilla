@@ -15,8 +15,6 @@ public final class Vacantes {
         return desglose(aula, matriculas).getDisponibles();
     }
 
-    // La pantalla de colas muestra los sumandos; se entregan juntos con el total para que
-    // nadie rearme la fórmula por su cuenta y olvide uno de los dos estados que reservan.
     public static Desglose desglose(Aula aula, ArregloMatriculas matriculas) {
         int pendientes = 0;
         int activas = 0;

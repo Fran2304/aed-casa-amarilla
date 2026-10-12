@@ -175,8 +175,6 @@ public class PanelPagos extends JPanel {
         selector.recargar(solicitudes.listar(), solicitud -> true);
     }
 
-    // Al volver a la pantalla la lista se recarga y llega la misma solicitud: solo se sube al
-    // inicio si cambió, para no perder la posición en el pago que se estaba llenando.
     private void elegir(Solicitud solicitud) {
         if (solicitud != actual) {
             volverArriba();

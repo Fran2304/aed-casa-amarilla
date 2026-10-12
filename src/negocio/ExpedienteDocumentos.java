@@ -70,7 +70,6 @@ public class ExpedienteDocumentos {
         return "Incumplimiento del plazo documental.";
     }
 
-    // Condición propia de los documentos: la usan tanto la entrevista como la oferta en colas.
     public boolean todosValidados() {
         return pendientesDeValidar().isEmpty();
     }

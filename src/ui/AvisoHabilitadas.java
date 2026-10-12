@@ -10,17 +10,11 @@ import modelo.Validaciones;
 import util.FormatoFecha;
 import util.Reloj;
 
-/**
- * A quién llamar tras una habilitación automática. El colegio avisa por teléfono, fuera del
- * sistema, y las 48 h corren desde que se habilita: Solicitudes y Colas muestran la misma lista.
- */
 final class AvisoHabilitadas {
 
     private AvisoHabilitadas() {
     }
 
-    // Mientras el personal estuvo en otra pantalla, una habilitada pudo pagar o vencer: solo
-    // se pide llamar a quienes todavía pueden pagar.
     static ArrayList<Solicitud> vigentes(ArrayList<Solicitud> habilitadas) {
         LocalDateTime ahora = Reloj.porDefecto().now();
         ArrayList<Solicitud> vigentes = new ArrayList<Solicitud>();

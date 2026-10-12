@@ -63,11 +63,8 @@ public class PanelColas extends JPanel {
 
     private final JComboBox<Aula> comboAula = Estilos.campo(new JComboBox<Aula>());
     private final JLabel mensaje = new JLabel(" ");
-    // Separado de mensaje: ofertar escribe ahí su confirmación y luego vuelve a revisar.
     private final JLabel avisoVencimientos = new JLabel(" ");
 
-    // Habilitadas por la revisión de turnos a las que aún no se ha llamado. Se acumulan entre
-    // revisiones: la siguiente ya no las devuelve, y cambiar de aula no debe borrar a quién avisar.
     private final ArrayList<Solicitud> porAvisar = new ArrayList<Solicitud>();
     private final JPanel franjaAvisar = Estilos.aviso(new JPanel(new BorderLayout(16, 0)),
             Estilos.FAVORABLE);
@@ -181,8 +178,6 @@ public class PanelColas extends JPanel {
         return encabezado;
     }
 
-    // Franja dentro del panel y no un diálogo: se queda a la vista mientras el personal llama,
-    // sin interrumpir cada vez que se vuelve a la pantalla.
     private JPanel crearFranjaAvisar() {
         textoAvisar.setFont(Estilos.detalle());
         textoAvisar.setForeground(Estilos.BOTON_PRINCIPAL);
@@ -386,8 +381,7 @@ public class PanelColas extends JPanel {
 
     // Vencimientos.revisar se llama aparte para mostrar sus avisos: revisarTurnos también lo
     // ejecuta, pero los descarta. Después habilita a las solicitudes sin pago con turno, así
-    // la tabla muestra el mismo estado que verá confirmarOferta. Las habilitadas, de cualquier
-    // aula, quedan para avisar: su plazo de 48 h ya corre.
+    // la tabla muestra el mismo estado que verá confirmarOferta.
     private void revisarTurnos() {
         LocalDateTime ahora = Reloj.porDefecto().now();
         ArrayList<String> avisos = new ArrayList<String>();
@@ -405,8 +399,6 @@ public class PanelColas extends JPanel {
         mostrarAvisoVencimientos(avisos);
     }
 
-    // En el encabezado y no en un diálogo: el mismo aviso vuelve en cada revisión mientras los
-    // datos no se corrijan, y se borra solo cuando la revisión ya no lo devuelve.
     private void mostrarAvisoVencimientos(ArrayList<String> avisos) {
         if (avisos.isEmpty()) {
             avisoVencimientos.setText(" ");
@@ -472,7 +464,6 @@ public class PanelColas extends JPanel {
 
         marcar(checkDocumentos, documentosValidados(turnoActual), "Cuatro documentos validados");
         marcar(checkEntrevista, entrevistaFavorable(turnoActual), "Entrevista FAVORABLE");
-        // Sin matrícula vigente ya está garantizado: ordenPorPrioridad descarta a quien la tiene.
         marcar(checkCupo, vacantes > 0, "Recalcular cupo y matrícula vigente");
         marcar(checkConfirmacion, false, "Confirmación de oferta por personal");
 
