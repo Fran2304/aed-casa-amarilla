@@ -108,16 +108,10 @@ public final class Turnos {
             ArregloSolicitudes solicitudes, ArregloMatriculas matriculas, LocalDateTime fecha)
             throws ReglaDominioException {
         Vencimientos.revisar(fecha, solicitudes, matriculas);
+        nueva.ingresarAColaSinPago(fecha);
         ArrayList<Solicitud> promovidas = habilitarConTurno(nueva.getAula(), solicitudes,
                 matriculas, fecha);
-        ArrayList<Solicitud> orden = ordenPorPrioridad(nueva.getAula(), solicitudes, matriculas);
-        int vacantes = Vacantes.calcular(nueva.getAula(), matriculas);
-        if (vacantes > 0 && !tieneMatriculaVigente(nueva, matriculas)
-                && hayTurno(nueva, orden, vacantes)) {
-            nueva.habilitarParaPago(fecha);
-        } else {
-            nueva.ingresarAColaSinPago(fecha);
-        }
+        promovidas.remove(nueva);
         return promovidas;
     }
 

@@ -120,6 +120,14 @@ public class PrincipalUI extends JFrame {
         return solicitudes;
     }
 
+    public ArregloAlumnos getAlumnos() {
+        return alumnos;
+    }
+
+    public ArregloApoderados getApoderados() {
+        return apoderados;
+    }
+
     public ConfiguracionCuotas getCuotas() {
         return cuotas;
     }
@@ -134,14 +142,6 @@ public class PrincipalUI extends JFrame {
 
     public ArregloMatriculas getMatriculas() {
         return matriculas;
-    }
-
-    public ArregloAlumnos getAlumnos() {
-        return alumnos;
-    }
-
-    public ArregloApoderados getApoderados() {
-        return apoderados;
     }
 
     private JPanel crearCabecera() {
@@ -193,7 +193,8 @@ public class PrincipalUI extends JFrame {
 
     private JPanel crearCentro() {
         Runnable guardar = guardarCambios();
-        agregarPanel(new PanelSolicitudes(), SOLICITUDES);
+        agregarPanel(new PanelSolicitudes(aulas, solicitudes, alumnos, apoderados, matriculas,
+                guardar), SOLICITUDES);
         agregarPanel(new PanelColas(), COLAS);
         agregarPanel(new PanelExpediente(solicitudes, entrevistas, matriculas, guardar),
                 EXPEDIENTE);

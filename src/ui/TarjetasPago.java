@@ -20,7 +20,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Locale;
 
-import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -627,8 +626,7 @@ public class TarjetasPago extends JPanel {
                 return new Dimension(1, super.getPreferredSize().height);
             }
         });
-        tarjeta.setBorder(BorderFactory.createCompoundBorder(tarjeta.getBorder(),
-                BorderFactory.createEmptyBorder(8, 8, 8, 8)));
+        Estilos.rellenarTarjeta(tarjeta);
         return tarjeta;
     }
 

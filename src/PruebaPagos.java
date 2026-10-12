@@ -989,15 +989,15 @@ public class PruebaPagos {
                 Matricula matricula = matriculas.vigenteDe(vigente.solicitud);
 
                 ui.PanelPagos panel = new ui.PanelPagos(solicitudes, pagos, matriculas, cuotas, null);
-                java.lang.reflect.Method buscar = panel.getClass().getDeclaredMethod("buscar");
-                buscar.setAccessible(true);
-                javax.swing.JTextField campoCodigo =
-                        (javax.swing.JTextField) campoPrivado(panel, "campoCodigo");
                 ui.TarjetasPago tarjetas =
                         (ui.TarjetasPago) campoPrivado(panel, "tarjetasMatricula");
+                comprobar(campoPrivado(panel, "actual") == null
+                        && ((javax.swing.JTextArea) campoPrivado(campoPrivado(panel, "tarjetas"),
+                                "detalleAviso")).getText()
+                                        .startsWith("Elige una solicitud"),
+                        "Pagos arranca sin solicitud elegida");
 
-                campoCodigo.setText(vigente.solicitud.getCodigo());
-                buscar.invoke(panel);
+                elegirEnPagos(panel, vigente.solicitud);
                 comprobar(campoPrivado(panel, "matriculaActual") == matricula
                         && ((javax.swing.JLabel) campoPrivado(panel, "tituloFranja")).getText()
                                 .equals("MATRÍCULA: PENDIENTE_PAGO")
@@ -1007,14 +1007,9 @@ public class PruebaPagos {
                                 .getText().equals("SI VENCE SIN PAGO REGISTRADO")
                         && ((javax.swing.JButton) campoPrivado(tarjetas, "botonConfirmar"))
                                 .isVisible(),
-                        "buscar por SOL abre la matrícula PENDIENTE_PAGO lista para cobrar");
+                        "elegir la solicitud abre la matrícula PENDIENTE_PAGO lista para cobrar");
                 comprobar(buscarBoton(panel, "observación") == null,
                         "la pantalla no ofrece «Registrar observación»");
-
-                campoCodigo.setText(matricula.getCodigo().toLowerCase());
-                buscar.invoke(panel);
-                comprobar(campoPrivado(panel, "matriculaActual") == matricula,
-                        "buscar por MAT-xxxxxx abre la misma matrícula");
 
                 java.lang.reflect.Method confirmar = panel.getClass().getDeclaredMethod(
                         "confirmarMatricula", double.class, MedioPago.class, String.class,
@@ -1044,8 +1039,7 @@ public class PruebaPagos {
                 Turnos.confirmarOferta(vencida.solicitud, true, "Personal de admisión",
                         vencida.fechaOferta, solicitudes, matriculas);
                 Matricula matriculaVencida = matriculas.vigenteDe(vencida.solicitud);
-                campoCodigo.setText(vencida.solicitud.getCodigo());
-                buscar.invoke(panel);
+                elegirEnPagos(panel, vencida.solicitud);
                 comprobar(campoPrivado(panel, "matriculaActual") == matriculaVencida
                         && matriculaVencida.getEstado() == EstadoMatricula.CANCELADA
                         && negocio.Vencimientos.RESPONSABLE.equals(matriculaVencida.getResponsableCancelacion())
@@ -1054,20 +1048,17 @@ public class PruebaPagos {
                         && !((javax.swing.JButton) campoPrivado(tarjetas, "botonConfirmar"))
                                 .isVisible()
                         && ((javax.swing.JPanel) campoPrivado(tarjetas, "cierre")).isVisible(),
-                        "buscar barre la matrícula vencida y muestra la tarjeta de cancelación");
+                        "elegir la solicitud barre la matrícula vencida y muestra la tarjeta de"
+                                + " cancelación");
 
                 Turnos.confirmarOferta(vencida.solicitud, true, "Personal de admisión", ahora,
                         solicitudes, matriculas);
                 Matricula nueva = matriculas.vigenteDe(vencida.solicitud);
-                campoCodigo.setText(matriculaVencida.getCodigo());
-                buscar.invoke(panel);
-                String detalle = ((javax.swing.JTextArea) campoPrivado(tarjetas, "detalleAviso"))
-                        .getText();
-                comprobar(campoPrivado(panel, "matriculaActual") == matriculaVencida
-                        && detalle.contains("tiene ahora " + nueva.getCodigo()
-                                + " (PENDIENTE_PAGO)")
-                        && detalle.contains("registrar el pago"),
-                        "buscar la matrícula cancelada la muestra y nombra la vigente");
+                elegirEnPagos(panel, vencida.solicitud);
+                comprobar(campoPrivado(panel, "matriculaActual") == nueva
+                        && ((javax.swing.JButton) campoPrivado(tarjetas, "botonConfirmar"))
+                                .isVisible(),
+                        "con una matrícula nueva, elegir la solicitud abre la vigente");
             } catch (Exception e) {
                 failure[0] = new RuntimeException(e);
             }
@@ -1621,11 +1612,7 @@ public class PruebaPagos {
                 pagos.agregar(pago);
                 solicitud.confirmarInscripcion(ahora.minusMinutes(10));
                 ui.PanelPagos panel = new ui.PanelPagos(solicitudes, pagos, matriculas, cuotas, null);
-                ((javax.swing.JTextField) campoPrivado(panel, "campoCodigo")).setText(
-                        solicitud.getCodigo());
-                java.lang.reflect.Method buscar = panel.getClass().getDeclaredMethod("buscar");
-                buscar.setAccessible(true);
-                buscar.invoke(panel);
+                elegirEnPagos(panel, solicitud);
                 ui.TarjetasPago tarjetas = (ui.TarjetasPago) campoPrivado(panel, "tarjetas");
                 ((javax.swing.JTextField) campoPrivado(tarjetas, "campoMotivoAnulacion"))
                         .setText("error de registro");
@@ -1694,12 +1681,7 @@ public class PruebaPagos {
                 expirada.confirmarInscripcion(expiradaAhora.minusHours(2));
                 ui.PanelPagos panelExpirado = new ui.PanelPagos(solicitudesExpiradas,
                         pagosExpirados, matriculasExpiradas, cuotas, null);
-                ((javax.swing.JTextField) campoPrivado(panelExpirado, "campoCodigo")).setText(
-                        expirada.getCodigo());
-                java.lang.reflect.Method buscarExpirado = panelExpirado.getClass()
-                        .getDeclaredMethod("buscar");
-                buscarExpirado.setAccessible(true);
-                buscarExpirado.invoke(panelExpirado);
+                elegirEnPagos(panelExpirado, expirada);
                 ui.TarjetasPago tarjetasExpirada = (ui.TarjetasPago) campoPrivado(panelExpirado,
                         "tarjetas");
                 ((javax.swing.JTextField) campoPrivado(tarjetasExpirada,
@@ -1755,15 +1737,10 @@ public class PruebaPagos {
                         solicitudesFallo, matriculasFallo, pagosFallo);
                 ui.PanelPagos panelFallo = new ui.PanelPagos(solicitudesFallo, pagosFallo,
                         matriculasFallo, cuotas, null);
-                ((javax.swing.JTextField) campoPrivado(panelFallo, "campoCodigo")).setText(
-                        solicitudFallo.getCodigo());
-                java.lang.reflect.Method buscarFallo = panelFallo.getClass()
-                        .getDeclaredMethod("buscar");
-                buscarFallo.setAccessible(true);
-                buscarFallo.invoke(panelFallo);
-                // Con matrícula vigente la búsqueda abre la vista de matrícula: la anulación de
-                // la inscripción ya no se ofrece ahí (la guarda de dominio se prueba en
-                // probarProteccionDeInscripcionConMatriculaVigente).
+                elegirEnPagos(panelFallo, solicitudFallo);
+                // Con matrícula vigente, elegir la solicitud abre la vista de matrícula: la
+                // anulación de la inscripción ya no se ofrece ahí (la guarda de dominio se
+                // prueba en probarProteccionDeInscripcionConMatriculaVigente).
                 comprobar(campoPrivado(panelFallo, "matriculaActual") == matriculaFallo
                         && pagoFallo.estaConfirmado()
                         && solicitudFallo.getEstado() == EstadoSolicitud.EN_DOCUMENTACION,
@@ -1798,11 +1775,7 @@ public class PruebaPagos {
 
                 ui.PanelPagos panel = new ui.PanelPagos(solicitudes, pagos, matriculas,
                         new ConfiguracionCuotas(), null);
-                ((javax.swing.JTextField) campoPrivado(panel, "campoCodigo")).setText(
-                        solicitud.getCodigo());
-                java.lang.reflect.Method buscar = panel.getClass().getDeclaredMethod("buscar");
-                buscar.setAccessible(true);
-                buscar.invoke(panel);
+                elegirEnPagos(panel, solicitud);
 
                 comprobar(solicitud.getEstado() == EstadoSolicitud.CANCELADA
                         && solicitud.getFechaCancelacion() != null
@@ -2204,6 +2177,7 @@ public class PruebaPagos {
 
         probarEntrevistaDeInscripcionAnulada(aula, base, entrevistas);
         probarIntegracionUiExpedienteVencido();
+        probarIntegracionUiSolicitudesConReloj();
         probarIntegracionUiExpediente();
     }
 
@@ -2340,6 +2314,87 @@ public class PruebaPagos {
         java.lang.reflect.Method accion = objeto.getClass().getDeclaredMethod(metodo);
         accion.setAccessible(true);
         accion.invoke(objeto);
+    }
+
+    // Nueva solicitud con el reloj global fijado (§4.8) y plazos que vencen con la pantalla
+    // abierta (§4.2): el guardado y las vacantes tienen que ver la misma hora.
+    private static void probarIntegracionUiSolicitudesConReloj() throws Exception {
+        LocalDateTime ahora = LocalDateTime.of(2026, 10, 8, 10, 0);
+        Reloj.porDefecto().fijar(ahora);
+        final RuntimeException[] failure = new RuntimeException[1];
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                datos.ArregloAulas aulas = new datos.ArregloAulas();
+                Aula girasoles = aulas.buscar("AUL-01");
+                ArregloAlumnos alumnos = new ArregloAlumnos();
+                ArregloApoderados apoderados = new ArregloApoderados();
+                ArregloSolicitudes solicitudes = new ArregloSolicitudes();
+                ArregloMatriculas matriculas = new ArregloMatriculas();
+                Alumno luz = alumnos.registrar("70123456", "Luz", "Prueba",
+                        LocalDate.of(2022, 6, 18), null);
+                luz.agregarApoderado(apoderados.registrar("80123456", "Ana", "Prueba",
+                        "999111222"), true);
+                Solicitud anterior = solicitudes.registrar(luz, girasoles);
+                anterior.habilitarParaPago(ahora.minusHours(1));
+                anterior.confirmarInscripcion(ahora);
+
+                ui.PanelSolicitudes panel = new ui.PanelSolicitudes(aulas, solicitudes, alumnos,
+                        apoderados, matriculas, null);
+                ((javax.swing.JTextField) campoPrivado(panel, "campoDni")).setText("70123456");
+                ((javax.swing.JComboBox<?>) campoPrivado(panel, "comboAula"))
+                        .setSelectedItem(girasoles);
+                javax.swing.JButton guardar = (javax.swing.JButton) campoPrivado(panel,
+                        "botonGuardar");
+                comprobar(!guardar.isEnabled(),
+                        "la solicitud en documentación bloquea un duplicado");
+
+                LocalDateTime despues = ahora.plusDays(8);
+                Reloj.porDefecto().fijar(despues);
+                invocarPrivado(panel, "guardar");
+                Solicitud nueva = solicitudes.buscarActivaDe(luz);
+                comprobar(anterior.getEstado() == EstadoSolicitud.CANCELADA,
+                        "guardar cancela antes la documentación vencida");
+                comprobar(nueva != null && nueva != anterior
+                        && nueva.getFechaRegistro().equals(despues)
+                        && nueva.getEstado() == EstadoSolicitud.HABILITADA_PARA_PAGO
+                        && nueva.getVencimientoHabilitacion().equals(despues.plusHours(48)),
+                        "guardar registra y habilita con la hora del reloj global");
+
+                Aula chica = new Aula("AUL-UI-SOL", "UI solicitudes", 4, 1);
+                @SuppressWarnings("unchecked")
+                java.util.ArrayList<Aula> almacen =
+                        (java.util.ArrayList<Aula>) campoPrivado(aulas, "aulas");
+                almacen.add(chica);
+                ArregloSolicitudes conMatricula = new ArregloSolicitudes();
+                ArregloMatriculas pendientes = new ArregloMatriculas();
+                Solicitud ocupa = registrarSolicitud(conMatricula, chica, "NAMED-UI-SOL",
+                        despues.minusDays(5));
+                ocupa.habilitarParaPago(despues.minusDays(4).minusHours(1));
+                ocupa.confirmarInscripcion(despues.minusDays(4));
+                registrarYValidarDocumentos(ocupa, despues.minusDays(3), despues.minusDays(2));
+                ocupa.ingresarAColaFavorable(despues.minusDays(2));
+                Turnos.confirmarOferta(ocupa, true, "Personal de admisión",
+                        despues.minusHours(1), conMatricula, pendientes);
+
+                ui.PanelSolicitudes conCupo = new ui.PanelSolicitudes(aulas, conMatricula,
+                        new ArregloAlumnos(), new ArregloApoderados(), pendientes, null);
+                ((javax.swing.JComboBox<?>) campoPrivado(conCupo, "comboAula"))
+                        .setSelectedItem(chica);
+                javax.swing.JLabel vacantes = (javax.swing.JLabel) campoPrivado(conCupo,
+                        "textoVacantes");
+                comprobar(vacantes.getText().startsWith("Sin vacantes"),
+                        "la matrícula pendiente ocupa la única vacante");
+                Reloj.porDefecto().fijar(despues.plusHours(72));
+                invocarPrivado(conCupo, "recalcular");
+                comprobar(vacantes.getText().startsWith("1 disponible"),
+                        "la matrícula vencida con la pantalla abierta libera la vacante");
+            } catch (Exception e) {
+                failure[0] = new RuntimeException(e);
+            }
+        });
+        if (failure[0] != null) {
+            throw failure[0];
+        }
     }
 
     private static void probarIntegracionUiExpedienteVencido() throws Exception {
@@ -2989,10 +3044,7 @@ public class PruebaPagos {
                 };
                 ui.PanelPagos panel = new ui.PanelPagos(almacen.getSolicitudes(),
                         almacen.getPagos(), almacen.getMatriculas(), almacen.getCuotas(), guardar);
-                ((javax.swing.JTextField) campoPrivado(panel, "campoCodigo")).setText("NG-SOL");
-                java.lang.reflect.Method buscar = panel.getClass().getDeclaredMethod("buscar");
-                buscar.setAccessible(true);
-                buscar.invoke(panel);
+                elegirEnPagos(panel, objetivo);
                 // Rechazo sin mutación: monto que no coincide con la cuota vigente.
                 java.lang.reflect.Method confirmar = panel.getClass().getDeclaredMethod("confirmar",
                         double.class, MedioPago.class, String.class, LocalDateTime.class,
@@ -3338,8 +3390,8 @@ public class PruebaPagos {
     }
 
     private static void cargarCasos(PrincipalUI ventana) throws ReglaDominioException {
-        ArregloAlumnos alumnos = new ArregloAlumnos();
-        ArregloApoderados apoderados = new ArregloApoderados();
+        ArregloAlumnos alumnos = ventana.getAlumnos();
+        ArregloApoderados apoderados = ventana.getApoderados();
         Aula girasoles = ventana.getAulas().buscar("AUL-01");
         Aula tulipanes = ventana.getAulas().buscar("AUL-02");
         LocalDate cuatroAnios = LocalDate.of(2022, 6, 18);
@@ -3450,11 +3502,20 @@ public class PruebaPagos {
         return solicitud;
     }
 
+    private static void elegirEnPagos(ui.PanelPagos panel, Solicitud solicitud)
+            throws Exception {
+        java.lang.reflect.Method recargar = panel.getClass().getDeclaredMethod("recargarLista");
+        recargar.setAccessible(true);
+        recargar.invoke(panel);
+        ((javax.swing.JComboBox<?>) campoPrivado(campoPrivado(panel, "selector"), "combo"))
+                .setSelectedItem(solicitud);
+    }
+
     private static void seleccionarEnExpediente(PrincipalUI ventana, String codigo) {
         ui.PanelExpediente panel = buscarComponente(ventana.getContentPane(),
                 ui.PanelExpediente.class);
         try {
-            ((javax.swing.JComboBox<?>) campoPrivado(panel, "comboSolicitud"))
+            ((javax.swing.JComboBox<?>) campoPrivado(campoPrivado(panel, "selector"), "combo"))
                     .setSelectedItem(ventana.getSolicitudes().buscar(codigo));
         } catch (Exception e) {
             throw new IllegalStateException("No se pudo seleccionar " + codigo + ".", e);

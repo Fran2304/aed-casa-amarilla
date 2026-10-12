@@ -31,4 +31,8 @@ public class Aula {
     public int getCapacidad() {
         return capacidad;
     }
+
+    public boolean admiteEdad(int edad) {
+        return edad == edadRequerida;
+    }
 }
