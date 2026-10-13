@@ -32,7 +32,7 @@ Ejecuta los comandos desde la raíz del proyecto. Configura `JAVA_HOME` con un *
 - Ejecuta `PruebaPagos` con `-Djava.awt.headless=true` para las pruebas funcionales. Los casos de interfaz necesitan `-Dopencode.test.logs=<directorio absoluto existente>` para guardar el comprobante de prueba; puede ser cualquier directorio local destinado a esos archivos, sin un harness.
 - Conserva la salida completa y el resultado de las comprobaciones. No confundas ausencia de un framework de pruebas con pruebas ejecutadas o aprobadas.
 - Ejecuta `Main` para abrir la aplicación o `PruebaPagos` sin el modo headless para abrir la demo con datos de ejemplo. Las comprobaciones headless no verifican la apariencia ni toda la interacción manual; informa las pruebas gráficas por separado.
-- Los scripts de CI tienen su propia suite con `unittest` puro (`test_review*.py` en `.github/scripts/`), invisible para los detectores automáticos de framework: al cambiar `.github/workflows/` o `review_checkpoint.py`, ejecútala explícitamente con `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .github/scripts -p 'test_review*.py' -v`.
+- Los scripts de CI tienen su propia suite con `unittest` puro (`test_review*.py` en `.github/scripts/`), invisible para los detectores automáticos de framework: al cambiar `.github/workflows/` o los scripts de `.github/scripts/`, ejecútala explícitamente con `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .github/scripts -p 'test_review*.py' -v`.
 
 `PruebaPagos` está marcado para eliminarse más adelante. Mientras sea la entrada de las pruebas de regresión, no lo elimines sin acordar una alternativa que conserve esa cobertura.
 
@@ -58,10 +58,4 @@ Ejecuta los comandos desde la raíz del proyecto. Configura `JAVA_HOME` con un *
 - Mantén los cambios dentro del alcance aprobado. No añadas persistencia, autenticación, dependencias ni cambios de arquitectura como arreglos incidentales.
 - No incluyas clases compiladas, listas de fuentes generadas, logs, comprobantes de prueba ni pruebas auxiliares temporales en los commits. Añade explícitamente los archivos que correspondan.
 - `.gitignore` excluye `/bin/`, `/reviews/` y `.opencode/`; no asumas que `out/` u otros directorios de salida están ignorados.
-- Revisa `.github/workflows/opencode-review.yml` para conocer las comprobaciones automáticas. Antes de dar un cambio por terminado, contrástalo siempre con la spec del proyecto; si hay ambigüedad, pregunta. No afirmes fidelidad visual sin comprobar el diseño y la interfaz ejecutada.
-
-## Nota temporal del review automático
-
-La exclusión exacta de `src/PruebaPagos.java` del review automático es temporal. No elimina la obligación de ejecutar y mantener las pruebas funcionales. Cuando se retire la exclusión, conserva las instrucciones del proyecto de este archivo al integrar los cambios.
-
-La exclusión se mantiene únicamente en el prompt de revisión; no debe convertirse en un filtro rígido del control de checkpoints.
+- Revisa `.github/workflows/compilar.yml` para conocer las comprobaciones automáticas. Antes de dar un cambio por terminado, contrástalo siempre con la spec del proyecto; si hay ambigüedad, pregunta. No afirmes fidelidad visual sin comprobar el diseño y la interfaz ejecutada.

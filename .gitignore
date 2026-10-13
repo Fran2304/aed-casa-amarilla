@@ -9,3 +9,4 @@
 /datos/
 # Scratch de logs del harness
 /.harness/
+__pycache__/
