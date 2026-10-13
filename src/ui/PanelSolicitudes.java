@@ -72,6 +72,7 @@ public class PanelSolicitudes extends JPanel {
     private final ArregloAlumnos alumnos;
     private final ArregloApoderados apoderados;
     private final ArregloMatriculas matriculas;
+    private final Runnable alGuardar;
 
     private final CardLayout vistas = new CardLayout();
     private final JPanel tarjetaIzquierda = Estilos.tarjeta(new JPanel(vistas));
@@ -114,17 +115,19 @@ public class PanelSolicitudes extends JPanel {
     private Solicitud fichaActual;
     private boolean fichaRecienCreada;
     private String fichaError;
+    private String avisoVencimientos;
     private ArrayList<Solicitud> fichaPromovidas = new ArrayList<Solicitud>();
 
     public PanelSolicitudes(ArregloAulas aulas, ArregloSolicitudes solicitudes,
             ArregloAlumnos alumnos, ArregloApoderados apoderados,
-            ArregloMatriculas matriculas) {
+            ArregloMatriculas matriculas, Runnable alGuardar) {
         super(new BorderLayout(0, 20));
         this.aulas = aulas;
         this.solicitudes = solicitudes;
         this.alumnos = alumnos;
         this.apoderados = apoderados;
         this.matriculas = matriculas;
+        this.alGuardar = alGuardar;
         setBorder(Estilos.MARGEN_PANTALLA);
 
         add(crearEncabezado(), BorderLayout.NORTH);
@@ -165,6 +168,7 @@ public class PanelSolicitudes extends JPanel {
         addComponentListener(new ComponentAdapter() {
             @Override
             public void componentShown(ComponentEvent e) {
+                barrerVencimientosYGrabar();
                 recalcular();
                 if (fichaActual != null) {
                     String error = fichaActual.getEstado() == EstadoSolicitud.EN_ESPERA_SIN_PAGO
@@ -175,6 +179,7 @@ public class PanelSolicitudes extends JPanel {
             }
         });
         refrescarApoderados();
+        barrerVencimientosYGrabar();
         recalcular();
     }
 
@@ -346,9 +351,9 @@ public class PanelSolicitudes extends JPanel {
             return;
         }
         // Las vacantes y el duplicado dependen de plazos que pudieron vencer con la
-        // aplicación abierta (§4.2): una matrícula vencida aún restaría su cupo y una
-        // solicitud con documentación vencida aún bloquearía el guardado.
-        String avisoVencimientos = revisarVencimientos();
+        // aplicación abierta (§4.2). El barrido muta estado, así que solo corre en los
+        // bordes no-tecla (constructor, al mostrarse y antes de guardar); aquí se reutiliza
+        // el aviso ya calculado para no barrer ni grabar en cada tecla.
         revisarAlumnoExistente();
         actualizarVacantes();
         actualizarFranja();
@@ -366,6 +371,16 @@ public class PanelSolicitudes extends JPanel {
             return avisos.isEmpty() ? null : Vencimientos.unir(avisos);
         } catch (DatoInvalidoException e) {
             return e.getMessage();
+        }
+    }
+
+    // Barrido de vencimientos en los bordes no-tecla: muta (cancela vencidas, vence
+    // habilitaciones, cancela documentación) y graba el resultado antes de decidir la
+    // acción (decisión 10). Las teclas no barren: reutilizan el aviso ya calculado.
+    private void barrerVencimientosYGrabar() {
+        avisoVencimientos = revisarVencimientos();
+        if (alGuardar != null) {
+            alGuardar.run();
         }
     }
 
@@ -656,8 +671,9 @@ public class PanelSolicitudes extends JPanel {
     }
 
     private void guardar() {
-        // Entre la última tecla y el clic pudo vencer un plazo: se revisa otra vez para
-        // no guardar con vacantes o un duplicado que ya no corresponden.
+        // Entre la última tecla y el clic pudo vencer un plazo: se barre y se graba otra
+        // vez para no guardar con vacantes o un duplicado que ya no corresponden (decisión 10).
+        barrerVencimientosYGrabar();
         recalcular();
         if (!botonGuardar.isEnabled()) {
             return;
@@ -695,9 +711,17 @@ public class PanelSolicitudes extends JPanel {
             nueva = solicitudes.registrar(alumno, aula);
             ArrayList<Solicitud> promovidas = Turnos.ubicarNueva(nueva, solicitudes, matriculas,
                     Reloj.porDefecto().now());
+            if (alGuardar != null) {
+                alGuardar.run();
+            }
             mostrarFicha(nueva, true, null, promovidas);
         } catch (ReglaDominioException e) {
             if (nueva != null) {
+                // La solicitud ya quedó registrada: se graba aunque la promoción de turno falle
+                // (decisión 10: grabar tras el barrido, antes de decidir el resultado).
+                if (alGuardar != null) {
+                    alGuardar.run();
+                }
                 mostrarFicha(nueva, true, e.getMessage(), new ArrayList<Solicitud>());
                 return;
             }

@@ -78,6 +78,45 @@ public class Pago {
         this.estado = EstadoPago.RECIBIDO;
     }
 
+    // Reconstruye un pago desde el estado persistido, sin pasar por las validaciones de
+    // creación (issue #33). Asigna directamente los campos y la auditoría de anulación.
+    private Pago(Solicitud solicitud, ConceptoPago concepto, Matricula matricula,
+            double montoPagado, MedioPago medio, String numeroOperacion,
+            LocalDateTime fechaHoraOperacion, LocalDateTime fechaHoraRegistro,
+            String rutaComprobantePago, String comprobante, EstadoPago estado,
+            LocalDateTime fechaAnulacion, String motivoAnulacion, String responsableAnulacion) {
+        this.solicitud = solicitud;
+        this.concepto = concepto;
+        this.matricula = matricula;
+        this.montoPagado = montoPagado;
+        this.medio = medio;
+        this.numeroOperacion = numeroOperacion == null ? "" : numeroOperacion;
+        this.fechaHoraOperacion = fechaHoraOperacion;
+        this.fechaHoraRegistro = fechaHoraRegistro;
+        this.rutaComprobantePago = rutaComprobantePago;
+        this.comprobante = comprobante == null ? "" : comprobante;
+        this.estado = estado;
+        this.fechaAnulacion = fechaAnulacion;
+        this.motivoAnulacion = motivoAnulacion;
+        this.responsableAnulacion = responsableAnulacion;
+    }
+
+    public static Pago reconstruir(Solicitud solicitud, ConceptoPago concepto,
+            Matricula matricula, double montoPagado, MedioPago medio, String numeroOperacion,
+            LocalDateTime fechaHoraOperacion, LocalDateTime fechaHoraRegistro,
+            String rutaComprobantePago, String comprobante, EstadoPago estado,
+            LocalDateTime fechaAnulacion, String motivoAnulacion, String responsableAnulacion)
+            throws DatoInvalidoException {
+        if (solicitud == null || concepto == null || medio == null || estado == null
+                || fechaHoraOperacion == null || fechaHoraRegistro == null
+                || rutaComprobantePago == null) {
+            throw new DatoInvalidoException("Datos de pago incompletos para reconstruir.");
+        }
+        return new Pago(solicitud, concepto, matricula, montoPagado, medio, numeroOperacion,
+                fechaHoraOperacion, fechaHoraRegistro, rutaComprobantePago, comprobante, estado,
+                fechaAnulacion, motivoAnulacion, responsableAnulacion);
+    }
+
     private static String numeroOperacion(MedioPago medio, String numero)
             throws DatoInvalidoException {
         if (medio != MedioPago.EFECTIVO) {

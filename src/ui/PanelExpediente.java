@@ -67,6 +67,7 @@ public class PanelExpediente extends JPanel {
     private final ArregloSolicitudes solicitudes;
     private final ArregloEntrevistas entrevistas;
     private final ArregloMatriculas matriculas;
+    private final Runnable guardar;
 
     private Solicitud actual;
 
@@ -115,11 +116,12 @@ public class PanelExpediente extends JPanel {
     private final JButton botonResultado = Estilos.botonPrimario("Registrar resultado");
 
     public PanelExpediente(ArregloSolicitudes solicitudes, ArregloEntrevistas entrevistas,
-            ArregloMatriculas matriculas) {
+            ArregloMatriculas matriculas, Runnable guardar) {
         super(new BorderLayout(0, 20));
         this.solicitudes = solicitudes;
         this.entrevistas = entrevistas;
         this.matriculas = matriculas;
+        this.guardar = guardar;
         setBorder(Estilos.MARGEN_PANTALLA);
 
         add(crearEncabezado(), BorderLayout.NORTH);
@@ -385,6 +387,7 @@ public class PanelExpediente extends JPanel {
         boolean otraSolicitud = solicitud != actual;
         actual = solicitud;
         revisarVencimientos();
+        guardar();
         refrescar();
         if (otraSolicitud) {
             SwingUtilities.invokeLater(() -> desplazable.getViewport()
@@ -402,6 +405,13 @@ public class PanelExpediente extends JPanel {
             }
         } catch (ReglaDominioException e) {
             mostrarMensaje(e.getMessage(), true);
+        }
+    }
+
+    // El barrido puede mutar estado: se graba aunque la acción del Personal luego se rechace.
+    private void guardar() {
+        if (guardar != null) {
+            guardar.run();
         }
     }
 
@@ -776,6 +786,7 @@ public class PanelExpediente extends JPanel {
 
     private void ejecutar(Accion accion, String exito) {
         revisarVencimientos();
+        guardar();
         if (!actual.estaActiva()) {
             refrescar();
             mostrarMensaje("La solicitud ya está " + actual.getEstado()
@@ -784,6 +795,7 @@ public class PanelExpediente extends JPanel {
         }
         try {
             accion.ejecutar();
+            guardar();
             mostrarMensaje(exito, false);
             campoFechaDocumento.setText(Reloj.porDefecto().now().format(FORMATO_FECHA));
         } catch (ReglaDominioException e) {

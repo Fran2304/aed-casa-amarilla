@@ -20,12 +20,14 @@ import modelo.DatoInvalidoException;
 public class PanelCuotas extends JPanel {
 
     private final ConfiguracionCuotas cuotas;
+    private final Runnable guardar;
     private final JTextField campoInscripcion = new JTextField(10);
     private final JTextField campoMatricula = new JTextField(10);
     private final JLabel mensaje = new JLabel(" ");
 
-    public PanelCuotas(ConfiguracionCuotas cuotas) {
+    public PanelCuotas(ConfiguracionCuotas cuotas, Runnable guardar) {
         this.cuotas = cuotas;
+        this.guardar = guardar;
         setLayout(new BorderLayout());
         setBorder(BorderFactory.createEmptyBorder(32, 32, 32, 34));
 
@@ -89,6 +91,9 @@ public class PanelCuotas extends JPanel {
         } catch (DatoInvalidoException e) {
             mostrarMensaje(e.getMessage(), true);
             return;
+        }
+        if (guardar != null) {
+            guardar.run();
         }
         mostrarCuotasActuales();
         mostrarMensaje("Cuotas guardadas.", false);

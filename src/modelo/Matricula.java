@@ -13,7 +13,7 @@ public class Matricula {
     private final Aula aula;
     private EstadoMatricula estado;
     private final LocalDateTime fechaHoraCreacion;
-    private final LocalDateTime vencimientoPagoOriginal;
+    private LocalDateTime vencimientoPagoOriginal;
     private LocalDateTime fechaCancelacion;
     private String motivoCancelacion;
     private String responsableCancelacion;
@@ -33,6 +33,26 @@ public class Matricula {
         }
         this.fechaHoraCreacion = fechaHoraCreacion;
         this.vencimientoPagoOriginal = fechaHoraCreacion.plusHours(HORAS_PAGO_MATRICULA);
+    }
+
+    // Reconstruye una matrícula desde el estado persistido, sin exigir el orden de las
+    // transiciones (issue #33). El vencimiento original se restaura tal cual se guardó.
+    public static Matricula reconstruir(int numMatricula, Solicitud solicitud,
+            EstadoMatricula estado, LocalDateTime fechaHoraCreacion,
+            LocalDateTime vencimientoPagoOriginal, LocalDateTime fechaCancelacion,
+            String motivoCancelacion, String responsableCancelacion)
+            throws DatoInvalidoException {
+        if (solicitud == null || estado == null || fechaHoraCreacion == null
+                || vencimientoPagoOriginal == null) {
+            throw new DatoInvalidoException("Datos de matrícula incompletos para reconstruir.");
+        }
+        Matricula matricula = new Matricula(numMatricula, solicitud, fechaHoraCreacion);
+        matricula.estado = estado;
+        matricula.vencimientoPagoOriginal = vencimientoPagoOriginal;
+        matricula.fechaCancelacion = fechaCancelacion;
+        matricula.motivoCancelacion = motivoCancelacion;
+        matricula.responsableCancelacion = responsableCancelacion;
+        return matricula;
     }
 
     public boolean estaVigente() {

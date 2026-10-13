@@ -4,6 +4,7 @@ import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,6 +18,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 
+import datos.Almacen;
 import datos.ArregloAlumnos;
 import datos.ArregloApoderados;
 import datos.ArregloAulas;
@@ -40,14 +42,15 @@ public class PrincipalUI extends JFrame {
     private final CardLayout tarjetas = new CardLayout();
     private final JPanel panelCentral = new JPanel(tarjetas);
     private final List<BotonMenu> botonesMenu = new ArrayList<>();
-    private final ArregloAulas aulas = new ArregloAulas();
-    private final ArregloSolicitudes solicitudes = new ArregloSolicitudes();
-    private final ArregloAlumnos alumnos = new ArregloAlumnos();
-    private final ArregloApoderados apoderados = new ArregloApoderados();
-    private final ConfiguracionCuotas cuotas = new ConfiguracionCuotas();
-    private final ArregloPagos pagos = new ArregloPagos();
-    private final ArregloEntrevistas entrevistas = new ArregloEntrevistas();
-    private final ArregloMatriculas matriculas = new ArregloMatriculas();
+    private final Almacen almacen = new Almacen();
+    private final ArregloAlumnos alumnos = almacen.getAlumnos();
+    private final ArregloApoderados apoderados = almacen.getApoderados();
+    private final ArregloAulas aulas = almacen.getAulas();
+    private final ArregloSolicitudes solicitudes = almacen.getSolicitudes();
+    private final ConfiguracionCuotas cuotas = almacen.getCuotas();
+    private final ArregloPagos pagos = almacen.getPagos();
+    private final ArregloEntrevistas entrevistas = almacen.getEntrevistas();
+    private final ArregloMatriculas matriculas = almacen.getMatriculas();
 
     public PrincipalUI() {
         super("La Casa Amarilla · Matrícula 2027");
@@ -56,6 +59,17 @@ public class PrincipalUI extends JFrame {
         setLocationRelativeTo(null);
         setExtendedState(JFrame.MAXIMIZED_BOTH);
 
+        // Cargar antes del barrido: los plazos corren con la app cerrada (§4.8).
+        try {
+            almacen.cargar();
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this,
+                    "No se pudieron cargar los datos guardados; la aplicación no se iniciará.\n"
+                            + e.getMessage(),
+                    "Error al cargar los datos", JOptionPane.ERROR_MESSAGE);
+            throw new IllegalStateException("No se pudieron cargar los datos al iniciar.", e);
+        }
+
         revisarVencimientos();
 
         setLayout(new BorderLayout());
@@ -63,10 +77,14 @@ public class PrincipalUI extends JFrame {
         add(crearLateral(), BorderLayout.WEST);
         add(crearCentro(), BorderLayout.CENTER);
 
+        // Barrido global y grabado del resultado (decisiones 10 y 11): las mutaciones del
+        // barrido se persisten aunque no haya una operación del Personal en curso.
         try {
-            Vencimientos.barrer(Reloj.porDefecto(), aulas, solicitudes, matriculas, pagos, cuotas);
-        } catch (Exception e) {
-            throw new IllegalStateException("No se pudieron procesar los vencimientos al iniciar.", e);
+            barrerYGrabar(almacen);
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this,
+                    "No se pudo guardar los datos: " + e.getMessage(),
+                    "Error al guardar", JOptionPane.ERROR_MESSAGE);
         }
         mostrar(SOLICITUDES);
     }
@@ -96,6 +114,20 @@ public class PrincipalUI extends JFrame {
         String mensaje = problema;
         SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, mensaje,
                 "Revisión de vencimientos", JOptionPane.WARNING_MESSAGE));
+    }
+
+    // Barrido global de arranque seguido de grabado (decisión 10): las mutaciones del barrido
+    // (habilitaciones vencidas, matrículas canceladas, solicitudes reingresadas) se persisten
+    // aunque no haya una operación del Personal. Estático para poder comprobarlo en pruebas
+    // headless sin construir la ventana (JFrame no se puede crear sin display).
+    public static void barrerYGrabar(Almacen almacen) throws IOException {
+        try {
+            Vencimientos.barrer(Reloj.porDefecto(), almacen.getAulas(), almacen.getSolicitudes(),
+                    almacen.getMatriculas(), almacen.getPagos(), almacen.getCuotas());
+        } catch (Exception e) {
+            throw new IllegalStateException("No se pudieron procesar los vencimientos al iniciar.", e);
+        }
+        almacen.grabar();
     }
 
     public ArregloAulas getAulas() {
@@ -178,13 +210,28 @@ public class PrincipalUI extends JFrame {
     }
 
     private JPanel crearCentro() {
-        agregarPanel(new PanelSolicitudes(aulas, solicitudes, alumnos, apoderados, matriculas),
-                SOLICITUDES);
-        agregarPanel(new PanelColas(aulas, solicitudes, entrevistas, matriculas), COLAS);
-        agregarPanel(new PanelExpediente(solicitudes, entrevistas, matriculas), EXPEDIENTE);
-        agregarPanel(new PanelPagos(solicitudes, pagos, matriculas, cuotas), PAGOS);
-        agregarPanel(new PanelCuotas(cuotas), CUOTAS);
+        Runnable guardar = guardarCambios();
+        agregarPanel(new PanelSolicitudes(aulas, solicitudes, alumnos, apoderados, matriculas,
+                guardar), SOLICITUDES);
+        agregarPanel(new PanelColas(aulas, solicitudes, entrevistas, matriculas, guardar), COLAS);
+        agregarPanel(new PanelExpediente(solicitudes, entrevistas, matriculas, guardar),
+                EXPEDIENTE);
+        agregarPanel(new PanelPagos(solicitudes, pagos, matriculas, cuotas, guardar), PAGOS);
+        agregarPanel(new PanelCuotas(cuotas, guardar), CUOTAS);
         return panelCentral;
+    }
+
+    // Un fallo de grabado se informa sin ocultar la operación ya aplicada en memoria (decisión 11).
+    private Runnable guardarCambios() {
+        return () -> {
+            try {
+                almacen.grabar();
+            } catch (IOException e) {
+                JOptionPane.showMessageDialog(this,
+                        "No se pudo guardar los datos: " + e.getMessage(),
+                        "Error al guardar", JOptionPane.ERROR_MESSAGE);
+            }
+        };
     }
 
     private void agregarPanel(JPanel panel, String nombrePanel) {

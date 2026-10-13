@@ -4,6 +4,7 @@ import java.awt.GraphicsEnvironment;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -12,6 +13,7 @@ import javax.swing.SwingUtilities;
 
 import datos.ArregloAlumnos;
 import datos.ArregloApoderados;
+import datos.Almacen;
 import modelo.Alumno;
 import modelo.Aula;
 import modelo.Apoderado;
@@ -36,6 +38,7 @@ import negocio.Vacantes;
 import datos.ArregloMatriculas;
 import datos.ArregloPagos;
 import datos.ArregloSolicitudes;
+import datos.EscrituraCsv;
 import ui.PrincipalUI;
 
 // TODO: Archivo temporal solo para pruebas; se eliminará más adelante.
@@ -54,6 +57,8 @@ public class PruebaPagos {
             }
         }
         SwingUtilities.invokeLater(() -> {
+            // La demo gráfica nunca toca el directorio datos/ de producción.
+            apuntarADirectorioTemporal();
             PrincipalUI ventana = new PrincipalUI();
             Solicitud casoExpediente;
             try {
@@ -411,6 +416,20 @@ public class PruebaPagos {
                 solicitudes, matriculas, pagos), "overflow de cola rechazado atómicamente");
         comprobar(pagoOverflow.estaConfirmado() && overflow.getEstado() == EstadoSolicitud.EN_DOCUMENTACION,
                 "overflow no muta el pago ni la solicitud");
+
+        probarPersistenciaIdaYVuelta();
+        probarVencimientoAlReabrir();
+        probarRechazoSinMutacionNoCambiaArchivos();
+        probarRechazoConBarridoPersiste();
+        probarCargaRechazaMatriculaColgante();
+        probarCargaRechazaMatriculaSinNumero();
+        probarCargaRechazaOfertaHuerfana();
+        probarCargaRechazaEntrevistaDuplicada();
+        probarCargaRechazaDocumentoDuplicado();
+        probarArranqueGrabaBarrido();
+        probarPanelSolicitudesGrabaBarrido();
+        probarPanelColasGrabaBarrido();
+        probarRecalcularSinVencimientosNoEscribe();
 
         javafxSafeUiAssertion(pagoInscripcion);
     }
@@ -974,7 +993,7 @@ public class PruebaPagos {
                         vigente.fechaOferta, solicitudes, matriculas);
                 Matricula matricula = matriculas.vigenteDe(vigente.solicitud);
 
-                ui.PanelPagos panel = new ui.PanelPagos(solicitudes, pagos, matriculas, cuotas);
+                ui.PanelPagos panel = new ui.PanelPagos(solicitudes, pagos, matriculas, cuotas, null);
                 ui.TarjetasPago tarjetas =
                         (ui.TarjetasPago) campoPrivado(panel, "tarjetasMatricula");
                 comprobar(campoPrivado(panel, "actual") == null
@@ -1597,7 +1616,7 @@ public class PruebaPagos {
                 pago.confirmar();
                 pagos.agregar(pago);
                 solicitud.confirmarInscripcion(ahora.minusMinutes(10));
-                ui.PanelPagos panel = new ui.PanelPagos(solicitudes, pagos, matriculas, cuotas);
+                ui.PanelPagos panel = new ui.PanelPagos(solicitudes, pagos, matriculas, cuotas, null);
                 elegirEnPagos(panel, solicitud);
                 ui.TarjetasPago tarjetas = (ui.TarjetasPago) campoPrivado(panel, "tarjetas");
                 ((javax.swing.JTextField) campoPrivado(tarjetas, "campoMotivoAnulacion"))
@@ -1666,7 +1685,7 @@ public class PruebaPagos {
                 pagosExpirados.agregar(pagoExpirado);
                 expirada.confirmarInscripcion(expiradaAhora.minusHours(2));
                 ui.PanelPagos panelExpirado = new ui.PanelPagos(solicitudesExpiradas,
-                        pagosExpirados, matriculasExpiradas, cuotas);
+                        pagosExpirados, matriculasExpiradas, cuotas, null);
                 elegirEnPagos(panelExpirado, expirada);
                 ui.TarjetasPago tarjetasExpirada = (ui.TarjetasPago) campoPrivado(panelExpirado,
                         "tarjetas");
@@ -1722,7 +1741,7 @@ public class PruebaPagos {
                 Snapshot falloAntes = snapshot(pagoFallo, solicitudFallo, matriculaFallo,
                         solicitudesFallo, matriculasFallo, pagosFallo);
                 ui.PanelPagos panelFallo = new ui.PanelPagos(solicitudesFallo, pagosFallo,
-                        matriculasFallo, cuotas);
+                        matriculasFallo, cuotas, null);
                 elegirEnPagos(panelFallo, solicitudFallo);
                 // Con matrícula vigente, elegir la solicitud abre la vista de matrícula: la
                 // anulación de la inscripción ya no se ofrece ahí (la guarda de dominio se
@@ -1760,7 +1779,7 @@ public class PruebaPagos {
                 solicitud.confirmarInscripcion(confirmacion);
 
                 ui.PanelPagos panel = new ui.PanelPagos(solicitudes, pagos, matriculas,
-                        new ConfiguracionCuotas());
+                        new ConfiguracionCuotas(), null);
                 elegirEnPagos(panel, solicitud);
 
                 comprobar(solicitud.getEstado() == EstadoSolicitud.CANCELADA
@@ -2221,7 +2240,7 @@ public class PruebaPagos {
                 }
 
                 ui.PanelExpediente panel = new ui.PanelExpediente(solicitudes,
-                        new datos.ArregloEntrevistas(), new ArregloMatriculas());
+                        new datos.ArregloEntrevistas(), new ArregloMatriculas(), null);
                 comprobar(textoEstadoEntrevista(panel).equals("BLOQUEADA · 1 observado"),
                         "con el carné observado la entrevista está BLOQUEADA");
 
@@ -2325,7 +2344,7 @@ public class PruebaPagos {
                 anterior.confirmarInscripcion(ahora);
 
                 ui.PanelSolicitudes panel = new ui.PanelSolicitudes(aulas, solicitudes, alumnos,
-                        apoderados, matriculas);
+                        apoderados, matriculas, null);
                 ((javax.swing.JTextField) campoPrivado(panel, "campoDni")).setText("70123456");
                 ((javax.swing.JComboBox<?>) campoPrivado(panel, "comboAula"))
                         .setSelectedItem(girasoles);
@@ -2363,7 +2382,7 @@ public class PruebaPagos {
                         despues.minusHours(1), conMatricula, pendientes);
 
                 ui.PanelSolicitudes conCupo = new ui.PanelSolicitudes(aulas, conMatricula,
-                        new ArregloAlumnos(), new ArregloApoderados(), pendientes);
+                        new ArregloAlumnos(), new ArregloApoderados(), pendientes, null);
                 ((javax.swing.JComboBox<?>) campoPrivado(conCupo, "comboAula"))
                         .setSelectedItem(chica);
                 javax.swing.JLabel vacantes = (javax.swing.JLabel) campoPrivado(conCupo,
@@ -2371,7 +2390,9 @@ public class PruebaPagos {
                 comprobar(vacantes.getText().startsWith("Sin vacantes"),
                         "la matrícula pendiente ocupa la única vacante");
                 Reloj.porDefecto().fijar(despues.plusHours(72));
-                invocarPrivado(conCupo, "recalcular");
+                // El barrido muta estado solo en los bordes no-tecla (aquí, antes de guardar);
+                // la tecla (recalcular) no barre. Guardar barre, graba y recalcula la vacante.
+                invocarPrivado(conCupo, "guardar");
                 comprobar(vacantes.getText().startsWith("1 disponible"),
                         "la matrícula vencida con la pantalla abierta libera la vacante");
             } catch (Exception e) {
@@ -2397,7 +2418,7 @@ public class PruebaPagos {
                 vencida.confirmarInscripcion(ahora.minusDays(9));
 
                 new ui.PanelExpediente(solicitudes, new datos.ArregloEntrevistas(),
-                        new ArregloMatriculas());
+                        new ArregloMatriculas(), null);
 
                 comprobar(vencida.getEstado() == EstadoSolicitud.CANCELADA
                         && "Sistema".equals(vencida.getResponsableCancelacion()),
@@ -2414,7 +2435,7 @@ public class PruebaPagos {
                         listaDe("Ana Ruiz"), "Ana Ruiz");
 
                 ui.PanelExpediente panel = new ui.PanelExpediente(conCita, entrevistas,
-                        new ArregloMatriculas());
+                        new ArregloMatriculas(), null);
 
                 String motivoTarjeta = ((javax.swing.JLabel) campoPrivado(panel,
                         "motivoEntrevista")).getText();
@@ -2725,6 +2746,783 @@ public class PruebaPagos {
         comprobar(matriculaBorde.getEstado() == EstadoMatricula.CANCELADA
                 && Vacantes.calcular(aulaBorde, matriculasBorde) == 1,
                 "borde pre-vacantes barre matrícula antes de calcular la cola");
+    }
+
+    private static void probarPersistenciaIdaYVuelta() throws Exception {
+        File directorio = Files.createTempDirectory("casaamarilla-rt").toFile();
+        System.setProperty("casaamarilla.datos", directorio.getAbsolutePath());
+        Reloj reloj = Reloj.porDefecto();
+        LocalDateTime base = LocalDateTime.of(2026, 10, 8, 10, 0);
+        reloj.fijar(base);
+
+        Almacen origen = new Almacen();
+        origen.getCuotas().setCuotas(200, 900);
+        Aula aula = origen.getAulas().buscar("AUL-01");
+        ArregloSolicitudes solicitudes = origen.getSolicitudes();
+        ArregloMatriculas matriculas = origen.getMatriculas();
+        ArregloPagos pagos = origen.getPagos();
+
+        // (b) solicitud en cola conserva su fecha de ingreso original.
+        Solicitud enCola = solicitud(origen, aula, "RT-QUEUE", "70000001", "80000001", "Mía",
+                base.minusDays(4));
+        enCola.ingresarAColaSinPago(base.minusDays(2));
+        LocalDateTime fechaColaOriginal = enCola.getFechaIngresoCola();
+
+        // EN_DOCUMENTACION con documentos y una observación con caracteres peligrosos.
+        String observacion = "Ilegible; coma, salto\nde línea y barra \\ final";
+        Solicitud enDoc = solicitud(origen, aula, "RT-DOC", "70000002", "80000002", "Sofía",
+                base.minusDays(4));
+        enDoc.habilitarParaPago(base.minusHours(6));
+        pagos.agregar(pagoInscripcion(enDoc, base.minusHours(5), base.minusHours(4),
+                origen.getCuotas()));
+        enDoc.confirmarInscripcion(base.minusHours(4));
+        for (modelo.Documento d : enDoc.getExpediente().getDocumentos()) {
+            d.registrarEntrega(base.minusHours(3));
+            if (d.getTipo() == modelo.TipoDocumento.CARNE_VACUNAS) {
+                d.observar(observacion, base.minusHours(2));
+            } else {
+                d.validar();
+            }
+        }
+        LocalDateTime confirmacionDoc = enDoc.getFechaConfirmacionInscripcion();
+
+        // EN_ESPERA_FAVORABLE con ofertas, inicioCicloOfertas y matrícula PENDIENTE_PAGO.
+        Solicitud favorable = solicitud(origen, aula, "RT-FAV", "70000003", "80000003", "Eva",
+                base.minusDays(4));
+        favorable.habilitarParaPago(base.minusHours(8));
+        pagos.agregar(pagoInscripcion(favorable, base.minusHours(7), base.minusHours(6),
+                origen.getCuotas()));
+        favorable.confirmarInscripcion(base.minusHours(6));
+        for (modelo.Documento d : favorable.getExpediente().getDocumentos()) {
+            d.registrarEntrega(base.minusHours(5));
+            d.validar();
+        }
+        favorable.ingresarAColaFavorable(base.minusHours(4));
+        favorable.registrarOferta(new Oferta(base.minusHours(3), "Personal de admisión", false));
+        Matricula matPendiente = matriculas.registrar(favorable, base.minusHours(2));
+        favorable.ingresarAColaFavorable(base.minusHours(1));
+        favorable.registrarOferta(new Oferta(base.minusMinutes(30), "Personal de admisión", true));
+        int inicioCiclo = favorable.getInicioCicloOfertas();
+        LocalDateTime fechaIngresoFavorable = favorable.getFechaIngresoCola();
+
+        // Matrícula ACTIVA con pago de matrícula confirmado.
+        Solicitud activaSolicitud = solicitud(origen, aula, "RT-ACT", "70000004", "80000004",
+                "Ana", base.minusDays(4));
+        activaSolicitud.habilitarParaPago(base.minusHours(10));
+        pagos.agregar(pagoInscripcion(activaSolicitud, base.minusHours(9), base.minusHours(8),
+                origen.getCuotas()));
+        activaSolicitud.confirmarInscripcion(base.minusHours(8));
+        for (modelo.Documento d : activaSolicitud.getExpediente().getDocumentos()) {
+            d.registrarEntrega(base.minusHours(7));
+            d.validar();
+        }
+        activaSolicitud.ingresarAColaFavorable(base.minusHours(6));
+        Matricula matActiva = matriculas.registrar(activaSolicitud, base.minusHours(6));
+        pagos.agregar(pagoMatriculaConfirmado(activaSolicitud, matActiva, base.minusHours(5),
+                base.minusHours(4), origen.getCuotas()));
+        matActiva.activar();
+
+        // Solicitud CANCELADA con auditoría.
+        Solicitud cancelada = solicitud(origen, aula, "RT-CANC", "70000005", "80000005", "Leo",
+                base.minusDays(10));
+        cancelada.habilitarParaPago(base.minusDays(9).minusHours(2));
+        pagos.agregar(pagoInscripcion(cancelada, base.minusDays(9).minusHours(1),
+                base.minusDays(9), origen.getCuotas()));
+        cancelada.confirmarInscripcion(base.minusDays(9));
+        cancelada.cancelarPorDocumentacion(base.minusDays(1).toLocalDate().atStartOfDay(),
+                "Venció el plazo documental", "Sistema");
+
+        // Matrícula CANCELADA con auditoría.
+        Solicitud matCanceladaSol = solicitud(origen, aula, "RT-MATCANC", "70000006", "80000006",
+                "Rosa", base.minusDays(4));
+        matCanceladaSol.habilitarParaPago(base.minusHours(12));
+        pagos.agregar(pagoInscripcion(matCanceladaSol, base.minusHours(11), base.minusHours(10),
+                origen.getCuotas()));
+        matCanceladaSol.confirmarInscripcion(base.minusHours(10));
+        for (modelo.Documento d : matCanceladaSol.getExpediente().getDocumentos()) {
+            d.registrarEntrega(base.minusHours(9));
+            d.validar();
+        }
+        matCanceladaSol.ingresarAColaFavorable(base.minusHours(8));
+        Matricula matCancelada = matriculas.registrar(matCanceladaSol, base.minusHours(8));
+        matCancelada.cancelar(base.minusHours(7), "Cancelada por prueba", "Personal de caja");
+
+        // Pago ANULADO con auditoría y comprobante.
+        Solicitud pagoAnuladoSol = solicitud(origen, aula, "RT-ANUL", "70000007", "80000007",
+                "Noa", base.minusDays(4));
+        pagoAnuladoSol.habilitarParaPago(base.minusHours(14));
+        Pago pagoAnulado = pagoInscripcion(pagoAnuladoSol, base.minusHours(13),
+                base.minusHours(12), origen.getCuotas());
+        pagoAnulado.registrarComprobante("123456");
+        pagos.agregar(pagoAnulado);
+        pagoAnulado.anular("Error de registro", "Personal de caja", base.minusHours(11));
+
+        // Entrevista agendada con asistencia y realizada (sin resultado: queda EN_DOCUMENTACION).
+        Solicitud entrevistaSol = solicitud(origen, aula, "RT-ENT", "70000008", "80000008",
+                "Lucía", base.minusDays(4));
+        entrevistaSol.habilitarParaPago(base.minusHours(16));
+        pagos.agregar(pagoInscripcion(entrevistaSol, base.minusHours(15), base.minusHours(14),
+                origen.getCuotas()));
+        entrevistaSol.confirmarInscripcion(base.minusHours(14));
+        for (modelo.Documento d : entrevistaSol.getExpediente().getDocumentos()) {
+            d.registrarEntrega(base.minusHours(13));
+            d.validar();
+        }
+        modelo.Entrevista entrevista = origen.getEntrevistas().agendar(entrevistaSol,
+                entrevistaSol.getExpediente(), base.plusDays(1),
+                listaDe("Ana Ruiz", "Luis Ramos"), "Ana Ruiz");
+        entrevista.registrarAsistencia();
+        entrevista.marcarRealizada();
+
+        int cantidadPagos = pagos.listar().size();
+        int cantidadSolicitudes = solicitudes.listar().size();
+        int cantidadMatriculas = matriculas.listar().size();
+        origen.grabar();
+
+        // "Cerrar" = descartar las colecciones y recargar en objetos nuevos.
+        Almacen recargado = new Almacen();
+        recargado.cargar();
+        comprobar(recargado.getApoderados().cantidad() == 8
+                && recargado.getAlumnos().cantidad() == 8,
+                "ida y vuelta conserva apoderados y alumnos con sus vínculos");
+        comprobar(recargado.getAulas().listar().size() == origen.getAulas().listar().size(),
+                "ida y vuelta conserva las aulas");
+        comprobar(recargado.getCuotas().getCuotaInscripcion() == 200
+                && recargado.getCuotas().getCuotaMatricula() == 900,
+                "ida y vuelta conserva las cuotas");
+        comprobar(recargado.getSolicitudes().listar().size() == cantidadSolicitudes
+                && recargado.getMatriculas().listar().size() == cantidadMatriculas
+                && recargado.getPagos().listar().size() == cantidadPagos,
+                "ida y vuelta conserva la cantidad de solicitudes, matrículas y pagos");
+
+        Solicitud colaRecargada = recargado.getSolicitudes().buscar("RT-QUEUE");
+        comprobar(colaRecargada != null && colaRecargada.estaEnColaSinPago()
+                && colaRecargada.getFechaIngresoCola().equals(fechaColaOriginal),
+                "la solicitud en cola conserva su cola y su fecha de ingreso original");
+
+        Solicitud docRecargada = recargado.getSolicitudes().buscar("RT-DOC");
+        modelo.Documento carne = docRecargada.getExpediente()
+                .getDocumento(modelo.TipoDocumento.CARNE_VACUNAS);
+        comprobar(docRecargada.getEstado() == EstadoSolicitud.EN_DOCUMENTACION
+                && docRecargada.getFechaConfirmacionInscripcion().equals(confirmacionDoc)
+                && carne.getEstado() == modelo.EstadoDocumento.OBSERVADO
+                && observacion.equals(carne.getObservacion()),
+                "ida y vuelta conserva expediente, documentos y observación con caracteres especiales");
+
+        Solicitud favRecargada = recargado.getSolicitudes().buscar("RT-FAV");
+        comprobar(favRecargada.getEstado() == EstadoSolicitud.EN_ESPERA_FAVORABLE
+                && favRecargada.getOfertas().size() == 2
+                && favRecargada.getInicioCicloOfertas() == inicioCiclo
+                && favRecargada.getFechaIngresoCola().equals(fechaIngresoFavorable)
+                && favRecargada.tieneOfertaAceptada(),
+                "ida y vuelta conserva ofertas, inicio de ciclo y cola favorable");
+
+        Matricula pendienteRecargada = recargado.getMatriculas().buscar(matPendiente.getNumMatricula());
+        comprobar(pendienteRecargada != null
+                && pendienteRecargada.getEstado() == EstadoMatricula.PENDIENTE_PAGO
+                && pendienteRecargada.getVencimientoPagoOriginal()
+                        .equals(matPendiente.getVencimientoPagoOriginal()),
+                "ida y vuelta conserva la matrícula pendiente con su vencimiento original");
+
+        Matricula activaRecargada = recargado.getMatriculas().buscar(matActiva.getNumMatricula());
+        comprobar(activaRecargada != null && activaRecargada.getEstado() == EstadoMatricula.ACTIVA
+                && recargado.getPagos().matriculaConfirmada(activaRecargada),
+                "ida y vuelta conserva la matrícula activa y su pago confirmado");
+
+        Solicitud canceladaRecargada = recargado.getSolicitudes().buscar("RT-CANC");
+        comprobar(canceladaRecargada.getEstado() == EstadoSolicitud.CANCELADA
+                && canceladaRecargada.getMotivoCancelacion().equals("Venció el plazo documental")
+                && "Sistema".equals(canceladaRecargada.getResponsableCancelacion())
+                && canceladaRecargada.getFechaCancelacion().equals(base.minusDays(1).toLocalDate().atStartOfDay()),
+                "ida y vuelta conserva la auditoría de cancelación de la solicitud");
+
+        Matricula matCanceladaRecargada = recargado.getMatriculas().buscar(matCancelada.getNumMatricula());
+        comprobar(matCanceladaRecargada.getEstado() == EstadoMatricula.CANCELADA
+                && matCanceladaRecargada.getMotivoCancelacion().equals("Cancelada por prueba")
+                && "Personal de caja".equals(matCanceladaRecargada.getResponsableCancelacion()),
+                "ida y vuelta conserva la auditoría de cancelación de la matrícula");
+
+        java.util.ArrayList<Pago> pagosRecargados = recargado.getPagos().listar();
+        Pago anuladoRecargado = null;
+        for (Pago pago : pagosRecargados) {
+            if (pago.getEstado() == modelo.EstadoPago.ANULADO) {
+                anuladoRecargado = pago;
+            }
+        }
+        comprobar(anuladoRecargado != null
+                && anuladoRecargado.getComprobante().equals("123456")
+                && anuladoRecargado.getMotivoAnulacion().equals("Error de registro")
+                && "Personal de caja".equals(anuladoRecargado.getResponsableAnulacion())
+                && anuladoRecargado.getFechaAnulacion().equals(base.minusHours(11)),
+                "ida y vuelta conserva la auditoría de anulación y el comprobante del pago");
+
+        modelo.Entrevista entrevistaRecargada = recargado.getEntrevistas().buscarDe(
+                recargado.getSolicitudes().buscar("RT-ENT"));
+        comprobar(entrevistaRecargada != null && entrevistaRecargada.isRealizada()
+                && Boolean.TRUE.equals(entrevistaRecargada.getAsistioApoderado())
+                && entrevistaRecargada.getPersonal().size() == 2
+                && "Ana Ruiz".equals(entrevistaRecargada.getResponsable())
+                && entrevistaRecargada.getResultado() == null,
+                "ida y vuelta conserva la entrevista con asistencia, personal y responsable");
+    }
+
+    private static void probarVencimientoAlReabrir() throws Exception {
+        File directorio = Files.createTempDirectory("casaamarilla-reabrir").toFile();
+        System.setProperty("casaamarilla.datos", directorio.getAbsolutePath());
+        Reloj reloj = Reloj.porDefecto();
+        LocalDateTime base = LocalDateTime.of(2026, 10, 8, 10, 0);
+        reloj.fijar(base);
+
+        Almacen origen = new Almacen();
+        Aula aula = origen.getAulas().buscar("AUL-01");
+
+        // Habilitación de 48 h que vence con la app cerrada.
+        Solicitud habilitada = solicitud(origen, aula, "RE-HAB", "70000021", "80000021", "Iván",
+                base.minusDays(3));
+        habilitada.habilitarParaPago(base);
+        LocalDateTime vencimientoHabilitacion = habilitada.getVencimientoHabilitacion();
+
+        // Matrícula de 72 h que vence con la app cerrada.
+        Solicitud matriculaSol = solicitud(origen, aula, "RE-MAT", "70000022", "80000022", "Pablo",
+                base.minusDays(3));
+        matriculaSol.habilitarParaPago(base.minusHours(2));
+        origen.getPagos().agregar(pagoInscripcion(matriculaSol, base.minusHours(1), base,
+                origen.getCuotas()));
+        matriculaSol.confirmarInscripcion(base);
+        for (modelo.Documento d : matriculaSol.getExpediente().getDocumentos()) {
+            d.registrarEntrega(base);
+            d.validar();
+        }
+        matriculaSol.ingresarAColaFavorable(base);
+        Matricula matricula = origen.getMatriculas().registrar(matriculaSol, base);
+        LocalDateTime vencimientoMatricula = matricula.getVencimientoPagoOriginal();
+        origen.grabar();
+
+        // La app estuvo cerrada: avanzar el reloj más allá de ambos plazos y reabrir.
+        reloj.avanzar(java.time.Duration.ofHours(80));
+        Almacen recargado = new Almacen();
+        recargado.cargar();
+        Vencimientos.barrer(reloj, recargado.getAulas(), recargado.getSolicitudes(),
+                recargado.getMatriculas(), recargado.getPagos(), recargado.getCuotas());
+
+        Solicitud habilitadaRecargada = recargado.getSolicitudes().buscar("RE-HAB");
+        comprobar(habilitadaRecargada.getVencimientoHabilitacionOriginal()
+                .equals(vencimientoHabilitacion)
+                && habilitadaRecargada.estaEnColaSinPago()
+                && habilitadaRecargada.getFechaIngresoCola().equals(vencimientoHabilitacion),
+                "la habilitación vencida con la app cerrada vuelve a la cola sin pago al reabrir");
+
+        Solicitud matriculaSolRecargada = recargado.getSolicitudes().buscar("RE-MAT");
+        Matricula matriculaRecargada = recargado.getMatriculas().buscar(matricula.getNumMatricula());
+        comprobar(matriculaRecargada.getVencimientoPagoOriginal().equals(vencimientoMatricula)
+                && matriculaRecargada.getEstado() == EstadoMatricula.CANCELADA
+                && Vencimientos.RESPONSABLE.equals(matriculaRecargada.getResponsableCancelacion())
+                && matriculaSolRecargada.getEstado() == EstadoSolicitud.EN_ESPERA_FAVORABLE
+                && matriculaSolRecargada.getFechaIngresoCola().equals(reloj.now()),
+                "la matrícula vencida con la app cerrada se cancela y devuelve la solicitud al reabrir");
+    }
+
+    private static void probarRechazoSinMutacionNoCambiaArchivos() throws Exception {
+        File directorio = Files.createTempDirectory("casaamarilla-nograba").toFile();
+        System.setProperty("casaamarilla.datos", directorio.getAbsolutePath());
+        Reloj reloj = Reloj.porDefecto();
+        LocalDateTime base = LocalDateTime.of(2026, 10, 8, 10, 0);
+        reloj.fijar(base);
+
+        Almacen almacen = new Almacen();
+        Aula aula = almacen.getAulas().buscar("AUL-01");
+        Solicitud objetivo = solicitud(almacen, aula, "NG-SOL", "70000031", "80000031", "Tito",
+                base.minusDays(3));
+        objetivo.habilitarParaPago(base.minusHours(2));
+        almacen.grabar();
+
+        java.nio.file.Path archivoSolicitudes = directorio.toPath().resolve("solicitudes.csv");
+        byte[] antes = Files.readAllBytes(archivoSolicitudes);
+
+        final RuntimeException[] failure = new RuntimeException[1];
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                Runnable guardar = () -> {
+                    try {
+                        almacen.grabar();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                };
+                ui.PanelPagos panel = new ui.PanelPagos(almacen.getSolicitudes(),
+                        almacen.getPagos(), almacen.getMatriculas(), almacen.getCuotas(), guardar);
+                elegirEnPagos(panel, objetivo);
+                // Rechazo sin mutación: monto que no coincide con la cuota vigente.
+                java.lang.reflect.Method confirmar = panel.getClass().getDeclaredMethod("confirmar",
+                        double.class, MedioPago.class, String.class, LocalDateTime.class,
+                        String.class);
+                confirmar.setAccessible(true);
+                confirmar.invoke(panel, 1.0, MedioPago.EFECTIVO, "",
+                        base.minusHours(1), "voucher-ng");
+            } catch (java.lang.reflect.InvocationTargetException e) {
+                // La excepción de dominio del rechazo viaja envuelta: es el resultado esperado.
+            } catch (Exception e) {
+                failure[0] = new RuntimeException(e);
+            }
+        });
+        if (failure[0] != null) {
+            throw failure[0];
+        }
+
+        comprobar(objetivo.getEstado() == EstadoSolicitud.HABILITADA_PARA_PAGO,
+                "un rechazo sin vencimientos no muta la solicitud");
+        byte[] despues = Files.readAllBytes(archivoSolicitudes);
+        comprobar(java.util.Arrays.equals(antes, despues),
+                "un rechazo sin mutaciones deja los archivos sin cambios");
+    }
+
+    private static void probarRechazoConBarridoPersiste() throws Exception {
+        File directorio = Files.createTempDirectory("casaamarilla-graba").toFile();
+        System.setProperty("casaamarilla.datos", directorio.getAbsolutePath());
+        Reloj reloj = Reloj.porDefecto();
+        LocalDateTime base = LocalDateTime.of(2026, 10, 8, 10, 0);
+        reloj.fijar(base);
+
+        Almacen almacen = new Almacen();
+        Aula aula = almacen.getAulas().buscar("AUL-01");
+        Solicitud vencida = solicitud(almacen, aula, "GB-MAT", "70000041", "80000041", "Iván",
+                base.minusDays(6));
+        vencida.habilitarParaPago(base.minusDays(6).minusHours(2));
+        almacen.getPagos().agregar(pagoInscripcion(vencida, base.minusDays(5), base.minusDays(5),
+                almacen.getCuotas()));
+        vencida.confirmarInscripcion(base.minusDays(5));
+        for (modelo.Documento d : vencida.getExpediente().getDocumentos()) {
+            d.registrarEntrega(base.minusDays(4));
+            d.validar();
+        }
+        vencida.ingresarAColaFavorable(base.minusDays(3));
+        Matricula matricula = almacen.getMatriculas().registrar(vencida, base.minusHours(72));
+        almacen.grabar();
+
+        final RuntimeException[] failure = new RuntimeException[1];
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                Runnable guardar = () -> {
+                    try {
+                        almacen.grabar();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                };
+                ui.PanelPagos panel = new ui.PanelPagos(almacen.getSolicitudes(),
+                        almacen.getPagos(), almacen.getMatriculas(), almacen.getCuotas(), guardar);
+                java.lang.reflect.Field campoMatricula = panel.getClass()
+                        .getDeclaredField("matriculaActual");
+                campoMatricula.setAccessible(true);
+                campoMatricula.set(panel, matricula);
+                java.lang.reflect.Method confirmarMatricula = panel.getClass().getDeclaredMethod(
+                        "confirmarMatricula", double.class, MedioPago.class, String.class,
+                        LocalDateTime.class, String.class);
+                confirmarMatricula.setAccessible(true);
+                confirmarMatricula.invoke(panel, almacen.getCuotas().getCuotaMatricula(),
+                        MedioPago.EFECTIVO, "", base.minusMinutes(1), "voucher-gb");
+            } catch (java.lang.reflect.InvocationTargetException e) {
+                // El rechazo por vencimiento es el resultado esperado.
+            } catch (Exception e) {
+                failure[0] = new RuntimeException(e);
+            }
+        });
+        if (failure[0] != null) {
+            throw failure[0];
+        }
+
+        comprobar(matricula.getEstado() == EstadoMatricula.CANCELADA,
+                "el barrido cancela la matrícula vencida antes del rechazo de la operación");
+        Almacen recargado = new Almacen();
+        recargado.cargar();
+        Matricula recargada = recargado.getMatriculas().buscar(matricula.getNumMatricula());
+        comprobar(recargada.getEstado() == EstadoMatricula.CANCELADA
+                && Vencimientos.MOTIVO_VENCIMIENTO.equals(recargada.getMotivoCancelacion())
+                && Vencimientos.RESPONSABLE.equals(recargada.getResponsableCancelacion()),
+                "el rechazo con barrido persiste la cancelación aplicada por el barrido");
+    }
+
+    private static void escribirLineas(File directorio, String nombre, String... lineas)
+            throws IOException {
+        Files.write(directorio.toPath().resolve(nombre), java.util.Arrays.asList(lineas),
+                java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    private static void escribirBasePersistencia(File directorio) throws IOException {
+        escribirLineas(directorio, "apoderados.csv",
+                EscrituraCsv.unir("80000001", "Apo", "Uno", "999111222"));
+        escribirLineas(directorio, "alumnos.csv",
+                EscrituraCsv.unir("202010001", "70000001", "Alumno", "Uno", "2022-06-18", ""));
+        escribirLineas(directorio, "vinculos.csv",
+                EscrituraCsv.unir("202010001", "80000001", "true"));
+    }
+
+    private static void escribirSolicitudSimple(File directorio) throws IOException {
+        escribirLineas(directorio, "solicitudes.csv",
+                EscrituraCsv.unir("SOL-1001", "202010001", "AUL-01", "2026-10-01T10:00",
+                        "EN_ESPERA_SIN_PAGO", "", "", "", "", "", "", "", "", "0"));
+    }
+
+    private static void escribirSolicitudConExpediente(File directorio) throws IOException {
+        escribirLineas(directorio, "solicitudes.csv",
+                EscrituraCsv.unir("SOL-1001", "202010001", "AUL-01", "2026-10-01T10:00",
+                        "EN_DOCUMENTACION", "", "", "", "", "", "", "", "2026-10-01", "0"));
+    }
+
+    private static void esperarIoException(String fragmento, AccionFalla accion,
+            String descripcion) throws Exception {
+        try {
+            accion.ejecutar();
+        } catch (IOException e) {
+            comprobar(e.getMessage() != null && e.getMessage().contains(fragmento),
+                    descripcion + ": mensaje inesperado: " + e.getMessage());
+            return;
+        }
+        throw new AssertionError(descripcion + ": se esperaba una IOException");
+    }
+
+    private static void probarCargaRechazaMatriculaColgante() throws Exception {
+        File directorio = Files.createTempDirectory("casaamarilla-mat-colg").toFile();
+        System.setProperty("casaamarilla.datos", directorio.getAbsolutePath());
+        escribirBasePersistencia(directorio);
+        escribirSolicitudSimple(directorio);
+        escribirLineas(directorio, "matriculas.csv",
+                EscrituraCsv.unir("100001", "SOL-1001", "PENDIENTE_PAGO",
+                        "2026-10-01T10:00", "2026-10-04T10:00", "", "", ""));
+        escribirLineas(directorio, "pagos.csv",
+                EscrituraCsv.unir("SOL-1001", "MATRICULA", "999999", "850.0", "EFECTIVO", "",
+                        "2026-10-02T10:00", "2026-10-02T11:00", "comprobante.png", "",
+                        "CONFIRMADO", "", "", ""));
+        esperarIoException("pagos.csv", () -> new Almacen().cargar(),
+                "numMatricula que no resuelve rechaza la carga");
+    }
+
+    private static void probarCargaRechazaMatriculaSinNumero() throws Exception {
+        File directorio = Files.createTempDirectory("casaamarilla-mat-sinnum").toFile();
+        System.setProperty("casaamarilla.datos", directorio.getAbsolutePath());
+        escribirBasePersistencia(directorio);
+        escribirSolicitudSimple(directorio);
+        escribirLineas(directorio, "pagos.csv",
+                EscrituraCsv.unir("SOL-1001", "MATRICULA", "", "850.0", "EFECTIVO", "",
+                        "2026-10-02T10:00", "2026-10-02T11:00", "comprobante.png", "",
+                        "CONFIRMADO", "", "", ""));
+        esperarIoException("pagos.csv", () -> new Almacen().cargar(),
+                "MATRICULA sin numMatricula rechaza la carga");
+    }
+
+    private static void probarCargaRechazaOfertaHuerfana() throws Exception {
+        File directorio = Files.createTempDirectory("casaamarilla-of-huerf").toFile();
+        System.setProperty("casaamarilla.datos", directorio.getAbsolutePath());
+        escribirBasePersistencia(directorio);
+        escribirSolicitudSimple(directorio);
+        escribirLineas(directorio, "ofertas.csv",
+                EscrituraCsv.unir("SOL-9999", "2026-10-02T10:00", "Personal", "true"));
+        esperarIoException("ofertas.csv", () -> new Almacen().cargar(),
+                "oferta con solicitud inexistente rechaza la carga");
+    }
+
+    private static void probarCargaRechazaEntrevistaDuplicada() throws Exception {
+        File directorio = Files.createTempDirectory("casaamarilla-ent-dup").toFile();
+        System.setProperty("casaamarilla.datos", directorio.getAbsolutePath());
+        escribirBasePersistencia(directorio);
+        escribirSolicitudConExpediente(directorio);
+        String fila = EscrituraCsv.unir("SOL-1001", "2026-10-02T10:00", "Ana", "Ana", "",
+                "false", "0", "");
+        escribirLineas(directorio, "entrevistas.csv", fila, fila);
+        esperarIoException("entrevistas.csv", () -> new Almacen().cargar(),
+                "entrevista duplicada por solicitud rechaza la carga");
+    }
+
+    private static void probarCargaRechazaDocumentoDuplicado() throws Exception {
+        File directorio = Files.createTempDirectory("casaamarilla-doc-dup").toFile();
+        System.setProperty("casaamarilla.datos", directorio.getAbsolutePath());
+        escribirBasePersistencia(directorio);
+        escribirSolicitudConExpediente(directorio);
+        String fila = EscrituraCsv.unir("SOL-1001", "DNI_ALUMNO", "", "", "", "", "");
+        escribirLineas(directorio, "documentos.csv", fila, fila);
+        esperarIoException("documentos.csv", () -> new Almacen().cargar(),
+                "documento duplicado por (solicitud, tipo) rechaza la carga");
+    }
+
+    private static void probarArranqueGrabaBarrido() throws Exception {
+        File directorio = Files.createTempDirectory("casaamarilla-arranque").toFile();
+        System.setProperty("casaamarilla.datos", directorio.getAbsolutePath());
+        Reloj reloj = Reloj.porDefecto();
+        LocalDateTime base = LocalDateTime.of(2026, 10, 8, 10, 0);
+        reloj.fijar(base);
+
+        Almacen origen = new Almacen();
+        Aula aula = origen.getAulas().buscar("AUL-01");
+
+        // Habilitación de 48 h que vence con la app cerrada.
+        Solicitud habilitada = solicitud(origen, aula, "ARR-HAB", "70000101", "80000101", "Noa",
+                base.minusDays(3));
+        habilitada.habilitarParaPago(base);
+
+        // Matrícula de 72 h que vence con la app cerrada.
+        Solicitud matriculaSol = solicitud(origen, aula, "ARR-MAT", "70000102", "80000102", "Iván",
+                base.minusDays(3));
+        matriculaSol.habilitarParaPago(base.minusHours(2));
+        origen.getPagos().agregar(pagoInscripcion(matriculaSol, base.minusHours(1), base,
+                origen.getCuotas()));
+        matriculaSol.confirmarInscripcion(base);
+        for (modelo.Documento d : matriculaSol.getExpediente().getDocumentos()) {
+            d.registrarEntrega(base);
+            d.validar();
+        }
+        matriculaSol.ingresarAColaFavorable(base);
+        Matricula matricula = origen.getMatriculas().registrar(matriculaSol, base);
+        LocalDateTime vencimientoMatricula = matricula.getVencimientoPagoOriginal();
+        origen.grabar();
+
+        // La app estuvo cerrada: avanzar el reloj más allá de ambos plazos.
+        reloj.avanzar(java.time.Duration.ofHours(80));
+
+        // El arranque carga y luego barre y graba (lo que hace PrincipalUI al abrir).
+        Almacen recargado = new Almacen();
+        recargado.cargar();
+        PrincipalUI.barrerYGrabar(recargado);
+
+        // Reabrir en objetos nuevos: el barrido quedó grabado en los archivos.
+        Almacen reabierto = new Almacen();
+        reabierto.cargar();
+        Solicitud habilitadaRecargada = reabierto.getSolicitudes().buscar("ARR-HAB");
+        comprobar(habilitadaRecargada != null && habilitadaRecargada.estaEnColaSinPago(),
+                "el arranque graba el vencimiento de la habilitación");
+        Solicitud solRecargada = reabierto.getSolicitudes().buscar("ARR-MAT");
+        Matricula matriculaRecargada = reabierto.getMatriculas().buscar(matricula.getNumMatricula());
+        comprobar(matriculaRecargada.getVencimientoPagoOriginal().equals(vencimientoMatricula)
+                && matriculaRecargada.getEstado() == EstadoMatricula.CANCELADA
+                && Vencimientos.RESPONSABLE.equals(matriculaRecargada.getResponsableCancelacion())
+                && solRecargada.getEstado() == EstadoSolicitud.EN_ESPERA_FAVORABLE
+                && solRecargada.getFechaIngresoCola().equals(reloj.now()),
+                "el arranque graba la cancelación de la matrícula vencida y su reingreso");
+    }
+
+    private static void probarPanelSolicitudesGrabaBarrido() throws Exception {
+        File directorio = Files.createTempDirectory("casaamarilla-panel-solicitudes").toFile();
+        System.setProperty("casaamarilla.datos", directorio.getAbsolutePath());
+        Reloj reloj = Reloj.porDefecto();
+        LocalDateTime base = LocalDateTime.of(2026, 10, 8, 10, 0);
+        reloj.fijar(base);
+
+        Almacen origen = new Almacen();
+        Aula aula = origen.getAulas().buscar("AUL-01");
+        Solicitud matriculaSol = solicitud(origen, aula, "SOL-MAT", "70000201", "80000201", "Pablo",
+                base.minusDays(3));
+        matriculaSol.habilitarParaPago(base.minusHours(2));
+        origen.getPagos().agregar(pagoInscripcion(matriculaSol, base.minusHours(1), base,
+                origen.getCuotas()));
+        matriculaSol.confirmarInscripcion(base);
+        for (modelo.Documento d : matriculaSol.getExpediente().getDocumentos()) {
+            d.registrarEntrega(base);
+            d.validar();
+        }
+        matriculaSol.ingresarAColaFavorable(base);
+        Matricula matricula = origen.getMatriculas().registrar(matriculaSol, base);
+        origen.grabar();
+
+        reloj.avanzar(java.time.Duration.ofHours(80));
+
+        Almacen almacen = new Almacen();
+        almacen.cargar();
+        Matricula cargada = almacen.getMatriculas().buscar(matricula.getNumMatricula());
+
+        final RuntimeException[] failure = new RuntimeException[1];
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                Runnable guardar = () -> {
+                    try {
+                        almacen.grabar();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                };
+                // El constructor (borde no-tecla) barre y graba el resultado.
+                new ui.PanelSolicitudes(almacen.getAulas(), almacen.getSolicitudes(),
+                        almacen.getAlumnos(), almacen.getApoderados(), almacen.getMatriculas(),
+                        guardar);
+            } catch (Exception e) {
+                failure[0] = new RuntimeException(e);
+            }
+        });
+        if (failure[0] != null) {
+            throw failure[0];
+        }
+
+        comprobar(cargada.getEstado() == EstadoMatricula.CANCELADA,
+                "el panel barre la matrícula vencida al construirse");
+        Almacen reabierto = new Almacen();
+        reabierto.cargar();
+        Matricula persistida = reabierto.getMatriculas().buscar(matricula.getNumMatricula());
+        comprobar(persistida.getEstado() == EstadoMatricula.CANCELADA
+                && Vencimientos.RESPONSABLE.equals(persistida.getResponsableCancelacion()),
+                "el panel graba la cancelación del barrido");
+    }
+
+    private static void probarPanelColasGrabaBarrido() throws Exception {
+        File directorio = Files.createTempDirectory("casaamarilla-panel-colas").toFile();
+        System.setProperty("casaamarilla.datos", directorio.getAbsolutePath());
+        Reloj reloj = Reloj.porDefecto();
+        LocalDateTime base = LocalDateTime.of(2026, 10, 8, 10, 0);
+        reloj.fijar(base);
+
+        Almacen origen = new Almacen();
+        Aula aula = origen.getAulas().buscar("AUL-01");
+        Solicitud matriculaSol = solicitud(origen, aula, "COL-MAT", "70000301", "80000301", "Rosa",
+                base.minusDays(3));
+        matriculaSol.habilitarParaPago(base.minusHours(2));
+        origen.getPagos().agregar(pagoInscripcion(matriculaSol, base.minusHours(1), base,
+                origen.getCuotas()));
+        matriculaSol.confirmarInscripcion(base);
+        for (modelo.Documento d : matriculaSol.getExpediente().getDocumentos()) {
+            d.registrarEntrega(base);
+            d.validar();
+        }
+        matriculaSol.ingresarAColaFavorable(base);
+        Matricula matricula = origen.getMatriculas().registrar(matriculaSol, base);
+        origen.grabar();
+
+        reloj.avanzar(java.time.Duration.ofHours(80));
+
+        Almacen almacen = new Almacen();
+        almacen.cargar();
+        Matricula cargada = almacen.getMatriculas().buscar(matricula.getNumMatricula());
+
+        final RuntimeException[] failure = new RuntimeException[1];
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                Runnable guardar = () -> {
+                    try {
+                        almacen.grabar();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                };
+                ui.PanelColas panel = new ui.PanelColas(almacen.getAulas(),
+                        almacen.getSolicitudes(), almacen.getEntrevistas(),
+                        almacen.getMatriculas(), guardar);
+                // componentShown ejecuta actualizar() → revisarTurnos(): barrido + grabado.
+                java.lang.reflect.Method actualizar = panel.getClass().getDeclaredMethod("actualizar");
+                actualizar.setAccessible(true);
+                actualizar.invoke(panel);
+            } catch (Exception e) {
+                failure[0] = new RuntimeException(e);
+            }
+        });
+        if (failure[0] != null) {
+            throw failure[0];
+        }
+
+        comprobar(cargada.getEstado() == EstadoMatricula.CANCELADA,
+                "el panel de colas barre la matrícula vencida al actualizarse");
+        Almacen reabierto = new Almacen();
+        reabierto.cargar();
+        Matricula persistida = reabierto.getMatriculas().buscar(matricula.getNumMatricula());
+        comprobar(persistida.getEstado() == EstadoMatricula.CANCELADA
+                && Vencimientos.RESPONSABLE.equals(persistida.getResponsableCancelacion()),
+                "el panel de colas graba la cancelación del barrido");
+    }
+
+    private static void probarRecalcularSinVencimientosNoEscribe() throws Exception {
+        File directorio = Files.createTempDirectory("casaamarilla-norecalcular").toFile();
+        System.setProperty("casaamarilla.datos", directorio.getAbsolutePath());
+        Reloj reloj = Reloj.porDefecto();
+        LocalDateTime base = LocalDateTime.of(2026, 10, 8, 10, 0);
+        reloj.fijar(base);
+
+        Almacen origen = new Almacen();
+        Aula aula = origen.getAulas().buscar("AUL-01");
+        // Habilitación reciente que no vence: el barrido no muta nada.
+        Solicitud fresca = solicitud(origen, aula, "SIN-VENC", "70000401", "80000401", "Lucía",
+                base.minusDays(1));
+        fresca.habilitarParaPago(base.minusHours(1));
+        origen.grabar();
+
+        Almacen almacen = new Almacen();
+        almacen.cargar();
+        java.nio.file.Path archivoSolicitudes = directorio.toPath().resolve("solicitudes.csv");
+
+        final RuntimeException[] failure = new RuntimeException[1];
+        final ui.PanelSolicitudes[] panelRef = new ui.PanelSolicitudes[1];
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                Runnable guardar = () -> {
+                    try {
+                        almacen.grabar();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                };
+                ui.PanelSolicitudes panel = new ui.PanelSolicitudes(almacen.getAulas(),
+                        almacen.getSolicitudes(), almacen.getAlumnos(), almacen.getApoderados(),
+                        almacen.getMatriculas(), guardar);
+                panelRef[0] = panel;
+            } catch (Exception e) {
+                failure[0] = new RuntimeException(e);
+            }
+        });
+        if (failure[0] != null) {
+            throw failure[0];
+        }
+
+        // El constructor (borde no-tecla) ya grabó: esa es la línea base.
+        byte[] antes = Files.readAllBytes(archivoSolicitudes);
+
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                // Camino de tecla: recalcular no barre ni graba.
+                java.lang.reflect.Method recalcular = panelRef[0].getClass().getDeclaredMethod(
+                        "recalcular");
+                recalcular.setAccessible(true);
+                recalcular.invoke(panelRef[0]);
+            } catch (Exception e) {
+                failure[0] = new RuntimeException(e);
+            }
+        });
+        if (failure[0] != null) {
+            throw failure[0];
+        }
+
+        byte[] despues = Files.readAllBytes(archivoSolicitudes);
+        comprobar(java.util.Arrays.equals(antes, despues),
+                "una tecla sin vencimientos no reescribe los archivos");
+    }
+
+    private static Solicitud solicitud(Almacen almacen, Aula aula, String codigo,
+            String dniAlumno, String dniApo, String nombres, LocalDateTime registro)
+            throws Exception {
+        Apoderado apo = almacen.getApoderados().registrar(dniApo, "Apoderado de", nombres,
+                "999111222");
+        Alumno alumno = almacen.getAlumnos().registrar(dniAlumno, nombres, "Apellido",
+                LocalDate.of(2022, 6, 18), null);
+        alumno.agregarApoderado(apo, true);
+        Solicitud solicitud = new Solicitud(codigo, alumno, aula, registro);
+        @SuppressWarnings("unchecked")
+        java.util.ArrayList<Solicitud> lista =
+                (java.util.ArrayList<Solicitud>) campoPrivado(almacen.getSolicitudes(),
+                        "solicitudes");
+        lista.add(solicitud);
+        return solicitud;
+    }
+
+    private static Pago pagoInscripcion(Solicitud solicitud, LocalDateTime operacion,
+            LocalDateTime registro, ConfiguracionCuotas cuotas) throws Exception {
+        Pago pago = new Pago(solicitud, ConceptoPago.INSCRIPCION, null,
+                cuotas.getCuotaInscripcion(), MedioPago.EFECTIVO, "", operacion, registro,
+                "comprobante-" + solicitud.getCodigo() + ".png", cuotas);
+        pago.confirmar();
+        return pago;
+    }
+
+    private static Pago pagoMatriculaConfirmado(Solicitud solicitud, Matricula matricula,
+            LocalDateTime operacion, LocalDateTime registro, ConfiguracionCuotas cuotas)
+            throws Exception {
+        Pago pago = new Pago(solicitud, ConceptoPago.MATRICULA, matricula,
+                cuotas.getCuotaMatricula(), MedioPago.YAPE, "YP-1234567", operacion, registro,
+                "comprobante-matricula.png", cuotas);
+        pago.confirmar();
+        return pago;
     }
 
     private static boolean contieneProximo(java.util.ArrayList<Vencimientos.Proximo> proximos,
@@ -3041,8 +3839,15 @@ public class PruebaPagos {
         return noa;
     }
 
-    private static String crearComprobanteDeEjemplo() {
-        try {
+    // Apunta la persistencia a un directorio temporal para que la demo no toque datos/ real.
+    private static void apuntarADirectorioTemporal() {
+        File directorio = new File(System.getProperty("java.io.tmpdir"),
+                "casaamarilla-demo-" + System.nanoTime());
+        directorio.mkdirs();
+        System.setProperty("casaamarilla.datos", directorio.getAbsolutePath());
+    }
+
+    private static String crearComprobanteDeEjemplo() {        try {
             File archivo = File.createTempFile("comprobante-yape-", ".png");
             archivo.deleteOnExit();
             BufferedImage imagen = new BufferedImage(360, 200, BufferedImage.TYPE_INT_RGB);

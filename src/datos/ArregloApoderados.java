@@ -3,9 +3,7 @@ package datos;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
@@ -15,8 +13,6 @@ import modelo.ReglaDominioException;
 import modelo.Validaciones;
 
 public class ArregloApoderados {
-
-    private static final String SEPARADOR = ";";
 
     private ArrayList<Apoderado> apoderados;
 
@@ -58,15 +54,15 @@ public class ArregloApoderados {
     }
 
     public void grabar(String ruta) throws IOException {
-        try (PrintWriter salida = new PrintWriter(
-                new FileWriter(ruta, StandardCharsets.UTF_8))) {
-            for (Apoderado apoderado : apoderados) {
-                salida.println(apoderado.getDni() + SEPARADOR
-                        + apoderado.getNombres() + SEPARADOR
-                        + apoderado.getApellidos() + SEPARADOR
-                        + apoderado.getCelular());
-            }
+        ArrayList<String> lineas = new ArrayList<String>();
+        for (Apoderado apoderado : apoderados) {
+            lineas.add(EscrituraCsv.unir(
+                    apoderado.getDni(),
+                    apoderado.getNombres(),
+                    apoderado.getApellidos(),
+                    apoderado.getCelular()));
         }
+        EscrituraCsv.escribir(ruta, lineas);
     }
 
     public void cargar(String ruta) throws IOException {
@@ -81,13 +77,24 @@ public class ArregloApoderados {
             int numeroLinea = 0;
             while ((linea = entrada.readLine()) != null) {
                 numeroLinea++;
-                String[] campos = linea.split(SEPARADOR, -1);
+                String[] campos = EscrituraCsv.dividir(linea);
                 if (campos.length != 4) {
                     throw new IOException(ruta + ", línea " + numeroLinea
                             + ": se esperaban 4 campos y hay " + campos.length + ".");
                 }
                 try {
-                    leidos.add(new Apoderado(campos[0], campos[1], campos[2], campos[3]));
+                    Apoderado apoderado = new Apoderado(
+                            EscrituraCsv.campoALeer(campos[0]),
+                            EscrituraCsv.campoALeer(campos[1]),
+                            EscrituraCsv.campoALeer(campos[2]),
+                            EscrituraCsv.campoALeer(campos[3]));
+                    if (buscarEn(leidos, apoderado.getDni()) != null) {
+                        throw new IOException(ruta + ", línea " + numeroLinea
+                                + ": DNI de apoderado duplicado " + apoderado.getDni() + ".");
+                    }
+                    leidos.add(apoderado);
+                } catch (IOException e) {
+                    throw e;
                 } catch (ReglaDominioException e) {
                     throw new IOException(ruta + ", línea " + numeroLinea + ": "
                             + e.getMessage());
@@ -95,5 +102,14 @@ public class ArregloApoderados {
             }
         }
         apoderados = leidos;
+    }
+
+    private static Apoderado buscarEn(ArrayList<Apoderado> lista, String dni) {
+        for (Apoderado apoderado : lista) {
+            if (apoderado.getDni().equals(dni)) {
+                return apoderado;
+            }
+        }
+        return null;
     }
 }

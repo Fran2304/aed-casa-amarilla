@@ -1,5 +1,6 @@
 package modelo;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 
@@ -37,6 +38,36 @@ public class Solicitud {
         this.estado = EstadoSolicitud.EN_ESPERA_SIN_PAGO;
         this.ofertas = new ArrayList<Oferta>();
         this.inicioCicloOfertas = 0;
+    }
+
+    // Reconstruye una solicitud desde el estado persistido, sin exigir el orden de las
+    // transiciones (issue #33): asigna directamente el estado guardado y su auditoría.
+    public static Solicitud reconstruir(String codigo, Alumno alumno, Aula aula,
+            LocalDateTime fechaRegistro, EstadoSolicitud estado, LocalDateTime fechaIngresoCola,
+            LocalDateTime fechaHabilitacion, LocalDateTime vencimientoHabilitacionOriginal,
+            LocalDateTime fechaConfirmacionInscripcion, LocalDateTime fechaCancelacion,
+            String motivoCancelacion, String responsableCancelacion,
+            LocalDate inscripcionConfirmadaEl, ArrayList<Oferta> ofertas,
+            int inicioCicloOfertas) throws DatoInvalidoException {
+        if (codigo == null || alumno == null || aula == null || fechaRegistro == null
+                || estado == null) {
+            throw new DatoInvalidoException("Datos de solicitud incompletos para reconstruir.");
+        }
+        Solicitud solicitud = new Solicitud(codigo, alumno, aula, fechaRegistro);
+        solicitud.estado = estado;
+        solicitud.fechaIngresoCola = fechaIngresoCola;
+        solicitud.fechaHabilitacion = fechaHabilitacion;
+        solicitud.vencimientoHabilitacionOriginal = vencimientoHabilitacionOriginal;
+        solicitud.fechaConfirmacionInscripcion = fechaConfirmacionInscripcion;
+        solicitud.fechaCancelacion = fechaCancelacion;
+        solicitud.motivoCancelacion = motivoCancelacion;
+        solicitud.responsableCancelacion = responsableCancelacion;
+        if (inscripcionConfirmadaEl != null) {
+            solicitud.expediente = new ExpedienteDocumentos(inscripcionConfirmadaEl);
+        }
+        solicitud.ofertas = ofertas == null ? new ArrayList<Oferta>() : new ArrayList<Oferta>(ofertas);
+        solicitud.inicioCicloOfertas = inicioCicloOfertas;
+        return solicitud;
     }
 
     public void cambiarEstado(EstadoSolicitud nuevo) throws TransicionInvalidaException {
@@ -268,5 +299,9 @@ public class Solicitud {
 
     public ArrayList<Oferta> getOfertas() {
         return new ArrayList<Oferta>(ofertas);
+    }
+
+    public int getInicioCicloOfertas() {
+        return inicioCicloOfertas;
     }
 }
