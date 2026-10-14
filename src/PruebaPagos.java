@@ -78,6 +78,7 @@ public class PruebaPagos {
     }
 
     private static void ejecutarAserciones() throws Exception {
+        probarGeneradorDemoProfesor();
         probarMatriculaActivaVigenteYVencida();
         probarColasConEmpates();
         probarRechazosAtomicos();
@@ -2746,6 +2747,188 @@ public class PruebaPagos {
         comprobar(matriculaBorde.getEstado() == EstadoMatricula.CANCELADA
                 && Vacantes.calcular(aulaBorde, matriculasBorde) == 1,
                 "borde pre-vacantes barre matrícula antes de calcular la cola");
+    }
+
+    private static void probarGeneradorDemoProfesor() throws Exception {
+        java.nio.file.Path raiz = Files.createTempDirectory("casaamarilla-demo-test");
+        LocalDateTime base = LocalDateTime.of(2026, 10, 12, 0, 5);
+        try {
+            java.nio.file.Path normales = raiz.resolve("datos-normales.csv");
+            Files.writeString(normales, "datos ajenos que deben conservarse");
+            java.nio.file.Path padre = raiz.resolve("demo-profesor");
+            java.nio.file.Path primera = GenerarDatosDemo.generar(padre, base);
+            java.util.Map<java.nio.file.Path, byte[]> originales = new java.util.HashMap<>();
+            try (var archivos = Files.walk(primera)) {
+                for (var ruta : archivos.filter(Files::isRegularFile).toList()) {
+                    originales.put(ruta, Files.readAllBytes(ruta));
+                }
+            }
+            // Mismo instante: la unicidad no depende de la resolución del reloj.
+            java.nio.file.Path segunda = GenerarDatosDemo.generar(padre, base);
+            comprobar(!primera.equals(segunda) && primera.getParent().equals(padre)
+                    && segunda.getParent().equals(padre), "demo: carpetas exclusivas bajo el padre");
+            for (var archivo : originales.entrySet()) {
+                comprobar(java.util.Arrays.equals(archivo.getValue(), Files.readAllBytes(archivo.getKey())),
+                        "demo: segunda ejecución no modifica " + archivo.getKey().getFileName());
+            }
+            comprobar(Files.readString(normales).equals("datos ajenos que deben conservarse"),
+                    "demo: datos normales intactos");
+            comprobar(originales.size() == 17, "demo: once CSV y seis comprobantes persistentes");
+            verificarDemoRecargada(primera, base);
+            verificarDemoRecargada(segunda, base);
+            java.nio.file.Path tercera = GenerarDatosDemo.generar(padre, base.plusDays(1).plusHours(12));
+            verificarDemoRecargada(tercera, base.plusDays(1).plusHours(12));
+            // Los comprobantes de la primera siguen disponibles tras generar y recargar las otras.
+            verificarDemoRecargada(primera, base);
+        } finally {
+            Reloj.porDefecto().restablecer();
+            try (var rutas = Files.walk(raiz)) {
+                for (var ruta : rutas.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                    Files.delete(ruta);
+                }
+            }
+        }
+    }
+
+    private static void verificarDemoRecargada(java.nio.file.Path carpeta, LocalDateTime base)
+            throws Exception {
+        String[] nombres = {"apoderados", "alumnos", "vinculos", "aulas", "cuotas",
+                "solicitudes", "documentos", "ofertas", "matriculas", "entrevistas", "pagos"};
+        for (String nombre : nombres) {
+            comprobar(Files.isRegularFile(carpeta.resolve(nombre + ".csv")),
+                    "demo: CSV " + nombre + " generado");
+        }
+        Almacen almacen = new Almacen(carpeta.toFile());
+        almacen.cargar();
+        comprobar(almacen.getAlumnos().cantidad() == 5 && almacen.getApoderados().cantidad() == 5
+                && almacen.getSolicitudes().listar().size() == 5
+                && almacen.getMatriculas().listar().size() == 3
+                && almacen.getEntrevistas().listar().size() == 3
+                && almacen.getPagos().listar().size() == 6, "demo: recarga de todas las entidades");
+        comprobar(almacen.getCuotas().getCuotaInscripcion() == 180
+                && almacen.getCuotas().getCuotaMatricula() == 850, "demo: importes acordados");
+        Aula tulipanes = almacen.getAulas().buscar("AUL-02");
+        Aula girasoles = almacen.getAulas().buscar("AUL-01");
+        comprobar(tulipanes.getEdadRequerida() == 3 && tulipanes.getCapacidad() == 18
+                && girasoles.getEdadRequerida() == 4 && girasoles.getCapacidad() == 20,
+                "demo: edades y capacidades sin cambios");
+        Reloj reloj = new Reloj();
+        reloj.fijar(base);
+        Vencimientos.barrer(reloj, almacen.getAulas(), almacen.getSolicitudes(),
+                almacen.getMatriculas(), almacen.getPagos(), almacen.getCuotas());
+        java.util.Set<String> alumnos = new java.util.HashSet<>();
+        java.util.Set<String> apoderados = new java.util.HashSet<>();
+        for (Solicitud solicitud : almacen.getSolicitudes().listar()) {
+            int caso = Integer.parseInt(solicitud.getAlumno().getDni().substring(7));
+            comprobar(alumnos.add(solicitud.getAlumno().getDni())
+                    && apoderados.add(solicitud.getAlumno().getPrincipal().getDni()),
+                    "demo: identidades distintas");
+            comprobar(solicitud.getAula() == tulipanes
+                    && tulipanes.admiteEdad(util.FechasAdmision.edadAlCorte(
+                            solicitud.getAlumno().getFechaNacimiento()))
+                    && solicitud.getAlumno() == almacen.getAlumnos().buscarPorDni(
+                            solicitud.getAlumno().getDni())
+                    && solicitud.getAlumno().getApoderados().size() == 1
+                    && solicitud.getAlumno().getPrincipal() == almacen.getApoderados().buscar(
+                            solicitud.getAlumno().getPrincipal().getDni()),
+                    "demo: relaciones y apoderado principal del caso " + caso);
+            comprobar(!solicitud.getFechaRegistro().isAfter(base), "demo: registro no futuro");
+            if (caso == 1) {
+                comprobar(solicitud.getEstado() == EstadoSolicitud.HABILITADA_PARA_PAGO
+                        && solicitud.getFechaHabilitacion().plusHours(48).equals(
+                                solicitud.getVencimientoHabilitacionOriginal())
+                        && !solicitud.habilitacionVencida(base)
+                        && !almacen.getPagos().inscripcionConfirmada(solicitud),
+                        "demo: caso habilitado conserva 48 horas vigentes");
+                int cantidadPagos = almacen.getPagos().listar().size();
+                esperarFallo(ReglaDominioException.class, () -> Cobros.confirmarInscripcion(
+                        solicitud, 1, MedioPago.EFECTIVO, "", base,
+                        carpeta.resolve("comprobantes/caso-2-inscripcion.png").toString(), base,
+                        almacen.getSolicitudes(), almacen.getMatriculas(), almacen.getPagos(),
+                        almacen.getCuotas()), "demo: importe incorrecto rechazado");
+                esperarFallo(modelo.SolicitudDuplicadaException.class,
+                        () -> almacen.getSolicitudes().registrar(solicitud.getAlumno(), tulipanes),
+                        "demo: solicitud activa duplicada rechazada");
+                comprobar(almacen.getPagos().listar().size() == cantidadPagos
+                        && almacen.getSolicitudes().listar().size() == 5
+                        && solicitud.getEstado() == EstadoSolicitud.HABILITADA_PARA_PAGO,
+                        "demo: rechazos sin cambios parciales");
+                continue;
+            }
+            comprobar(almacen.getPagos().inscripcionConfirmada(solicitud)
+                    && solicitud.getExpediente().getDocumentos().size() == 4
+                    && solicitud.getExpediente().fechaLimiteEntrega().equals(
+                            solicitud.getFechaConfirmacionInscripcion().toLocalDate().plusDays(7)),
+                    "demo: inscripción y plazo documental originales del caso " + caso);
+            if (caso == 2) {
+                var observado = solicitud.getExpediente().getDocumento(modelo.TipoDocumento.CARNE_VACUNAS);
+                comprobar(solicitud.getEstado() == EstadoSolicitud.EN_DOCUMENTACION
+                        && observado.getEstado() == modelo.EstadoDocumento.OBSERVADO
+                        && observado.fechaLimiteCorreccion().equals(
+                                observado.getFechaHoraComunicacion().toLocalDate().plusDays(7))
+                        && !observado.correccionVencida(base.toLocalDate())
+                        && solicitud.getExpediente().pendientesDeValidar().size() == 1,
+                        "demo: observación vigente y único documento pendiente");
+                esperarFallo(ReglaDominioException.class,
+                        () -> almacen.getEntrevistas().agendar(solicitud, solicitud.getExpediente(),
+                                base, new java.util.ArrayList<>(java.util.List.of("Personal DEMO")),
+                                "Personal DEMO"), "demo: entrevista bloqueada por observación");
+                comprobar(almacen.getEntrevistas().listar().size() == 3,
+                        "demo: entrevista rechazada no registrada");
+                continue;
+            }
+            Matricula matricula = almacen.getMatriculas().vigenteDe(solicitud);
+            var entrevista = almacen.getEntrevistas().buscarDe(solicitud);
+            comprobar(solicitud.getEstado() == EstadoSolicitud.EN_ESPERA_FAVORABLE
+                    && solicitud.getExpediente().todosValidados() && solicitud.tieneOfertaAceptada()
+                    && entrevista.getSolicitud() == solicitud && entrevista.isRealizada()
+                    && entrevista.getResultado() == modelo.ResultadoEntrevista.FAVORABLE
+                    && matricula.getSolicitud() == solicitud
+                    && matricula.getFechaHoraCreacion().plusHours(72).equals(
+                            matricula.getVencimientoPagoOriginal()), "demo: trayectoria completa " + caso);
+            comprobar(matricula.getEstado() == (caso == 3 ? EstadoMatricula.PENDIENTE_PAGO
+                    : EstadoMatricula.ACTIVA) && (caso != 3 || base.isBefore(
+                            matricula.getVencimientoPagoOriginal()))
+                    && almacen.getPagos().matriculaConfirmada(matricula) == (caso != 3),
+                    "demo: reserva vigente y dos éxitos completos");
+        }
+        java.util.Set<String> operaciones = new java.util.HashSet<>();
+        for (Pago pago : almacen.getPagos().listar()) {
+            comprobar(pago.estaConfirmado() && operaciones.add(pago.getNumeroOperacion())
+                    && pago.getSolicitud() == almacen.getSolicitudes().buscar(pago.getSolicitud().getCodigo())
+                    && pago.getMontoPagado() == (pago.getConcepto() == ConceptoPago.INSCRIPCION ? 180 : 850),
+                    "demo: pagos distintos, importes y relaciones");
+            comprobar(!pago.getFechaHoraOperacion().isBefore(pago.getSolicitud().getFechaRegistro())
+                    && !pago.getFechaHoraRegistro().isBefore(pago.getFechaHoraOperacion())
+                    && !pago.getFechaHoraRegistro().isAfter(base), "demo: cronología de pagos válida");
+            if (pago.getConcepto() == ConceptoPago.MATRICULA) {
+                comprobar(pago.getMatricula() == almacen.getMatriculas().vigenteDe(pago.getSolicitud())
+                        && !pago.getFechaHoraOperacion().isBefore(pago.getMatricula().getFechaHoraCreacion())
+                        && pago.getFechaHoraRegistro().isBefore(pago.getMatricula().getVencimientoPagoOriginal()),
+                        "demo: pago vinculado a su matrícula dentro de las 72 horas originales");
+            } else {
+                comprobar(pago.getMatricula() == null && pago.getFechaHoraRegistro().isBefore(
+                        pago.getSolicitud().getVencimientoHabilitacionOriginal()),
+                        "demo: inscripción sin matrícula dentro de las 48 horas originales");
+            }
+            java.nio.file.Path ruta = java.nio.file.Path.of(pago.getRutaComprobantePago());
+            comprobar(ruta.startsWith(carpeta) && Files.isRegularFile(ruta)
+                    && ImageIO.read(ruta.toFile()) != null, "demo: comprobante persistente legible");
+        }
+        comprobar(Vacantes.calcular(tulipanes, almacen.getMatriculas()) == 15
+                && Vacantes.calcular(girasoles, almacen.getMatriculas()) == 20
+                && Turnos.ordenPorPrioridad(girasoles, almacen.getSolicitudes(),
+                        almacen.getMatriculas()).isEmpty(), "demo: tres reservas y Girasoles libre");
+        java.util.Map<String, byte[]> antes = new java.util.HashMap<>();
+        for (String nombre : nombres) {
+            antes.put(nombre, Files.readAllBytes(carpeta.resolve(nombre + ".csv")));
+        }
+        almacen.grabar();
+        for (String nombre : nombres) {
+            comprobar(java.util.Arrays.equals(antes.get(nombre),
+                    Files.readAllBytes(carpeta.resolve(nombre + ".csv"))),
+                    "demo: recarga y motor sin pérdida de información en " + nombre);
+        }
     }
 
     private static void probarPersistenciaIdaYVuelta() throws Exception {
