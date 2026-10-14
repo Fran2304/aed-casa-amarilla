@@ -168,6 +168,9 @@ de negocio de los vencimientos dentro de las próximas 24 horas, sin panel de in
 - El número de operación es obligatorio excepto para efectivo.
 - Cada pago conserva el monto aplicado al registrarse, aunque luego cambie la configuración.
 - Todo pago guarda el comprobante que presenta el apoderado (captura o voucher de la operación) y no se confirma sin él. No es el número de comprobante que el nido emite después de confirmar (§4.3). Se guarda la ruta del archivo; copiarlo a una carpeta propia queda para la persistencia.
+  **Resuelto (issue #82, solo demo):** el generador escribe PNG ficticios «DEMO — SIN VALOR»
+  dentro de cada carpeta de demo y conserva sus rutas absolutas. No usa archivos personales
+  ni `deleteOnExit`; esto no cambia la gestión de comprobantes de producción.
 - Todo pago se relaciona con una solicitud. El pago de matrícula también se relaciona con su matrícula; el de inscripción ocurre antes de crearla.
 - Revisar vencimientos al abrir la aplicación de escritorio y antes de operaciones que dependen de vacantes. El cierre de la aplicación no suspende los plazos.
   **Resuelto (issue #33):** al abrir, se cargan primero todas las entidades desde archivos
@@ -285,5 +288,59 @@ Decisiones de `PanelColas` acordadas en la revisión del issue (2026-10-11). No 
 
 ### 9.5. Fuera de alcance
 
-- **Sin datos precargados.** La app arranca vacía. Precargar un ejemplo con plazos vigentes obliga a usar fechas relativas al reloj, choca con la carga desde archivo de #33 y se rompe al cambiar las reglas provisorias de §6 ítem 2. Si se quiere, va en un issue propio de `datos`.
+- ~~**Sin datos precargados.** La app arranca vacía. Precargar un ejemplo con plazos vigentes obliga a usar fechas relativas al reloj, choca con la carga desde archivo de #33 y se rompe al cambiar las reglas provisorias de §6 ítem 2. Si se quiere, va en un issue propio de `datos`.~~
+  **Resuelto (issues #33 y #82):** `Main` carga el almacenamiento elegido, sin generar
+  ejemplos. La demo opcional se genera aparte y se abre explícitamente según §10.
 - **Sin pruebas automáticas.** La pantalla se verifica a mano en la GUI. `java -cp bin PruebaPagos` abre la ventana con casos cargados (SOL-1001 a SOL-1011) que también se ven en Colas.
+
+## 10. Demo opcional para el profesor (issue #82)
+
+**Resuelto:** `GenerarDatosDemo` prepara cinco casos ficticios para la aplicación real;
+no se llama desde `Main` ni modifica pantallas, cuotas, capacidades o reglas de negocio.
+Cada ejecución crea una carpeta exclusiva bajo `datos/demo-profesor/`, con los once CSV
+existentes y seis comprobantes PNG persistentes. No borra ni sobrescribe otras carpetas.
+Las fechas son relativas a la generación, con cronología válida y plazos originales de
+48 horas, 72 horas y 7 días. El reloj de `Main` no se congela: cerrar la app no pausa plazos.
+
+### 10.1. Generar y abrir
+
+Desde la raíz, configurar `JAVA_HOME` y `PATH` con JDK 21 y compilar:
+
+```sh
+find src -name "*.java" > /tmp/casaamarilla-sources.txt
+javac -encoding UTF-8 -Xlint:none -d bin @/tmp/casaamarilla-sources.txt
+java -Djava.awt.headless=true -cp bin GenerarDatosDemo
+```
+
+El generador imprime la ruta absoluta y el comando para abrirla:
+`java -Dcasaamarilla.datos="<carpeta-generada>" -cp bin Main`.
+Cerrar y reabrir con **esa misma ruta** conserva los datos y comprobantes; mover o borrar
+la carpeta invalida las rutas de los comprobantes. Generar de nuevo antes de una exposición
+posterior si ya vencieron los plazos; no modificar ni reiniciar los originales.
+
+### 10.2. Recorrido de exposición
+
+Todos los casos preparados están en Tulipanes (3 años, capacidad 18). Identificarlos por
+el nombre «Alumno DEMO N», no por el orden de códigos de solicitud.
+
+| Caso | Mostrar en la aplicación |
+|---|---|
+| 1 | Habilitada para pago vigente: intentar inscripción por importe distinto de 180 y una solicitud activa duplicada; ambos rechazos conservan el estado. |
+| 2 | Inscripción confirmada, tres documentos validados y carné de vacunas observado con corrección vigente; mostrar el pendiente y el bloqueo de entrevista. |
+| 3 | Cuatro documentos validados, entrevista favorable y oferta aceptada; matrícula pendiente vigente, con vacante reservada y pago de 850 aún pendiente. |
+| 4 y 5 | Dos alumnos distintos con matrículas activas, ambos pagos confirmados y comprobantes ficticios legibles; documentación, entrevistas y ofertas completas. |
+
+Girasoles queda sin solicitudes ni matrículas (4 años, capacidad 20). Para el happy path
+manual, registrar un alumno nuevo de 4 años al 31/03/2027 (por ejemplo, nacimiento
+15/06/2022) y su apoderado principal; crear y habilitar solicitud, confirmar inscripción
+por 180 con comprobante ficticio, entregar y validar los cuatro documentos, registrar
+entrevista realizada favorable, aceptar oferta y confirmar matrícula por 850. No se
+precarga este recorrido. Usar identidades y números de operación distintos de los casos.
+
+### 10.3. Comprobaciones
+
+`java -Djava.awt.headless=true -Dopencode.test.logs=<directorio-absoluto-existente> -cp bin PruebaPagos`
+incluye generación con fechas fijas,
+recarga sin pérdida, relaciones, estados, plazos, comprobantes e aislamiento de carpetas.
+Estas pruebas no acreditan apariencia ni interacción gráfica: comprobar manualmente
+el recorrido anterior, cierre y reapertura con `Main`, e informar esa comprobación aparte.
